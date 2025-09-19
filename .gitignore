@@ -1,0 +1,54 @@
+# ======================
+# Python
+# ======================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Bytecode
+*.pyo
+*.pyd
+
+# Logs e temporários
+*.log
+*.pot
+*.pyc
+*.sqlite3
+
+# Configurações locais
+*.env
+.env.*
+
+# ======================
+# macOS
+# ======================
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# ======================
+# IDEs / Editores
+# ======================
+# VSCode
+.vscode/
+
+# JetBrains (PyCharm, IntelliJ, etc.)
+.idea/
+*.iml
+
+# Cursor AI Editor
+.cursor/
+
+# ======================
+# Outros
+# ======================
+# Arquivos de backup
+*~
