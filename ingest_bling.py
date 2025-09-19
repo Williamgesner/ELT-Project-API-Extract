@@ -100,11 +100,12 @@ base_url = "https://api.bling.com.br/Api/v3/contatos"
 # =====================================================
 
 # Definindo a função de extração e fazendo a requisição
-def extract_dados_bling_paginado(limite_por_pagina=100, delay_entre_requests=0.5): # Extrai todos os contatos da API Bling usando paginação
+def extract_dados_bling_paginado(limite_por_pagina=100, delay_entre_requests=0.5, max_paginas=1000): # Extrai todos os contatos da API Bling usando paginação
     """
     Args   
         limite_por_pagina (int): Número máximo de registros por página (máx 100)
         delay_entre_requests (float): Tempo de espera entre requests em segundos
+        max_paginas (int): Limite máximo de páginas para evitar loops infinitos
 
     Returns:
         list: Lista com todos os contatos extraídos
@@ -112,10 +113,11 @@ def extract_dados_bling_paginado(limite_por_pagina=100, delay_entre_requests=0.5
     todos_contatos = []  # Lista para armazenar todos os contatos
     pagina_atual = 1     # Começamos da página 1
     total_paginas = None # Vamos descobrir isso na primeira requisição
+    contatos_unicos = set() # Para evitar duplicatas
     
     print(f"Iniciando extração paginada...")
 
-    while True: # Loop infinito que vai quebrar quando não ouver mais páginas
+    while pagina_atual <= max_paginas: # Proteção contra loop infinito
         # Parâmetros para requisição
         params = {
             "limite": limite_por_pagina,
@@ -135,6 +137,12 @@ def extract_dados_bling_paginado(limite_por_pagina=100, delay_entre_requests=0.5
             # Convertendo a resposta para JSON
             dados = response.json()
 
+            # Debug: mostrar estrutura da resposta na primeira página
+            if pagina_atual == 1:
+                print(f"Estrutura da resposta: {list(dados.keys())}")
+                print(f"Total informado pela API: {dados.get('total', 'N/A')}")
+                print(f"Total de páginas informado: {dados.get('total_pages', 'N/A')}")
+
             # Na primeira requisição, capturamos o total de páginas
             if total_paginas is None:
                 total_paginas = dados.get("total_pages", 1)
@@ -150,13 +158,25 @@ def extract_dados_bling_paginado(limite_por_pagina=100, delay_entre_requests=0.5
                 print(f"Página {pagina_atual} vazia. Finalizando extração.")
                 break
 
-            # Adicionando os contatos da página atual na lista principal
-            todos_contatos.extend(contatos_pagina) # Extend é para adicionar os contatos da página atual na lista principal
-            print(f"Extraídos {len(contatos_pagina)} contatos da página {pagina_atual}")
+            # Verificar se temos contatos novos ou se estamos vendo repetidos
+            contatos_novos = 0
+            for contato in contatos_pagina:
+                if contato['id'] not in contatos_unicos:
+                    contatos_unicos.add(contato['id'])
+                    todos_contatos.append(contato)
+                    contatos_novos += 1
+
+            print(f"Extraídos {len(contatos_pagina)} contatos da página {pagina_atual} ({contatos_novos} novos)")
             
-            # Se chegamos na última página, paramos o loop
-            if pagina_atual >= total_paginas:
-                print(f"Última página ({total_paginas}) processada. Finalizando.")
+            # Se não encontramos contatos novos, provavelmente chegamos ao fim
+            if contatos_novos == 0:
+                print(f"Nenhum contato novo na página {pagina_atual}. Finalizando.")
+                break
+            
+            # Se chegamos na última página OFICIAL, mas ainda há dados, continuamos
+            # (algumas APIs pode ter isso - Contigência para garantir que estamos pegando todos os dados)
+            if pagina_atual >= total_paginas and len(contatos_pagina) < limite_por_pagina:
+                print(f"Última página oficial ({total_paginas}) processada e com menos que {limite_por_pagina} registros. Finalizando.")
                 break
 
             # Incrementamos para a próxima página
@@ -177,49 +197,79 @@ def extract_dados_bling_paginado(limite_por_pagina=100, delay_entre_requests=0.5
             break
     
     print(f"Extração finalizada. Total de contatos coletados: {len(todos_contatos)}")
+    print(f"Páginas processadas: {pagina_atual - 1}")
     return todos_contatos
 
 # =====================================================
 # 5. FUNÇÃO PARA SALVAR NO POSTGRES
 # =====================================================
 
-# Função para salvar os dados no Postgres
 def salvar_dados_postgres_bulk(lista_dados): # Salva múltiplos contatos no Postgres de forma eficiente usando bulk insert
     
     if not lista_dados:
         print("Nenhum dado para salvar.")
-        return
+        return {"inseridos": 0, "atualizados": 0, "total": 0}
     
     session = Session()
+    stats = {"inseridos": 0, "atualizados": 0, "total": len(lista_dados)}
 
     try:
+        # Verificando quais registros já existem
+        bling_ids_existentes = set()
+        existing_records = session.query(ContatoRaw.bling_id).all()
+        for record in existing_records:
+            bling_ids_existentes.add(record.bling_id)
+        
+        print(f"Encontrados {len(bling_ids_existentes)} registros existentes no banco")
+
         # Para cada dado na lista de dados, vamos salvar no Postgres
         for dados in lista_dados:
+            bling_id = dados['bling_id']
+            
+            # Verificar se é inserção ou atualização
+            if bling_id in bling_ids_existentes:
+                stats["atualizados"] += 1
+            else:
+                stats["inseridos"] += 1
+            
             stmt = insert(ContatoRaw).values(
-                bling_id=dados['bling_id'],
-                dados_json=dados['dados_json']
+                bling_id=bling_id,
+                dados_json=dados['dados_json'],
+                data_ingestao=datetime.now(),
+                status_processamento='pendente'
             )
             
-            # Se já existir o mesmo bling_id → atualiza o JSON
+            # Se já existir o mesmo bling_id → atualiza o JSON e data_ingestao
             stmt = stmt.on_conflict_do_update(
                 index_elements=['bling_id'],  # chave única
-                set_={'dados_json': stmt.excluded.dados_json}
+                set_={
+                    'dados_json': stmt.excluded.dados_json,
+                    'data_ingestao': stmt.excluded.data_ingestao,
+                    'status_processamento': 'pendente'  # Reset status para reprocessar
+                }
             )
             
             session.execute(stmt)
 
         session.commit()
-        print(f"Upsert concluído! Total de {len(lista_dados)} registros processados.")
+
+        print(f"✅ Upsert concluído!")
+        print(f"📊 Estatísticas:")
+        print(f"   • Novos registros inseridos: {stats['inseridos']}")
+        print(f"   • Registros atualizados: {stats['atualizados']}")
+        print(f"   • Total processado: {stats['total']}")
+        
+        return stats
+        
     except Exception as e:
         session.rollback()
-        print(f"Erro ao salvar dados: {e}")
+        print(f"❌ Erro ao salvar dados: {e}")
         raise
     finally:
         session.close()  # Sempre fechar a sessão do banco de dados
 
-
 # =====================================================
-# 6. EXECUÇÃO DO SCRIPT (adicione no final)
+# 6. EXECUÇÃO DO SCRIPT 
 # =====================================================
 
 # Cria o schema se não existir
@@ -238,8 +288,9 @@ if __name__ == "__main__": # Se o arquivo for executado diretamente, não execut
         # Extrai TODOS os dados da API usando paginação
         print("Extraindo todos os contatos da API...")
         todos_contatos = extract_dados_bling_paginado(
-            limite_por_pagina=100,      # Máximo permitido pela API
-            delay_entre_requests=0.5    # Meio segundo entre requests
+            limite_por_pagina=100,     # Máximo permitido pela API
+            delay_entre_requests=0.5,   # Meio segundo entre requests
+            max_paginas=1000           # Limite de segurança
         )
 
         if not todos_contatos:
@@ -258,11 +309,10 @@ if __name__ == "__main__": # Se o arquivo for executado diretamente, não execut
             
             # Salvar todos de uma vez (bulk)
             print("Salvando todos os contatos no banco Postgres...")
+            stats = salvar_dados_postgres_bulk(dados_para_salvar)
 
-            salvar_dados_postgres_bulk(dados_para_salvar)
-
-        print("Script executado com sucesso!")
+        print("✅ Script executado com sucesso!")
         
     except Exception as e:
-        print(f"Erro ao executar o script: {e}")
+        print(f"❌ Erro ao executar o script: {e}")
         raise
