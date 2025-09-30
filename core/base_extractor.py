@@ -65,9 +65,9 @@ class BaseExtractor:
 # =======================================================  
 
     # Definindo a função de extração e fazendo a requisição
-    def extract_dados_bling_paginado(self, limite_por_pagina=100, delay_entre_requests=0.35, max_paginas=1000, max_tentativas=3): # Extrai todos os contatos da API Bling usando paginação
+    def extract_dados_bling_paginado(self, limite_por_pagina=100, delay_entre_requests=0.35, max_paginas=1000, max_tentativas=3): # Extrai todos os registros da API Bling usando paginação
         """
-        Extrai todos os contatos da API Bling usando paginação
+        Extrai todos os dados de qualquer endpoint da API Bling usando paginação
         PARA COMPLETAMENTE se não conseguir obter uma página após 3 tentativas
         
         Args   
@@ -77,12 +77,12 @@ class BaseExtractor:
             max_tentativas (int): Número de tentativas por página antes de parar tudo
 
         Returns:
-            list: Lista com todos os contatos extraídos
+            list: Lista com todos os dados de cada endpoint extraídos
         """
-        todos_contatos = []     # Lista para armazenar todos os contatos
-        pagina_atual = 1        # Começamos da página 1
-        total_paginas = None    # Vamos descobrir isso na primeira requisição
-        contatos_unicos = set() # Para evitar duplicatas
+        todos_registros = []      # Lista genérica para armazenar todos os registros
+        pagina_atual = 1          # Começamos da página 1
+        total_paginas = None      # Vamos descobrir isso na primeira requisição
+        registros_unicos = set()   # Para evitar duplicatas
         
         print(f"Iniciando extração paginada...")
         print(f"Configurações: delay={delay_entre_requests}s, max_tentativas={max_tentativas}")
@@ -172,31 +172,31 @@ class BaseExtractor:
                 print(f"Total de páginas: {total_paginas}")
                 print(f"Total de registros: {total_registros}")
 
-            # Extraindo os contatos da página atual
-            contatos_pagina = dados.get("data", [])
+            # Extraindo os registros da página atual
+            registros_pagina = dados.get("data", [])
             
-            # Se não há mais contatos, paramos o loop
-            if not contatos_pagina:
+            # Se não há mais registros, paramos o loop
+            if not registros_pagina:
                 print(f"Página {pagina_atual} vazia. Finalizando extração.")
                 break
 
-            # Verificar se temos contatos novos ou se estamos vendo repetidos
-            contatos_novos = 0
-            for contato in contatos_pagina:
-                if contato['id'] not in contatos_unicos:
-                    contatos_unicos.add(contato['id'])
-                    todos_contatos.append(contato)
-                    contatos_novos += 1
+            # Verificar se temos registro novos ou se estamos vendo repetidos
+            registros_novos = 0
+            for registro in registros_pagina:
+                if registro['id'] not in registros_unicos:
+                    registros_unicos.add(registro['id'])
+                    todos_registros.append(registro)
+                    registros_novos += 1
 
-            print(f"Extraídos {len(contatos_pagina)} contatos da página {pagina_atual} ({contatos_novos} novos)")
+            print(f"Extraídos {len(registros_pagina)} registro da página {pagina_atual} ({registros_novos} novos)")
             
-            # Se não encontramos contatos novos, provavelmente chegamos ao fim
-            if contatos_novos == 0:
-                print(f"Nenhum contato novo na página {pagina_atual}. Finalizando.")
+            # Se não encontramos registro novos, provavelmente chegamos ao fim
+            if registros_novos == 0:
+                print(f"Nenhum registro novo na página {pagina_atual}. Finalizando.")
                 break
             
             # Se chegamos na última página OFICIAL, mas ainda há dados, continuamos
-            if pagina_atual >= total_paginas and len(contatos_pagina) < limite_por_pagina:
+            if pagina_atual >= total_paginas and len(registros_pagina) < limite_por_pagina:
                 print(f"Última página oficial ({total_paginas}) processada e com menos que {limite_por_pagina} registros. Finalizando.")
                 break
 
@@ -207,15 +207,15 @@ class BaseExtractor:
             if delay_entre_requests > 0:
                 time.sleep(delay_entre_requests)
         
-        print(f"Extração finalizada com sucesso. Total de contatos coletados: {len(todos_contatos)}")
+        print(f"Extração finalizada com sucesso. Total de registro coletados: {len(todos_registros)}")
         print(f"Páginas processadas: {pagina_atual - 1}")
-        return todos_contatos   
+        return todos_registros   
 
 # =============================================================
 # 4. FUNÇÃO PARA SALVAR NO POSTGRES (COMPARAR ANTES DE SALVAR)
 # =============================================================
 
-    def salvar_dados_postgres_bulk(self, lista_dados): # Salva múltiplos contatos no Postgres de forma eficiente usando bulk insert
+    def salvar_dados_postgres_bulk(self, lista_dados): # Salva múltiplos registros no Postgres de forma eficiente usando bulk insert
         """
         Salva dados usando comparação inteligente:
         - Novos registros: INSERT
@@ -261,7 +261,7 @@ class BaseExtractor:
                 
                 # Mostrar progresso a cada 1000 registros
                 if (i + 1) % 1000 == 0:
-                    print(f"   Processados {i + 1}/{len(lista_dados)} registros...")
+                    print(f"Processados {i + 1}/{len(lista_dados)} registros...")
                 
                 if bling_id not in registros_existentes:
                     # Registro novo → INSERT
@@ -292,7 +292,7 @@ class BaseExtractor:
             print(f"\n📊 CLASSIFICAÇÃO DOS REGISTROS:")
             print(f"   • 🆕 Novos (inserir): {stats['inseridos']}")
             print(f"   • 🔄 Diferentes (atualizar): {stats['atualizados']}")
-            print(f"   • ⏭️  Idênticos (ignorar): {stats['ignorados']}")
+            print(f"   • ⏭️ Idênticos (ignorar): {stats['ignorados']}")
             
             # BULK INSERT dos registros novos (mais rápido)
             if registros_novos:
@@ -309,7 +309,7 @@ class BaseExtractor:
                 
                 for i, dados in enumerate(registros_para_atualizar):
                     if (i + 1) % 100 == 0:
-                        print(f"   Atualizados {i + 1}/{len(registros_para_atualizar)} registros...")
+                        print(f"Atualizados {i + 1}/{len(registros_para_atualizar)} registros...")
                     
                     stmt = insert(self.model_class).values( # stmt = statement 
                         bling_id=dados['bling_id'],
@@ -346,7 +346,7 @@ class BaseExtractor:
             print(f"   • ⏭️ Registros ignorados (idênticos): {stats['ignorados']}")
             print(f"   • 📈 Total processado: {stats['total']}")
             print(f"   • 💾 Operações de escrita: {stats['inseridos'] + stats['atualizados']}")
-            print(f"   • ⚡ Economia: {stats['ignorados']} escritas desnecessárias evitadas!")
+            print(f"   • ⚡  Economia: {stats['ignorados']} escritas desnecessárias evitadas!")
             
             return stats
             

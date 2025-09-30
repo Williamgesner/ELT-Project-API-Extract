@@ -52,3 +52,5 @@ Icon?
 # ======================
 # Arquivos de backup (Scrip completo de extração de dados do Endpoint de contatos (Antes da estruturação do Padrão de projeto))
 scrip_completo_teste.py 
+chamada_api_teste.py
+chamada_api_teste2.py

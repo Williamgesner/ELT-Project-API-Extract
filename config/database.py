@@ -4,8 +4,9 @@ from sqlalchemy import create_engine, text # Biblioteca para se comunicar com me
 from sqlalchemy.orm import declarative_base, sessionmaker
 from config.settings import database_url 
 
+
 # =====================================================
-# 1. CONFIGURAÇÃO DO BANCO DE DADOS
+# 2. CONFIGURAÇÃO DO BANCO DE DADOS
 # =====================================================
 
 # Cria o engine e a sessão do banco de dados
@@ -18,7 +19,7 @@ Base = declarative_base()
 print("Modelo de dados definido !")
 
 # =====================================================
-# 2. FUNÇÕES AUXILIARES - Criando esquemas e tabelas
+# 3. FUNÇÕES AUXILIARES - Criando esquemas e tabelas
 # =====================================================
 
 # Cria o schema 'raw' se não existir
@@ -30,5 +31,26 @@ def create_schema_raw():
 
 # Cria as tabelas
 def create_all_tables():
-    print("Criando tabelas...")
+    print("Criando todas as tabelas...")
+    print("Importando modelos:")
+
+    # =====================================================
+    # 1. IMPORTAÇÃO DE TODOS OS MODELOS
+    # =====================================================
+
+    # Importando aqui DENTRO da função, para evita a importação circular
+    # IMPORTANTE: Importar todos os modelos para que o SQLAlchemy os reconheça e possa criar as tabelas automaticamente
+    from models.contact_raw import ContatoRaw
+    from models.product_raw import ProdutoRaw
+    from models.sales_raw import VendasRaw
+    from models.stocks_raw import EstoqueRaw
+
+    print("Todos os modelos importados!")
+    print("Tabelas que serão criadas:")
+    print("- raw.contatos_raw")
+    print("- raw.produtos_raw") 
+    print("- raw.vendas_raw")
+    print("- raw.estoque_raw")
+    
     Base.metadata.create_all(engine)
+    print("✅ Todas as tabelas foram criadas com sucesso!")

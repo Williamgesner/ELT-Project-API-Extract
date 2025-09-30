@@ -37,7 +37,7 @@ print(f"Configurações carregadas")
 print(f"Banco: {postgres_host}:{postgres_port}/{postgres_database}")
 
 # =====================================================
-# 2. CONFIGURAÇÃO DA API BLING
+# 2. CONFIGURAÇÃO DA API BLING - TODOS OS ENDPOINTS
 # =====================================================
 
 # Definindo os headers da requisição (Segundo a documentação da API)
@@ -47,4 +47,10 @@ headers = {
     "Accept": "application/json",
 }
 
-base_url = "https://api.bling.com.br/Api/v3/contatos"
+# URLs de todos os endpoints da API Bling
+endpoints = {
+    'contatos': 'https://api.bling.com.br/Api/v3/contatos',
+    'produtos': 'https://api.bling.com.br/Api/v3/produtos', 
+    'vendas': 'https://api.bling.com.br/Api/v3/pedidos/vendas',
+    'estoque': 'https://api.bling.com.br/Api/v3/estoques'
+}
