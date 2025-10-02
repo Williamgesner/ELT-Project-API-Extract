@@ -5,6 +5,7 @@ from config.database import create_schema_raw, create_all_tables
 from extract.contacts import ContatosCompletoExtractor
 from extract.products import ProdutosExtractor
 from extract.sales import VendasExtractor
+from extract.sales_details import VendasDetalhesExtractor
 # from extract.stocks import EstoqueExtractor - Vamos usar somente no Bling do G4 (que é onde contem as inforações de depósito)
 
 # =====================================================
@@ -14,6 +15,12 @@ from extract.sales import VendasExtractor
 def executar_extracao_completa():
     """
     Executa a extração de todos os endpoints em sequência
+    
+    FLUXO DE EXTRAÇÃO:
+    1. Contatos (lista + detalhes individuais)
+    2. Produtos (lista completa)
+    3. Vendas (lista resumida)
+    4. Vendas Detalhes (itens de cada pedido) ← NOVO!
     """
     print("\n🚀 INICIANDO EXTRAÇÃO COMPLETA DE TODOS OS ENDPOINTS")
     print("=" * 60)
@@ -24,7 +31,8 @@ def executar_extracao_completa():
     extratores = [
         ("👥 CONTATOS", ContatosCompletoExtractor),
         ("🏭 PRODUTOS", ProdutosExtractor), 
-        ("💰 VENDAS", VendasExtractor),
+        ("💰 VENDAS (Lista)", VendasExtractor),
+        ("🛒 VENDAS (Detalhes + Itens)", VendasDetalhesExtractor), 
       # ("📦 ESTOQUES", EstoqueExtractor) - Vamos usar somente no Bling do G4 (que é onde contem as inforações de depósito)
     ]
     
@@ -39,7 +47,17 @@ def executar_extracao_completa():
             
             # Criar e executar o extrator
             extrator = ExtractorClass()
-            extrator.executar_extracao_completa()
+            
+            # Verificar se é o extrator de detalhes de vendas
+            if ExtractorClass == VendasDetalhesExtractor:
+                # Executar com configurações específicas
+                extrator.executar_extracao_detalhes(
+                    delay_entre_requests=0.4,
+                    batch_size=100
+                )
+            else:
+                # Executar normalmente
+                extrator.executar_extracao_completa()
             
             fim_endpoint = datetime.now()
             tempo_endpoint = fim_endpoint - inicio_endpoint
@@ -94,6 +112,9 @@ def executar_extracao_completa():
     
     if erros == 0:
         print(f"🎉 TODOS OS ENDPOINTS EXTRAÍDOS COM SUCESSO!")
+        print(f"\n💡 PRÓXIMOS PASSOS:")
+        print(f"   1. Validar dados extraídos (execute analyze_raw_data.py)")
+        print(f"   2. Iniciar transformação para modelo dimensional")
     else:
         print(f"⚠️ {erros} endpoint(s) com erro. Verifique os logs acima.")
 
@@ -110,6 +131,8 @@ if __name__ == "__main__":
         
     except KeyboardInterrupt:
         print("\n⚠️ Execução interrompida pelo usuário")
+        print("💾 Dados processados até este ponto foram preservados")
+        print("Você pode continuar executando novamente este script")
     except Exception as e:
         print(f"\n❌ ERRO CRÍTICO durante execução: {e}")
         print("Script interrompido para análise do erro")
