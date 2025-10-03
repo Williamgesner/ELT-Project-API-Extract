@@ -55,4 +55,5 @@ scrip_completo_teste.py
 chamada_api_teste.py
 chamada_api_teste2.py
 analyze_raw_data.py
-research items.py
+research_items.py
+analysis/

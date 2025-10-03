@@ -93,12 +93,12 @@ def create_all_tables():
     
     print("\n📊 MODELOS PROCESSED - DIMENSÕES:")
     
-    from models.dim_fato.dim_contatos import DimClientes
+    from models.dim_fato.dim_contatos import DimContatos
     #from models.dim_fato.dim_produtos import DimProdutos
     #from models.dim_fato.dim_tempo import DimTempo
     #from models.dim_fato.dim_canais import DimCanais
     
-    print("   ✓ DimClientes")
+    print("   ✓ DimContatos")
     print("   ✓ DimProdutos")
     print("   ✓ DimTempo")
     print("   ✓ DimCanais")
@@ -131,7 +131,7 @@ def create_all_tables():
     print("   • raw.estoque_raw")
     
     print("\nTabelas PROCESSED que serão criadas:")
-    print("   • processed.dim_clientes")
+    print("   • processed.dim_contatos")
     print("   • processed.dim_produtos")
     print("   • processed.dim_tempo")
     print("   • processed.dim_canais")
