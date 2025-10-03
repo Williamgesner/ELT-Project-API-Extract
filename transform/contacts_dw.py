@@ -148,6 +148,7 @@ class ContatosTransformer:
                 "endereco.geral.municipio": "cidade",
                 "endereco.geral.uf": "estado",
                 "endereco.geral.cep": "cep",
+                "bling_id": "bling_contatos_id"
             }
         )
 
@@ -301,7 +302,7 @@ class ContatosTransformer:
         colunas_finais = [
             # IDs e Metadados
             "cliente_id",
-            "bling_id",
+            "bling_contatos_id",
 
             # Dados do Cliente
             "nome",
@@ -348,11 +349,11 @@ class ContatosTransformer:
         print(f"      • Com telefone: {com_telefone} ({com_telefone/total*100:.1f}%)")
 
         # Verificar duplicatas
-        duplicatas = df.duplicated(subset=["bling_id"]).sum()
+        duplicatas = df.duplicated(subset=["bling_contatos_id"]).sum()
         if duplicatas > 0:
             print(f"\n   ⚠️  {duplicatas} registros duplicados encontrados!")
             print("      Removendo duplicatas...")
-            df = df.drop_duplicates(subset=["bling_id"], keep="first")
+            df = df.drop_duplicates(subset=["bling_contatos_id"], keep="first")
         else:
             print(f"\n   ✅ Nenhuma duplicata encontrada")
 
