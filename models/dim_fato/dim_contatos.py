@@ -16,7 +16,7 @@ class DimContatos(Base):
     cliente_id = Column(Integer, primary_key=True)  # ID interno (mesmo do raw)
     
     # Chave de negócio
-    bling_contatos_id = Column(BigInteger, unique=True, nullable=False, index=True)  # ID da API Bling
+    bling_cliente_id = Column(BigInteger, unique=True, nullable=False, index=True)  # ID da API Bling
     
     # Dados do contato
     nome = Column(String(255), nullable=True)
