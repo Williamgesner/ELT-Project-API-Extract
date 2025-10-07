@@ -161,6 +161,7 @@ class ContatosTransformer:
 
         # === LIMPAR E PADRONIZAR NOMES ===
         print("   • Limpando e padronizando nomes...")
+        df["nome"] = df["nome"].apply(self._limpar_nome)
         df["cpf_cnpj"] = df["cpf_cnpj"].apply(self._padronizar_cpf_cnpj)
 
         # === DETERMINAR TIPO DE PESSOA ===

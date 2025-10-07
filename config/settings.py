@@ -52,5 +52,6 @@ endpoints = {
     'contatos': 'https://api.bling.com.br/Api/v3/contatos',
     'produtos': 'https://api.bling.com.br/Api/v3/produtos', 
     'vendas': 'https://api.bling.com.br/Api/v3/pedidos/vendas',
-    'estoque': 'https://api.bling.com.br/Api/v3/estoques'
+    'estoque': 'https://api.bling.com.br/Api/v3/estoques',
+    'situacoes': 'https://api.bling.com.br/Api/v3/situacoes/modulos'
 }
