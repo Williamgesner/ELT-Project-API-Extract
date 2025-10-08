@@ -7,7 +7,7 @@ from extract.sales import VendasExtractor
 # 1. EXECUÇÃO DO SCRIPT - VENDAS
 # =====================================================
 
-if __name__ == "__main__":  # Se o arquivo for executado diretamente, não execute o código abaixo. Isso é importante para evitar que o código seja executado quando o arquivo for importado.
+if __name__ == "__main__":
     try:
         # Cria o schema se não existir
         create_schema_raw()

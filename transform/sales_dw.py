@@ -3,18 +3,19 @@
 # =====================================================
 # Responsável por: Limpar e transformar dados de vendas_raw
 # para fato_pedidos no schema processed
+# ESTRATÉGIA: Comparar antes de salvar (igual extratores)
 
 import pandas as pd
 import numpy as np
 from datetime import datetime
 from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import insert
 from config.database import Session, engine
 from extract.situation import obter_mapeamento_situacoes
 
 # =====================================================
 # 1. CLASSE TRANSFORMADORA
 # =====================================================
-
 
 class VendasTransformer:
     """
@@ -194,9 +195,7 @@ class VendasTransformer:
                 df["situacao.id"] = df["situacao.id"].map(mapa_situacoes)
                 print(f"   ✅ Situações mapeadas")
             else:
-                print(
-                    "   ⚠️  Nenhuma situação encontrada. Execute: python main_situacoes.py"
-                )
+                print("   ⚠️  Nenhuma situação encontrada. Execute: python main_situacoes.py")
         except Exception as e:
             print(f"   ⚠️  Erro ao mapear situações: {e}")
 
@@ -214,7 +213,7 @@ class VendasTransformer:
         return df
 
     # =====================================================
-    # 5. MAPEAR CLIENTE_ID POR MEIO DO BLING_CLIENTE_ID
+    # 5. MAPEAR CLIENTE_ID
     # =====================================================
 
     def _mapear_cliente_id(self, df):
@@ -224,7 +223,6 @@ class VendasTransformer:
         session = Session()
 
         try:
-            # Buscar mapeamento bling_cliente_id → cliente_id
             query = text(
                 """
                 SELECT bling_cliente_id, cliente_id
@@ -244,15 +242,11 @@ class VendasTransformer:
                 print(f"   ✅ {clientes_mapeados} clientes mapeados")
 
                 if clientes_nao_mapeados > 0:
-                    print(
-                        f"   ⚠️  {clientes_nao_mapeados} clientes não encontrados na dim_contatos"
-                    )
+                    print(f"   ⚠️  {clientes_nao_mapeados} clientes não encontrados na dim_contatos")
             else:
                 print("   ⚠️  Nenhum cliente encontrado na dim_contatos")
-                print("   💡 Execute: python main_transform_contacts.py")
                 df["cliente_id"] = None
 
-            # Remover coluna bling_cliente_id
             df = df.drop(columns=["bling_cliente_id"])
 
         except Exception as e:
@@ -274,23 +268,17 @@ class VendasTransformer:
         print("\n4️⃣ PREPARANDO DADOS PARA EXPORTAÇÃO...")
 
         colunas_finais = [
-            # IDs
             "pedido_id",
             "bling_pedido_id",
             "numero_pedido",
-            # FKs
             "data_pedido",
             "cliente_id",
             "canal_id",
-            # Métricas financeiras
             "valor_total",
             "valor_frete",
-            # Métricas de quantidade
             "quantidade_itens_total",
             "quantidade_produtos_total",
-            # Atributos
             "situacao",
-            # Metadados
             "data_ingestao",
             "data_processamento",
         ]
@@ -326,9 +314,7 @@ class VendasTransformer:
 
         print(f"\n   📊 ESTATÍSTICAS DE QUALIDADE:")
         print(f"      • Total após filtros: {len(df)}")
-        print(
-            f"      • Com número pedido: {com_numero} ({com_numero/len(df)*100:.1f}%)"
-        )
+        print(f"      • Com número pedido: {com_numero} ({com_numero/len(df)*100:.1f}%)")
         print(f"      • Com cliente: {com_cliente} ({com_cliente/len(df)*100:.1f}%)")
         print(f"      • Com situação: {com_situacao} ({com_situacao/len(df)*100:.1f}%)")
 
@@ -336,7 +322,6 @@ class VendasTransformer:
         duplicatas = df.duplicated(subset=["bling_pedido_id"]).sum()
         if duplicatas > 0:
             print(f"\n   ⚠️  {duplicatas} registros duplicados encontrados!")
-            print("      Removendo duplicatas...")
             df = df.drop_duplicates(subset=["bling_pedido_id"], keep="first")
         else:
             print(f"\n   ✅ Nenhuma duplicata encontrada")
@@ -344,39 +329,171 @@ class VendasTransformer:
         return df
 
     # =====================================================
-    # 8. EXPORTAR PARA PROCESSED
+    # 8. EXPORTAR COM COMPARAÇÃO INTELIGENTE
     # =====================================================
 
     def exportar_para_processed(self, df):
         """
-        Exporta dados para processed.fato_pedidos
+        Exporta dados comparando antes de salvar (IGUAL EXTRATORES)
+        - Busca registros existentes
+        - Compara campos relevantes
+        - INSERT apenas novos
+        - UPDATE apenas diferentes
+        - SKIP idênticos
         """
         print("\n6️⃣ EXPORTANDO PARA PROCESSED.FATO_PEDIDOS...")
-
+        
+        if len(df) == 0:
+            print("⚠️  Nenhum registro para exportar")
+            return 0
+        
+        session = Session()
+        
         try:
-            df.to_sql(
-                name="fato_pedidos",
-                con=self.engine,
-                schema="processed",
-                if_exists="append",
-                index=False,
-                method="multi",
-                chunksize=1000,
-            )
-
-            print(f"✅ {len(df)} registros exportados com sucesso!")
-
-            # Verificar
+            # === BUSCAR REGISTROS EXISTENTES ===
+            print("🔍 Buscando registros existentes para comparação...")
+            inicio_busca = datetime.now()
+            
+            query = text("""
+                SELECT 
+                    pedido_id,
+                    bling_pedido_id,
+                    valor_total,
+                    situacao,
+                    quantidade_itens_total,
+                    quantidade_produtos_total
+                FROM processed.fato_pedidos
+            """)
+            
+            df_existentes = pd.read_sql(query, self.engine)
+            fim_busca = datetime.now()
+            
+            print(f"📋 {len(df_existentes)} registros existentes carregados em {fim_busca - inicio_busca}")
+            
+            # === CLASSIFICAR: NOVOS, DIFERENTES, IDÊNTICOS ===
+            print("🔍 Comparando registros...")
+            inicio_comparacao = datetime.now()
+            
+            # Criar dicionário de existentes para lookup rápido
+            existentes_dict = df_existentes.set_index('bling_pedido_id').to_dict('index')
+            
+            registros_novos = []
+            registros_atualizar = []
+            registros_identicos = 0
+            
+            for idx, row in df.iterrows():
+                bling_id = row['bling_pedido_id']
+                
+                if bling_id not in existentes_dict:
+                    # NOVO → INSERT
+                    registros_novos.append(row)
+                else:
+                    # EXISTE → Comparar campos relevantes
+                    existente = existentes_dict[bling_id]
+                    
+                    # Comparar valores (arredondar floats)
+                    valor_mudou = round(float(row['valor_total']), 2) != round(float(existente['valor_total']), 2)
+                    situacao_mudou = str(row['situacao']) != str(existente['situacao'])
+                    qtd_mudou = (
+                        int(row['quantidade_itens_total']) != int(existente['quantidade_itens_total']) or
+                        int(row['quantidade_produtos_total']) != int(existente['quantidade_produtos_total'])
+                    )
+                    
+                    if valor_mudou or situacao_mudou or qtd_mudou:
+                        # DIFERENTE → UPDATE
+                        row['pedido_id'] = existente['pedido_id']  # Manter ID existente
+                        registros_atualizar.append(row)
+                    else:
+                        # IDÊNTICO → SKIP
+                        registros_identicos += 1
+            
+            fim_comparacao = datetime.now()
+            print(f"✅ Comparação concluída em {fim_comparacao - inicio_comparacao}")
+            
+            # === RELATÓRIO ===
+            print(f"\n📊 CLASSIFICAÇÃO DOS REGISTROS:")
+            print(f"   • 🆕 Novos (inserir): {len(registros_novos)}")
+            print(f"   • 🔄 Diferentes (atualizar): {len(registros_atualizar)}")
+            print(f"   • ⏭️ Idênticos (ignorar): {registros_identicos}")
+            
+            # === INSERIR NOVOS ===
+            if registros_novos:
+                print(f"\n💾 Inserindo {len(registros_novos)} registros novos...")
+                df_novos = pd.DataFrame(registros_novos)
+                df_novos.to_sql(
+                    name='fato_pedidos',
+                    con=self.engine,
+                    schema='processed',
+                    if_exists='append',
+                    index=False,
+                    method='multi',
+                    chunksize=500
+                )
+                print(f"✅ Inserções concluídas")
+            
+            # === ATUALIZAR DIFERENTES ===
+            if registros_atualizar:
+                print(f"\n🔄 Atualizando {len(registros_atualizar)} registros diferentes...")
+                
+                for i, row in enumerate(registros_atualizar):
+                    stmt = text("""
+                        UPDATE processed.fato_pedidos
+                        SET 
+                            bling_pedido_id = :bling_pedido_id,
+                            numero_pedido = :numero_pedido,
+                            data_pedido = :data_pedido,
+                            cliente_id = :cliente_id,
+                            canal_id = :canal_id,
+                            valor_total = :valor_total,
+                            valor_frete = :valor_frete,
+                            quantidade_itens_total = :quantidade_itens_total,
+                            quantidade_produtos_total = :quantidade_produtos_total,
+                            situacao = :situacao,
+                            data_processamento = :data_processamento
+                        WHERE pedido_id = :pedido_id
+                    """)
+                    
+                    session.execute(stmt, {
+                        'pedido_id': int(row['pedido_id']),
+                        'bling_pedido_id': int(row['bling_pedido_id']),
+                        'numero_pedido': str(row['numero_pedido']) if pd.notna(row['numero_pedido']) else None,
+                        'data_pedido': row['data_pedido'].date() if pd.notna(row['data_pedido']) else None,
+                        'cliente_id': int(row['cliente_id']) if pd.notna(row['cliente_id']) else None,
+                        'canal_id': int(row['canal_id']) if pd.notna(row['canal_id']) else None,
+                        'valor_total': float(row['valor_total']),
+                        'valor_frete': float(row['valor_frete']) if pd.notna(row['valor_frete']) else 0,
+                        'quantidade_itens_total': int(row['quantidade_itens_total']),
+                        'quantidade_produtos_total': int(row['quantidade_produtos_total']),
+                        'situacao': str(row['situacao']) if pd.notna(row['situacao']) else None,
+                        'data_processamento': row['data_processamento']
+                    })
+                    
+                    if (i + 1) % 100 == 0:
+                        session.commit()
+                        print(f"   Atualizados {i + 1}/{len(registros_atualizar)} registros...")
+                
+                session.commit()
+                print(f"✅ Atualizações concluídas")
+            
+            if not registros_novos and not registros_atualizar:
+                print(f"\n✨ Nenhum registro novo ou alterado! DW já está atualizado.")
+            
+            # === VERIFICAR TOTAL ===
             query = text("SELECT COUNT(*) FROM processed.fato_pedidos")
-            with engine.connect() as conn:
-                total = conn.execute(query).scalar()
-                print(f"✅ Verificação: {total} registros na tabela")
-
+            total = session.execute(query).scalar()
+            
+            print(f"\n🎉 EXPORTAÇÃO CONCLUÍDA!")
+            print(f"   • Total na tabela: {total}")
+            print(f"   • Economia: {registros_identicos} atualizações desnecessárias evitadas!")
+            
             return len(df)
-
+            
         except Exception as e:
+            session.rollback()
             print(f"❌ ERRO ao exportar: {e}")
             raise
+        finally:
+            session.close()
 
     # =====================================================
     # 9. ATUALIZAR STATUS RAW
@@ -440,7 +557,7 @@ class VendasTransformer:
             # 5. Validar
             df = self.validar_dados(df)
 
-            # 6. Exportar
+            # 6. Exportar (COM COMPARAÇÃO INTELIGENTE)
             total_exportado = self.exportar_para_processed(df)
 
             # 7. Atualizar status
