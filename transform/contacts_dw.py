@@ -194,7 +194,7 @@ class ContatosTransformer:
         nome = nome.title() # Capitalizar (Title Case)
         
         # Lista de sufixos empresariais
-        sufixos = ['Me', 'Epp', 'Ltda', 'Eireli', 'Sa', 'S A', 'Cia', 'Ltd', 'Limitada', "Ss"]
+        sufixos = ['Epp', 'Ltda', 'Eireli', 'Ltd', 'Limitada']
         # Padronizar cada sufixo
         for sufixo in sufixos:
             sufixo_upper = sufixo.upper()
