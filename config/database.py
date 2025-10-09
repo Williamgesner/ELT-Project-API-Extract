@@ -82,6 +82,7 @@ def create_all_tables():
     from models.sales_raw import VendasRaw
     from models.stocks_raw import EstoqueRaw
     from models.situation_raw import SituacoesRaw
+    from models.channels_raw import SituacoesRaw
 
     print("   ✓ ContatoRaw")
     print("   ✓ ProdutoRaw")
@@ -97,8 +98,8 @@ def create_all_tables():
     
     from models.dim_fato.dim_contatos import DimContatos
     from models.dim_fato.dim_tempo import DimTempo
+    from models.dim_fato.dim_channels import DimCanais
     #from models.dim_fato.dim_produtos import DimProdutos
-    #from models.dim_fato.dim_canais import DimCanais
     
     print("   ✓ DimContatos")
     print("   ✓ DimTempo")
@@ -111,7 +112,7 @@ def create_all_tables():
     
     print("\n📈 MODELOS PROCESSED - FATOS:")
     
-    from models.dim_fato.fato_pedidos import FatoPedidos  # ← CORRIGIDO (plural)
+    from models.dim_fato.fato_pedidos import FatoPedidos 
     #from models.dim_fato.fato_itens_pedidos import FatoItensPedidos
     #from models.dim_fato.fato_estoques import FatoEstoques
     
@@ -131,11 +132,12 @@ def create_all_tables():
     print("   • raw.produtos_raw") 
     print("   • raw.vendas_raw")
     print("   • raw.estoque_raw")
-    print("   • raw.situacoes_raw")  # ← Adicionado
+    print("   • raw.situacoes_raw") 
+    print("   • raw.canais_raw") 
     
     print("\nTabelas PROCESSED que serão criadas:")
     print("   • processed.dim_contatos")
-    print("   • processed.dim_tempo")  # ← Adicionado
+    print("   • processed.dim_tempo") 
     print("   • processed.dim_produtos")
     print("   • processed.dim_canais")
     print("   • processed.fato_pedidos")
