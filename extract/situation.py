@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 from config.settings import headers
 from config.database import Session
+from config.settings import endpoints
 from models.situation_raw import SituacoesRaw
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
@@ -24,7 +25,7 @@ class SituacoesExtractor:
     """
     
     def __init__(self):
-        self.base_url = "https://api.bling.com.br/Api/v3/situacoes"
+        self.base_url = endpoints["situacoes"]
         self.headers = headers
     
     def obter_situacoes_dos_pedidos(self):

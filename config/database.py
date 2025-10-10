@@ -82,13 +82,14 @@ def create_all_tables():
     from models.sales_raw import VendasRaw
     from models.stocks_raw import EstoqueRaw
     from models.situation_raw import SituacoesRaw
-    from models.channels_raw import SituacoesRaw
+    from models.channels_raw import CanaisRaw
 
     print("   ✓ ContatoRaw")
     print("   ✓ ProdutoRaw")
     print("   ✓ VendasRaw")
     print("   ✓ EstoqueRaw")
     print("   ✓ SituacoesRaw")
+    print("   ✓ CanaisRaw")
 
     # =====================================================
     # 3.2. IMPORTAÇÃO DOS MODELOS PROCESSED (Dimensões)
@@ -98,7 +99,7 @@ def create_all_tables():
     
     from models.dim_fato.dim_contatos import DimContatos
     from models.dim_fato.dim_tempo import DimTempo
-    from models.dim_fato.dim_channels import DimCanais
+    #from models.dim_fato.dim_channels import DimCanais
     #from models.dim_fato.dim_produtos import DimProdutos
     
     print("   ✓ DimContatos")
