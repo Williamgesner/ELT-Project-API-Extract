@@ -83,6 +83,7 @@ def create_all_tables():
     from models.stocks_raw import EstoqueRaw
     from models.situation_raw import SituacoesRaw
     from models.channels_raw import CanaisRaw
+    
 
     print("   ✓ ContatoRaw")
     print("   ✓ ProdutoRaw")
@@ -99,8 +100,8 @@ def create_all_tables():
     
     from models.dim_fato.dim_contatos import DimContatos
     from models.dim_fato.dim_tempo import DimTempo
-    #from models.dim_fato.dim_channels import DimCanais
-    #from models.dim_fato.dim_produtos import DimProdutos
+    from models.dim_fato.dim_produtos import DimProdutos
+    
     
     print("   ✓ DimContatos")
     print("   ✓ DimTempo")

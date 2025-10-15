@@ -10,6 +10,7 @@ from extract.products import ProdutosExtractor
 from extract.sales import VendasExtractor
 from extract.sales_details import VendasDetalhesExtractor
 from transform.contacts_dw import ContatosTransformer
+from transform.products_dw import ProdutosTransformer
 from transform.sales_dw import VendasTransformer
 
 # =====================================================
@@ -126,7 +127,8 @@ def executar_transformacao_completa():
     FLUXO DE TRANSFORMAÇÃO:
     1. Resetar status_processamento (reprocessar tudo)
     2. Transformar Contatos → dim_contatos
-    3. Transformar Vendas → fato_pedidos
+    3. Transformar Produtos → dim_produtos
+    4. Transformar Vendas → fato_pedidos
     """
     print(f"\n{'='*60}")
     print("🔄 FASE 2: TRANSFORMAÇÃO DOS DADOS")
@@ -139,6 +141,7 @@ def executar_transformacao_completa():
     session = Session()
     try:
         session.execute(text("UPDATE raw.contatos_raw SET status_processamento = 'pendente'"))
+        session.execute(text("UPDATE raw.produtos_raw SET status_processamento = 'pendente'"))
         session.execute(text("UPDATE raw.vendas_raw SET status_processamento = 'pendente'"))
         session.commit()
         print("✅ Status resetado - todos os registros serão reprocessados")
@@ -151,6 +154,7 @@ def executar_transformacao_completa():
     # Executar transformações
     transformadores = [
         ("👥 CONTATOS", ContatosTransformer),
+        ("🏭 PRODUTOS", ProdutosTransformer),
         ("💰 VENDAS", VendasTransformer)
     ]
     
