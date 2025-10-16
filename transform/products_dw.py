@@ -504,13 +504,20 @@ class ProdutosTransformer:
         return df
 
     # =====================================================
-    # 9. EXPORTAR (MÉTODO CORRIGIDO)
+    # 9. EXPORTAR COM COMPARAÇÃO INTELIGENTE (UPSERT)
     # =====================================================
 
     def exportar_para_processed(self, df):
         """
-        Exporta para processed.dim_produtos
-        CORRIGIDO: Remove method='multi' que causava duplicação de colunas
+        Exporta para processed.dim_produtos usando UPSERT
+        (mesma lógica de sales_dw.py e contacts_dw.py)
+        
+        ESTRATÉGIA:
+        1. Buscar produtos existentes
+        2. Comparar campos relevantes
+        3. INSERT apenas novos
+        4. UPDATE apenas diferentes
+        5. SKIP idênticos
         """
         print("\n6️⃣ EXPORTANDO PARA PROCESSED.DIM_PRODUTOS...")
 
@@ -518,30 +525,176 @@ class ProdutosTransformer:
             print("⚠️  Nenhum registro para exportar")
             return 0
 
+        session = Session()
+
         try:
-            # ⚡ CORREÇÃO: Removido method='multi' e reduzido chunksize
-            df.to_sql(
-                name="dim_produtos",
-                con=self.engine,
-                schema="processed",
-                if_exists="append",
-                index=False,
-                chunksize=500  # Reduzido para evitar problemas
-            )
+            # === BUSCAR REGISTROS EXISTENTES ===
+            print("🔍 Buscando registros existentes para comparação...")
+            inicio_busca = datetime.now()
 
-            print(f"✅ {len(df)} registros exportados com sucesso!")
+            query = text("""
+                SELECT 
+                    produto_id,
+                    bling_produto_id,
+                    preco_venda,
+                    preco_custo,
+                    aro,
+                    marca,
+                    cor_principal,
+                    situacao
+                FROM processed.dim_produtos
+            """)
 
-            # Verificar total
+            df_existentes = pd.read_sql(query, self.engine)
+            fim_busca = datetime.now()
+
+            print(f"📋 {len(df_existentes)} registros existentes carregados em {fim_busca - inicio_busca}")
+
+            # === CLASSIFICAR: NOVOS, DIFERENTES, IDÊNTICOS ===
+            print("🔍 Comparando registros...")
+            inicio_comparacao = datetime.now()
+
+            # Criar dicionário de existentes para lookup rápido
+            existentes_dict = df_existentes.set_index('bling_produto_id').to_dict('index')
+
+            registros_novos = []
+            registros_atualizar = []
+            registros_identicos = 0
+
+            for idx, row in df.iterrows():
+                bling_id = row['bling_produto_id']
+
+                if bling_id not in existentes_dict:
+                    # NOVO → INSERT (sem produto_id)
+                    row_novo = row.drop('produto_id') if 'produto_id' in row.index else row
+                    registros_novos.append(row_novo)
+                else:
+                    # EXISTE → Comparar campos relevantes
+                    existente = existentes_dict[bling_id]
+
+                    # Comparar valores (arredondar floats)
+                    preco_venda_mudou = round(float(row['preco_venda']), 2) != round(float(existente['preco_venda']), 2) if pd.notna(row['preco_venda']) and pd.notna(existente['preco_venda']) else False
+                    preco_custo_mudou = round(float(row['preco_custo']), 2) != round(float(existente['preco_custo']), 2) if pd.notna(row['preco_custo']) and pd.notna(existente['preco_custo']) else False
+                    
+                    # Comparar atributos (None-safe)
+                    aro_mudou = str(row.get('aro', '')) != str(existente.get('aro', ''))
+                    marca_mudou = str(row.get('marca', '')) != str(existente.get('marca', ''))
+                    cor_mudou = str(row.get('cor_principal', '')) != str(existente.get('cor_principal', ''))
+                    situacao_mudou = str(row.get('situacao', '')) != str(existente.get('situacao', ''))
+
+                    if preco_venda_mudou or preco_custo_mudou or aro_mudou or marca_mudou or cor_mudou or situacao_mudou:
+                        # DIFERENTE → UPDATE
+                        row['produto_id'] = existente['produto_id']  # Manter ID existente
+                        registros_atualizar.append(row)
+                    else:
+                        # IDÊNTICO → SKIP
+                        registros_identicos += 1
+
+            fim_comparacao = datetime.now()
+            print(f"✅ Comparação concluída em {fim_comparacao - inicio_comparacao}")
+
+            # === RELATÓRIO ===
+            print(f"\n📊 CLASSIFICAÇÃO DOS REGISTROS:")
+            print(f"   • 🆕 Novos (inserir): {len(registros_novos)}")
+            print(f"   • 🔄 Diferentes (atualizar): {len(registros_atualizar)}")
+            print(f"   • ⏭️ Idênticos (ignorar): {registros_identicos}")
+
+            # === INSERIR NOVOS ===
+            if registros_novos:
+                print(f"\n💾 Inserindo {len(registros_novos)} registros novos...")
+                df_novos = pd.DataFrame(registros_novos)
+                
+                # Garantir que produto_id não está no DataFrame
+                if 'produto_id' in df_novos.columns:
+                    df_novos = df_novos.drop(columns=['produto_id'])
+                
+                df_novos.to_sql(
+                    name='dim_produtos',
+                    con=self.engine,
+                    schema='processed',
+                    if_exists='append',
+                    index=False,
+                    chunksize=500
+                )
+                print(f"✅ Inserções concluídas")
+
+            # === ATUALIZAR DIFERENTES ===
+            if registros_atualizar:
+                print(f"\n🔄 Atualizando {len(registros_atualizar)} registros diferentes...")
+
+                for i, row in enumerate(registros_atualizar):
+                    stmt = text("""
+                        UPDATE processed.dim_produtos
+                        SET 
+                            bling_produto_id = :bling_produto_id,
+                            sku = :sku,
+                            descricao_produto = :descricao_produto,
+                            preco_venda = :preco_venda,
+                            preco_custo = :preco_custo,
+                            aro = :aro,
+                            marca = :marca,
+                            cor_principal = :cor_principal,
+                            cor_secundaria = :cor_secundaria,
+                            cor_terciaria = :cor_terciaria,
+                            tamanho = :tamanho,
+                            marchas = :marchas,
+                            freio = :freio,
+                            genero = :genero,
+                            publico = :publico,
+                            categoria = :categoria,
+                            situacao = :situacao,
+                            data_processamento = :data_processamento
+                        WHERE produto_id = :produto_id
+                    """)
+
+                    session.execute(stmt, {
+                        'produto_id': int(row['produto_id']),
+                        'bling_produto_id': int(row['bling_produto_id']),
+                        'sku': str(row['sku']) if pd.notna(row['sku']) else None,
+                        'descricao_produto': str(row['descricao_produto']),
+                        'preco_venda': float(row['preco_venda']) if pd.notna(row['preco_venda']) else None,
+                        'preco_custo': float(row['preco_custo']) if pd.notna(row['preco_custo']) else None,
+                        'aro': str(row['aro']) if pd.notna(row['aro']) else None,
+                        'marca': str(row['marca']) if pd.notna(row['marca']) else None,
+                        'cor_principal': str(row['cor_principal']) if pd.notna(row['cor_principal']) else None,
+                        'cor_secundaria': str(row['cor_secundaria']) if pd.notna(row['cor_secundaria']) else None,
+                        'cor_terciaria': str(row['cor_terciaria']) if pd.notna(row['cor_terciaria']) else None,
+                        'tamanho': str(row['tamanho']) if pd.notna(row['tamanho']) else None,
+                        'marchas': str(row['marchas']) if pd.notna(row['marchas']) else None,
+                        'freio': str(row['freio']) if pd.notna(row['freio']) else None,
+                        'genero': str(row['genero']) if pd.notna(row['genero']) else None,
+                        'publico': str(row['publico']) if pd.notna(row['publico']) else None,
+                        'categoria': str(row['categoria']) if pd.notna(row['categoria']) else None,
+                        'situacao': str(row['situacao']) if pd.notna(row['situacao']) else None,
+                        'data_processamento': row['data_processamento']
+                    })
+
+                    if (i + 1) % 100 == 0:
+                        session.commit()
+                        print(f"   Atualizados {i + 1}/{len(registros_atualizar)} registros...")
+
+                session.commit()
+                print(f"✅ Atualizações concluídas")
+
+            if not registros_novos and not registros_atualizar:
+                print(f"\n✨ Nenhum registro novo ou alterado! DW já está atualizado.")
+
+            # === VERIFICAR TOTAL ===
             query = text("SELECT COUNT(*) FROM processed.dim_produtos")
-            with engine.connect() as conn:
-                total = conn.execute(query).scalar()
-                print(f"✅ Total na tabela: {total}")
+            total = session.execute(query).scalar()
+
+            print(f"\n🎉 EXPORTAÇÃO CONCLUÍDA!")
+            print(f"   • Total na tabela: {total}")
+            print(f"   • Economia: {registros_identicos} atualizações desnecessárias evitadas!")
 
             return len(df)
 
         except Exception as e:
+            session.rollback()
             print(f"❌ ERRO ao exportar: {e}")
             raise
+        finally:
+            session.close()
 
     # =====================================================
     # 10. ATUALIZAR STATUS
