@@ -115,7 +115,7 @@ def create_all_tables():
     print("\n📈 MODELOS PROCESSED - FATOS:")
     
     from models.dim_fato.fato_pedidos import FatoPedidos 
-    #from models.dim_fato.fato_itens_pedidos import FatoItensPedidos
+    from models.dim_fato.fato_itens_pedidos import FatoItensPedidos
     #from models.dim_fato.fato_estoques import FatoEstoques
     
     print("   ✓ FatoPedidos")

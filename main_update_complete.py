@@ -12,6 +12,7 @@ from extract.sales_details import VendasDetalhesExtractor
 from transform.contacts_dw import ContatosTransformer
 from transform.products_dw import ProdutosTransformer
 from transform.sales_dw import VendasTransformer
+from transform.items_dw import ItensTransformer  # ← ADICIONAR ESTA LINHA
 
 # =====================================================
 # 1. EXECUÇÃO COMPLETA - EXTRAÇÃO
@@ -129,6 +130,7 @@ def executar_transformacao_completa():
     2. Transformar Contatos → dim_contatos
     3. Transformar Produtos → dim_produtos
     4. Transformar Vendas → fato_pedidos
+    5. Transformar Itens → fato_itens_pedidos  ← NOVO!
     """
     print(f"\n{'='*60}")
     print("🔄 FASE 2: TRANSFORMAÇÃO DOS DADOS")
@@ -152,10 +154,12 @@ def executar_transformacao_completa():
         session.close()
     
     # Executar transformações
+    # IMPORTANTE: A ordem importa! Itens dependem de pedidos e produtos
     transformadores = [
         ("👥 CONTATOS", ContatosTransformer),
         ("🏭 PRODUTOS", ProdutosTransformer),
-        ("💰 VENDAS", VendasTransformer)
+        ("💰 VENDAS", VendasTransformer),
+        ("🛒 ITENS", ItensTransformer)  # ← ADICIONAR ESTA LINHA
     ]
     
     resultados_transformacao = []
@@ -193,6 +197,10 @@ def executar_transformacao_completa():
             })
             
             print(f"❌ ERRO ao transformar {nome}: {e}")
+            
+            # Se falhar em ITENS, avisar mas continuar
+            if "ITENS" in nome:
+                print("⚠️  Falha em ITENS não interrompe o pipeline")
     
     # Relatório transformação
     fim_transformacao = datetime.now()
@@ -265,6 +273,48 @@ def executar_pipeline_completo():
     print(f"\n📊 RESUMO GERAL:")
     print(f"   • Extração: {sucesso_extracao}/{total_extracao} sucessos")
     print(f"   • Transformação: {sucesso_transformacao}/{total_transformacao} sucessos")
+    
+    # Estatísticas detalhadas do DW
+    print(f"\n📈 ESTATÍSTICAS DO DATA WAREHOUSE:")
+    session = Session()
+    try:
+        # Contatos
+        query = text("SELECT COUNT(*) FROM processed.dim_contatos")
+        total_contatos = session.execute(query).scalar()
+        print(f"   • dim_contatos: {total_contatos:,} registros")
+        
+        # Produtos
+        query = text("SELECT COUNT(*) FROM processed.dim_produtos")
+        total_produtos = session.execute(query).scalar()
+        print(f"   • dim_produtos: {total_produtos:,} registros")
+        
+        # Pedidos
+        query = text("SELECT COUNT(*) FROM processed.fato_pedidos")
+        total_pedidos = session.execute(query).scalar()
+        print(f"   • fato_pedidos: {total_pedidos:,} registros")
+        
+        # Itens
+        query = text("""
+            SELECT 
+                COUNT(*) as total,
+                COUNT(produto_id) as com_produto,
+                ROUND(100.0 * COUNT(produto_id) / COUNT(*), 1) as taxa
+            FROM processed.fato_itens_pedidos
+        """)
+        resultado = session.execute(query).fetchone()
+        if resultado and resultado.total > 0:
+            print(f"   • fato_itens_pedidos: {resultado.total:,} registros")
+            print(f"     └─ Mapeamento: {resultado.taxa}% com produto_id")
+            
+            # Alerta se taxa baixa
+            if resultado.taxa < 95:
+                print(f"\n   🚨 ALERTA: Taxa de mapeamento de produtos abaixo de 95%!")
+                print(f"   💡 Considere executar: python main_product.py")
+        
+    except Exception as e:
+        print(f"   ⚠️  Erro ao coletar estatísticas: {e}")
+    finally:
+        session.close()
     
     if sucesso_extracao == total_extracao and sucesso_transformacao == total_transformacao:
         print(f"\n🎉 TODOS OS PROCESSOS EXECUTADOS COM SUCESSO!")
