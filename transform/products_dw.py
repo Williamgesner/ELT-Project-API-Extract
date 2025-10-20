@@ -1,9 +1,7 @@
-# transform/products_dw.py
 # =====================================================
 # TRANSFORMADOR DE PRODUTOS
 # =====================================================
-# Responsável por: Transformar produtos_raw para dim_produtos
-# Baseado no arquivo explore_produtos_raw.py (SEM tipo_produto)
+# Baseado no explore_produtos_raw.py 100% testado
 
 import pandas as pd
 import numpy as np
@@ -19,8 +17,11 @@ from config.database import Session, engine
 
 class ProdutosTransformer:
     """
-    Transformador de produtos baseado no explore_produtos_raw.py
-    Remove a coluna tipo_produto e mantém apenas extrações de bicicletas
+    Transformador completo de produtos com regras validadas:
+    - Identificação rigorosa de bicicletas
+    - Gênero com 100% cobertura em bikes
+    - Marca KOG em infantis sem marca
+    - Público com 100% cobertura em bikes
     """
 
     def __init__(self):
@@ -72,34 +73,7 @@ class ProdutosTransformer:
         return df
 
     # =====================================================
-    # 4. IDENTIFICAR BICICLETAS
-    # =====================================================
-
-    def eh_bicicleta(self, nome):
-        """
-        Identifica se é bicicleta
-        Aceita: bicicleta, bike, bke
-        Exclui: caixa, embalagem, adesivo
-        """
-        if pd.isna(nome):
-            return False
-
-        nome_lower = str(nome).lower()
-
-        # Tem "bicicleta"
-        if re.search(r"\bbicicleta\b", nome_lower):
-            return True
-
-        # Tem "bike" ou "bke" MAS não tem exclusões
-        if re.search(r"\b(bike|bke)\b", nome_lower) and not re.search(
-            r"\bcaixa\b|\bembalagem\b|\badesivo\b", nome_lower
-        ):
-            return True
-
-        return False
-
-    # =====================================================
-    # 5. FUNÇÕES DE EXTRAÇÃO (DO EXPLORE_PRODUTOS_RAW)
+    # 4. FUNÇÕES DE EXTRAÇÃO DE ATRIBUTOS
     # =====================================================
 
     def extrair_aro(self, nome):
@@ -125,7 +99,6 @@ class ProdutosTransformer:
             if match_com:
                 cores = [match_com.group(1).strip(), match_com.group(2).strip()]
         if not cores:
-            # Lista de cores do explore_produtos_raw
             cores_conhecidas = [
                 "PRETO",
                 "BRANCO",
@@ -205,7 +178,6 @@ class ProdutosTransformer:
         return None
 
     def extrair_marca(self, nome):
-        # Lista de marcas do explore_produtos_raw
         marcas_conhecidas = [
             "KSW",
             "CALOI",
@@ -299,16 +271,33 @@ class ProdutosTransformer:
             return "V-Brake"
         return None
 
-    def classificar_genero(self, nome):
+    def classificar_genero_melhorado(self, nome):
+        """
+        Classifica gênero com marcas femininas (Sunny, MWZA, HERA)
+        """
+        if pd.isna(nome):
+            return None
+
         nome_lower = str(nome).lower()
+
+        # Feminino: palavras OU marcas femininas
         if re.search(
             r"\bfeminin[oa]\b|\bfem\b|\bmeninas?\b|\bmulher\b|\bdama\b", nome_lower
         ):
             return "Feminino"
+
+        # Marcas femininas
+        if re.search(r"\bsunny\b|\bmwza\b|\bhera\b", nome_lower):
+            return "Feminino"
+
+        # Masculino
         if re.search(r"\bmasculin[oa]\b|\bmasc\b|\bmeninos?\b|\bhomem\b", nome_lower):
             return "Masculino"
+
+        # Unissex
         if re.search(r"\bunissex\b|\bunisex\b", nome_lower):
             return "Unissex"
+
         return None
 
     def classificar_publico(self, nome):
@@ -334,6 +323,95 @@ class ProdutosTransformer:
         if re.search(r"\bbmx\b", nome_lower):
             return "BMX"
         return None
+
+    # =====================================================
+    # 5. IDENTIFICAR BICICLETAS (REGRAS RIGOROSAS)
+    # =====================================================
+
+    def eh_bicicleta(self, row):
+        """
+        Regras para identificar bicicletas:
+        0. SE primeira palavra for "bicicleta/bike/bke/bicicelta" → É BICICLETA
+        1. Tem "bicicleta", "bike" ou "bke" no nome
+        2. Tem pelo menos 3 atributos preenchidos
+        3. NÃO tem palavras de exclusão
+        4. Primeira palavra NÃO é Quadro/Sapatilha/Raio/etc
+        """
+        nome = row.get("descricao_produto", "")
+
+        if pd.isna(nome):
+            return False
+
+        nome_str = str(nome)
+        nome_lower = nome_str.lower()
+
+        # Regra 0: Primeira palavra é bicicleta/bike/bke?
+        primeira_palavra = (
+            nome_str.strip().split()[0].lower() if nome_str.strip() else ""
+        )
+        if re.search(r"^(bicicleta|bike|bke|bicicelta)$", primeira_palavra):
+            return True
+
+        # Regra 1: Tem palavras-chave?
+        tem_palavra_chave = bool(
+            re.search(r"\bbicicleta\b|\bbike\b|\bbke\b", nome_lower)
+        )
+
+        if not tem_palavra_chave:
+            return False
+
+        # Regra 4: Primeira palavra NÃO pode ser estas
+        primeira_palavra_upper = (
+            nome_str.strip().split()[0].upper() if nome_str.strip() else ""
+        )
+        if primeira_palavra_upper in (
+            "QUADRO",
+            "SAPATILHA",
+            "RAIO",
+            "PNEU",
+            "PE",
+            "PAR",
+            "PEDIVELA",
+            "KIT",
+            "CATRACA",
+            "CAMBIO",
+            "CASSETE",
+        ):
+            return False
+
+        # Regra 3: Tem palavras de exclusão?
+        palavras_exclusao = [
+            "caixa",
+            "embalagem",
+            "garfo",
+            "capacete",
+            "luva",
+            "pedal",
+            "selim",
+            "guidao",
+            "corrente",
+        ]
+
+        for palavra in palavras_exclusao:
+            if re.search(r"\b" + palavra + r"\b", nome_lower):
+                return False
+
+        # Regra 2: Tem pelo menos 3 atributos?
+        atributos = [
+            row.get("aro"),
+            row.get("cor_principal"),
+            row.get("tamanho"),
+            row.get("marchas"),
+            row.get("marca"),
+            row.get("freio"),
+            row.get("genero"),
+            row.get("publico"),
+            row.get("categoria"),
+        ]
+
+        atributos_preenchidos = sum(1 for attr in atributos if pd.notna(attr))
+
+        return atributos_preenchidos >= 3
 
     # =====================================================
     # 6. APLICAR TRANSFORMAÇÕES
@@ -380,54 +458,63 @@ class ProdutosTransformer:
         df["publico"] = None
         df["categoria"] = None
 
-        # Identificar e processar bicicletas
+        # Aplicar extrações EM TODOS OS PRODUTOS
         if "descricao_produto" in df.columns:
-            df_bikes = df[df["descricao_produto"].apply(self.eh_bicicleta)].copy()
+            print("   • Extraindo atributos de todos os produtos...")
 
-            print(f"   • {len(df_bikes)} bicicletas identificadas")
+            df["aro"] = df["descricao_produto"].apply(self.extrair_aro)
 
-            if len(df_bikes) > 0:
-                # Aplicar extrações
-                df_bikes.loc[:, "aro"] = df_bikes["descricao_produto"].apply(
-                    self.extrair_aro
-                )
+            cores_lista = df["descricao_produto"].apply(self.extrair_cores_completo)
+            df["cor_principal"] = cores_lista.apply(
+                lambda x: x[0] if len(x) > 0 else None
+            )
+            df["cor_secundaria"] = cores_lista.apply(
+                lambda x: x[1] if len(x) > 1 else None
+            )
+            df["cor_terciaria"] = cores_lista.apply(
+                lambda x: x[2] if len(x) > 2 else None
+            )
 
-                cores_lista = df_bikes["descricao_produto"].apply(
-                    self.extrair_cores_completo
-                )
-                df_bikes.loc[:, "cor_principal"] = cores_lista.apply(
-                    lambda x: x[0] if len(x) > 0 else None
-                )
-                df_bikes.loc[:, "cor_secundaria"] = cores_lista.apply(
-                    lambda x: x[1] if len(x) > 1 else None
-                )
-                df_bikes.loc[:, "cor_terciaria"] = cores_lista.apply(
-                    lambda x: x[2] if len(x) > 2 else None
-                )
+            df["tamanho"] = df["descricao_produto"].apply(self.extrair_tamanho)
+            df["marchas"] = df["descricao_produto"].apply(self.extrair_marchas)
+            df["marca"] = df["descricao_produto"].apply(self.extrair_marca)
+            df["freio"] = df["descricao_produto"].apply(self.detectar_freio)
+            df["genero"] = df["descricao_produto"].apply(
+                self.classificar_genero_melhorado
+            )
+            df["publico"] = df["descricao_produto"].apply(self.classificar_publico)
+            df["categoria"] = df["descricao_produto"].apply(self.classificar_categoria)
 
-                df_bikes.loc[:, "tamanho"] = df_bikes["descricao_produto"].apply(
-                    self.extrair_tamanho
-                )
-                df_bikes.loc[:, "marchas"] = df_bikes["descricao_produto"].apply(
-                    self.extrair_marchas
-                )
-                df_bikes.loc[:, "marca"] = df_bikes["descricao_produto"].apply(
-                    self.extrair_marca
-                )
-                df_bikes.loc[:, "freio"] = df_bikes["descricao_produto"].apply(
-                    self.detectar_freio
-                )
-                df_bikes.loc[:, "genero"] = df_bikes["descricao_produto"].apply(
-                    self.classificar_genero
-                )
-                df_bikes.loc[:, "publico"] = df_bikes["descricao_produto"].apply(
-                    self.classificar_publico
-                )
-                df_bikes.loc[:, "categoria"] = df_bikes["descricao_produto"].apply(
-                    self.classificar_categoria
-                )
+            print("   ✅ Atributos extraídos")
 
-                df.update(df_bikes)
+        # Identificar bicicletas
+        print("   • Identificando bicicletas...")
+        df["tipo_produto"] = df.apply(
+            lambda row: "Bicicleta" if self.eh_bicicleta(row) else None, axis=1
+        )
+        total_bikes = df["tipo_produto"].notna().sum()
+        print(f"   ✅ {total_bikes} bicicletas identificadas")
+
+        # PREENCHER GÊNERO 100% EM BICICLETAS
+        print("   • Preenchendo gênero (100% cobertura)...")
+        df.loc[
+            (df["tipo_produto"] == "Bicicleta") & (df["genero"].isna()), "genero"
+        ] = "Unissex"
+
+        # PREENCHER MARCA KOG EM INFANTIS SEM MARCA
+        print("   • Preenchendo marca KOG em bikes infantis...")
+        df.loc[
+            (df["tipo_produto"] == "Bicicleta")
+            & (df["publico"] == "Infantil")
+            & (df["marca"].isna()),
+            "marca",
+        ] = "KOG"
+
+        # PREENCHER PÚBLICO 100% EM BICICLETAS
+        print("   • Preenchendo público (100% cobertura)...")
+        df.loc[
+            (df["tipo_produto"] == "Bicicleta") & (df["publico"].isna()), "publico"
+        ] = "Adulto"
 
         # Arredondar preços
         for col in ["preco_venda", "preco_custo"]:
@@ -451,6 +538,7 @@ class ProdutosTransformer:
         colunas_finais = [
             "produto_id",
             "bling_produto_id",
+            "tipo_produto",  # ← ADICIONAR ESTA LINHA
             "sku",
             "descricao_produto",
             "preco_venda",
@@ -493,10 +581,20 @@ class ProdutosTransformer:
         print(f"      • Com SKU: {com_sku} ({com_sku/total*100:.1f}%)")
         print(f"      • Com preço: {com_preco} ({com_preco/total*100:.1f}%)")
 
+        # Bicicletas
+        bikes = df[df["tipo_produto"] == "Bicicleta"]
+        if len(bikes) > 0:
+            cobertura_genero = bikes["genero"].notna().sum() / len(bikes) * 100
+            cobertura_publico = bikes["publico"].notna().sum() / len(bikes) * 100
+            print(f"\n   🚴 BICICLETAS:")
+            print(f"      • Total: {len(bikes)}")
+            print(f"      • Cobertura gênero: {cobertura_genero:.1f}%")
+            print(f"      • Cobertura público: {cobertura_publico:.1f}%")
+
         # Duplicatas
         duplicatas = df.duplicated(subset=["bling_produto_id"]).sum()
         if duplicatas > 0:
-            print(f"\n   ⚠️  {duplicatas} duplicatas encontradas - removendo...")
+            print(f"\n   ⚠️  {duplicatas} duplicatas - removendo...")
             df = df.drop_duplicates(subset=["bling_produto_id"], keep="first")
         else:
             print(f"\n   ✅ Sem duplicatas")
@@ -504,197 +602,53 @@ class ProdutosTransformer:
         return df
 
     # =====================================================
-    # 9. EXPORTAR COM COMPARAÇÃO INTELIGENTE (UPSERT)
+    # 9. EXPORTAR PARA PROCESSED
     # =====================================================
 
     def exportar_para_processed(self, df):
-        """
-        Exporta para processed.dim_produtos usando UPSERT
-        (mesma lógica de sales_dw.py e contacts_dw.py)
-        
-        ESTRATÉGIA:
-        1. Buscar produtos existentes
-        2. Comparar campos relevantes
-        3. INSERT apenas novos
-        4. UPDATE apenas diferentes
-        5. SKIP idênticos
-        """
+        """Exporta para processed.dim_produtos EM LOTES"""
         print("\n6️⃣ EXPORTANDO PARA PROCESSED.DIM_PRODUTOS...")
 
         if len(df) == 0:
             print("⚠️  Nenhum registro para exportar")
             return 0
 
-        session = Session()
-
         try:
-            # === BUSCAR REGISTROS EXISTENTES ===
-            print("🔍 Buscando registros existentes para comparação...")
-            inicio_busca = datetime.now()
-
-            query = text("""
-                SELECT 
-                    produto_id,
-                    bling_produto_id,
-                    preco_venda,
-                    preco_custo,
-                    aro,
-                    marca,
-                    cor_principal,
-                    situacao
-                FROM processed.dim_produtos
-            """)
-
-            df_existentes = pd.read_sql(query, self.engine)
-            fim_busca = datetime.now()
-
-            print(f"📋 {len(df_existentes)} registros existentes carregados em {fim_busca - inicio_busca}")
-
-            # === CLASSIFICAR: NOVOS, DIFERENTES, IDÊNTICOS ===
-            print("🔍 Comparando registros...")
-            inicio_comparacao = datetime.now()
-
-            # Criar dicionário de existentes para lookup rápido
-            existentes_dict = df_existentes.set_index('bling_produto_id').to_dict('index')
-
-            registros_novos = []
-            registros_atualizar = []
-            registros_identicos = 0
-
-            for idx, row in df.iterrows():
-                bling_id = row['bling_produto_id']
-
-                if bling_id not in existentes_dict:
-                    # NOVO → INSERT (sem produto_id)
-                    row_novo = row.drop('produto_id') if 'produto_id' in row.index else row
-                    registros_novos.append(row_novo)
-                else:
-                    # EXISTE → Comparar campos relevantes
-                    existente = existentes_dict[bling_id]
-
-                    # Comparar valores (arredondar floats)
-                    preco_venda_mudou = round(float(row['preco_venda']), 2) != round(float(existente['preco_venda']), 2) if pd.notna(row['preco_venda']) and pd.notna(existente['preco_venda']) else False
-                    preco_custo_mudou = round(float(row['preco_custo']), 2) != round(float(existente['preco_custo']), 2) if pd.notna(row['preco_custo']) and pd.notna(existente['preco_custo']) else False
-                    
-                    # Comparar atributos (None-safe)
-                    aro_mudou = str(row.get('aro', '')) != str(existente.get('aro', ''))
-                    marca_mudou = str(row.get('marca', '')) != str(existente.get('marca', ''))
-                    cor_mudou = str(row.get('cor_principal', '')) != str(existente.get('cor_principal', ''))
-                    situacao_mudou = str(row.get('situacao', '')) != str(existente.get('situacao', ''))
-
-                    if preco_venda_mudou or preco_custo_mudou or aro_mudou or marca_mudou or cor_mudou or situacao_mudou:
-                        # DIFERENTE → UPDATE
-                        row['produto_id'] = existente['produto_id']  # Manter ID existente
-                        registros_atualizar.append(row)
-                    else:
-                        # IDÊNTICO → SKIP
-                        registros_identicos += 1
-
-            fim_comparacao = datetime.now()
-            print(f"✅ Comparação concluída em {fim_comparacao - inicio_comparacao}")
-
-            # === RELATÓRIO ===
-            print(f"\n📊 CLASSIFICAÇÃO DOS REGISTROS:")
-            print(f"   • 🆕 Novos (inserir): {len(registros_novos)}")
-            print(f"   • 🔄 Diferentes (atualizar): {len(registros_atualizar)}")
-            print(f"   • ⏭️ Idênticos (ignorar): {registros_identicos}")
-
-            # === INSERIR NOVOS ===
-            if registros_novos:
-                print(f"\n💾 Inserindo {len(registros_novos)} registros novos...")
-                df_novos = pd.DataFrame(registros_novos)
+            # DIVIDIR EM LOTES DE 1000 REGISTROS
+            batch_size = 1000
+            total_batches = (len(df) // batch_size) + 1
+            
+            print(f"   Exportando {len(df)} registros em {total_batches} lotes...")
+            
+            for i in range(0, len(df), batch_size):
+                batch = df.iloc[i:i+batch_size]
+                batch_num = (i // batch_size) + 1
                 
-                # Garantir que produto_id não está no DataFrame
-                if 'produto_id' in df_novos.columns:
-                    df_novos = df_novos.drop(columns=['produto_id'])
-                
-                df_novos.to_sql(
-                    name='dim_produtos',
+                batch.to_sql(
+                    name="dim_produtos",
                     con=self.engine,
-                    schema='processed',
-                    if_exists='append',
+                    schema="processed",
+                    if_exists="append",
                     index=False,
-                    chunksize=500
+                    method="multi",
+                    chunksize=100,
                 )
-                print(f"✅ Inserções concluídas")
+                
+                print(f"   ✅ Lote {batch_num}/{total_batches} exportado ({len(batch)} registros)")
 
-            # === ATUALIZAR DIFERENTES ===
-            if registros_atualizar:
-                print(f"\n🔄 Atualizando {len(registros_atualizar)} registros diferentes...")
+            print(f"✅ {len(df)} registros exportados com sucesso!")
 
-                for i, row in enumerate(registros_atualizar):
-                    stmt = text("""
-                        UPDATE processed.dim_produtos
-                        SET 
-                            bling_produto_id = :bling_produto_id,
-                            sku = :sku,
-                            descricao_produto = :descricao_produto,
-                            preco_venda = :preco_venda,
-                            preco_custo = :preco_custo,
-                            aro = :aro,
-                            marca = :marca,
-                            cor_principal = :cor_principal,
-                            cor_secundaria = :cor_secundaria,
-                            cor_terciaria = :cor_terciaria,
-                            tamanho = :tamanho,
-                            marchas = :marchas,
-                            freio = :freio,
-                            genero = :genero,
-                            publico = :publico,
-                            categoria = :categoria,
-                            situacao = :situacao,
-                            data_processamento = :data_processamento
-                        WHERE produto_id = :produto_id
-                    """)
-
-                    session.execute(stmt, {
-                        'produto_id': int(row['produto_id']),
-                        'bling_produto_id': int(row['bling_produto_id']),
-                        'sku': str(row['sku']) if pd.notna(row['sku']) else None,
-                        'descricao_produto': str(row['descricao_produto']),
-                        'preco_venda': float(row['preco_venda']) if pd.notna(row['preco_venda']) else None,
-                        'preco_custo': float(row['preco_custo']) if pd.notna(row['preco_custo']) else None,
-                        'aro': str(row['aro']) if pd.notna(row['aro']) else None,
-                        'marca': str(row['marca']) if pd.notna(row['marca']) else None,
-                        'cor_principal': str(row['cor_principal']) if pd.notna(row['cor_principal']) else None,
-                        'cor_secundaria': str(row['cor_secundaria']) if pd.notna(row['cor_secundaria']) else None,
-                        'cor_terciaria': str(row['cor_terciaria']) if pd.notna(row['cor_terciaria']) else None,
-                        'tamanho': str(row['tamanho']) if pd.notna(row['tamanho']) else None,
-                        'marchas': str(row['marchas']) if pd.notna(row['marchas']) else None,
-                        'freio': str(row['freio']) if pd.notna(row['freio']) else None,
-                        'genero': str(row['genero']) if pd.notna(row['genero']) else None,
-                        'publico': str(row['publico']) if pd.notna(row['publico']) else None,
-                        'categoria': str(row['categoria']) if pd.notna(row['categoria']) else None,
-                        'situacao': str(row['situacao']) if pd.notna(row['situacao']) else None,
-                        'data_processamento': row['data_processamento']
-                    })
-
-                    if (i + 1) % 100 == 0:
-                        session.commit()
-                        print(f"   Atualizados {i + 1}/{len(registros_atualizar)} registros...")
-
-                session.commit()
-                print(f"✅ Atualizações concluídas")
-
-            if not registros_novos and not registros_atualizar:
-                print(f"\n✨ Nenhum registro novo ou alterado! DW já está atualizado.")
-
-            # === VERIFICAR TOTAL ===
+            # Verificar total
             query = text("SELECT COUNT(*) FROM processed.dim_produtos")
-            total = session.execute(query).scalar()
-
-            print(f"\n🎉 EXPORTAÇÃO CONCLUÍDA!")
-            print(f"   • Total na tabela: {total}")
-            print(f"   • Economia: {registros_identicos} atualizações desnecessárias evitadas!")
+            with engine.connect() as conn:
+                total = conn.execute(query).scalar()
+                print(f"✅ Total na tabela: {total}")
 
             return len(df)
 
         except Exception as e:
-            session.rollback()
             print(f"❌ ERRO ao exportar: {e}")
             raise
-        finally:
-            session.close()
 
     # =====================================================
     # 10. ATUALIZAR STATUS

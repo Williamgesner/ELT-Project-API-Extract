@@ -21,6 +21,9 @@ class DimProdutos(Base):
     
     # Chave de negócio (ID da API Bling)
     bling_produto_id = Column(BigInteger, unique=True, nullable=False, index=True)
+
+    # Tipo do produto
+    tipo_produto = Column(String(50))  # "Bicicleta" ou None
     
     # Código SKU
     sku = Column(String(50), index=True)
