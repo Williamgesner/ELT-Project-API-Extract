@@ -1,8 +1,11 @@
 # =====================================================
 # TRANSFORMADOR DE CONTATOS
 # =====================================================
-# Responsável por: Limpar e transformar dados de contatos_raw
-# para dim_contatos no schema processed
+# CORREÇÃO: Implementa comparação inteligente (igual sales_dw.py)
+# - Compara antes de salvar
+# - INSERT apenas novos
+# - UPDATE apenas diferentes
+# - SKIP idênticos
 
 import pandas as pd
 import numpy as np
@@ -12,24 +15,24 @@ from sqlalchemy import text
 from config.database import Session, engine
 
 # =====================================================
-# 1. CONECTANDO AO BANCO E IMPORTAR DADOS
+# 1. CLASSE TRANSFORMADORA
 # =====================================================
 
 
 class ContatosTransformer:
     """
-    Transformador específico para contatos
-    Aplica todas as limpezas e padronizações necessárias
+    Transformador de contatos com COMPARAÇÃO INTELIGENTE
     """
 
     def __init__(self):
         self.engine = engine
 
-    # Buscar dados da tabela contatos_raw
+    # =====================================================
+    # 2. EXTRAIR DADOS RAW
+    # =====================================================
+
     def extrair_dados_raw(self):
-        """
-        Extrai dados da tabela raw.contatos_raw
-        """
+        """Extrai dados da tabela raw.contatos_raw"""
         print("\n1️⃣ EXTRAINDO DADOS DE RAW.CONTATOS_RAW...")
 
         query = """
@@ -48,20 +51,18 @@ class ContatosTransformer:
 
         return df_raw
 
-# =====================================================
-# 2. EXPANDIR JSON EM COLUNAS
-# =====================================================
+    # =====================================================
+    # 3. EXPANDIR JSON
+    # =====================================================
 
     def expandir_json(self, df_raw):
-        """
-        Expande o JSON em colunas
-        """
+        """Expande o JSON em colunas"""
         print("\n2️⃣ EXPANDINDO JSON EM COLUNAS...")
 
         # Normalizar o JSON principal
         df_json = pd.json_normalize(df_raw["dados_json"])
 
-        # Renomear 'id' do JSON para 'id_bling' para não dar divergência
+        # Renomear 'id' do JSON para 'id_bling'
         if "id" in df_json.columns:
             df_json = df_json.rename(columns={"id": "id_bling"})
 
@@ -77,15 +78,12 @@ class ContatosTransformer:
         print(f"✅ JSON expandido! {len(df.columns)} colunas disponíveis")
         return df
 
-# =====================================================
-# 3. LIMPEZA DE DADOS
-# =====================================================
+    # =====================================================
+    # 4. APLICAR LIMPEZAS E TRANSFORMAÇÕES
+    # =====================================================
 
     def aplicar_limpezas(self, df):
-        """
-        Aplica TODAS as limpezas e transformações
-        SEGUINDO OS ARQUIVOS DO ANALYSIS/ QUE FIZ PARA TESTES E VALIDAÇÕES
-        """
+        """Aplica TODAS as limpezas e transformações"""
         print("\n3️⃣ APLICANDO LIMPEZAS E TRANSFORMAÇÕES...")
 
         # === REMOVER COLUNAS DESNECESSÁRIAS ===
@@ -148,11 +146,11 @@ class ContatosTransformer:
                 "endereco.geral.municipio": "cidade",
                 "endereco.geral.uf": "estado",
                 "endereco.geral.cep": "cep",
-                "bling_id": "bling_cliente_id"
+                "bling_id": "bling_cliente_id",
             }
         )
 
-        # === CONVERTENDO E PADRONIZANDO STRINGS VAZIAS, ESPAÇOS, NONE PARA NaN ===
+        # === LIMPAR STRINGS VAZIAS ===
         print("   • Convertendo strings vazias para NaN...")
         for coluna in df.select_dtypes(include=["object"]).columns:
             df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True)
@@ -183,25 +181,26 @@ class ContatosTransformer:
         print("✅ Todas as limpezas aplicadas com sucesso!")
         return df
 
+    # =====================================================
+    # 5. FUNÇÕES AUXILIARES DE LIMPEZA
+    # =====================================================
+
     def _limpar_nome(self, nome):
         """Limpa e padroniza nomes"""
         if pd.isna(nome):
             return np.nan
-        
+
         nome = str(nome).strip()
-        nome = re.sub(r'[^a-zA-Z0-9\s\-]', ' ', nome) # Remover caracteres especiais (manter letras, números, espaços e hífen)
-        nome = ' '.join(nome.split()) # Remover espaços múltiplos
-        nome = nome.title() # Capitalizar (Title Case)
-        
-        # Lista de sufixos empresariais
-        sufixos = ['Epp', 'Ltda', 'Eireli', 'Ltd', 'Limitada']
-        # Padronizar cada sufixo
+        nome = re.sub(r"[^a-zA-Z0-9\s\-]", " ", nome)
+        nome = " ".join(nome.split())
+        nome = nome.title()
+
+        sufixos = ["Epp", "Ltda", "Eireli", "Ltd", "Limitada"]
         for sufixo in sufixos:
             sufixo_upper = sufixo.upper()
-            pattern = rf'\s*-?\s*({re.escape(sufixo)})(?:\s+.*)?$'
-            nome = re.sub(pattern, f' - {sufixo_upper}', nome, flags=re.IGNORECASE)
+            pattern = rf"\s*-?\s*({re.escape(sufixo)})(?:\s+.*)?$"
+            nome = re.sub(pattern, f" - {sufixo_upper}", nome, flags=re.IGNORECASE)
 
-        # Remover espaços extras no final
         nome = nome.strip()
         return nome if nome else np.nan
 
@@ -210,12 +209,11 @@ class ContatosTransformer:
         if pd.isna(documento):
             return np.nan
 
-        doc = re.sub(r"\D", "", str(documento).strip())  # Remover caracteres não numéricos
+        doc = re.sub(r"\D", "", str(documento).strip())
 
         if not doc:
             return np.nan
 
-        # Preencher com zeros
         if len(doc) <= 11:
             return doc.zfill(11)
         elif len(doc) <= 14:
@@ -224,55 +222,39 @@ class ContatosTransformer:
             return np.nan
 
     def _determinar_tipo_pessoa(self, row):
-        """
-        Determina tipo de pessoa baseado no CPF/CNPJ:
-        - 11 dígitos (CPF) → "F" (Pessoa Física)
-        - 14 dígitos (CNPJ) → "J" (Pessoa Jurídica)
-        - Mantém o valor existente se já estiver preenchido
-        """
-
-         # Se tipo_pessoa já está preenchido, manter
+        """Determina tipo de pessoa baseado no CPF/CNPJ"""
         if pd.notna(row["tipo_pessoa"]) and row["tipo_pessoa"] in ["F", "J"]:
             return row["tipo_pessoa"]
 
-        # Se não tem CPF/CNPJ, deixar vazio
         if pd.isna(row["cpf_cnpj"]):
             return np.nan
 
-        # Determinar baseado no tamanho do documento
         tamanho = len(str(row["cpf_cnpj"]))
 
         if tamanho == 11:
-            return "F" # CPF = Pessoa Física
+            return "F"
         elif tamanho == 14:
-            return "J" # CNPJ = Pessoa Jurídica
+            return "J"
         else:
-            return np.nan # Documento inválido
+            return np.nan
 
     def _padronizar_cep(self, cep):
         """Padroniza CEP no formato xx.xxx-xx"""
         if pd.isna(cep):
             return np.nan
 
-        # Remover todos os caracteres não numéricos
         cep_numeros = re.sub(r"\D", "", str(cep).strip())
 
-        # Se não tiver exatamente 8 dígitos, retornar vazio
         if len(cep_numeros) != 8:
             return np.nan
 
         return f"{cep_numeros[:2]}.{cep_numeros[2:5]}-{cep_numeros[5:]}"
 
     def _padronizar_telefone(self, telefone):
-        """
-        Formata telefone como:
-        - Celular: (XX) XXXXX-XXXX (11 dígitos)
-        - Fixo: (XX) XXXX-XXXX (10 dígitos)
-        """
+        """Formata telefone: (XX) XXXXX-XXXX ou (XX) XXXX-XXXX"""
         if pd.isna(telefone):
             return np.nan
 
-        # Remover caracteres não numéricos
         tel_num = re.sub(r"\D", "", str(telefone).strip())
 
         if not tel_num:
@@ -281,59 +263,45 @@ class ContatosTransformer:
         tamanho = len(tel_num)
 
         if tamanho == 11:
-            # Celular
             return f"({tel_num[:2]}) {tel_num[2:7]}-{tel_num[7:]}"
         elif tamanho == 10:
-            # Fixo
             return f"({tel_num[:2]}) {tel_num[2:6]}-{tel_num[6:]}"
         else:
-            # Inválido
             return np.nan
 
-# =====================================================
-# 4. PREPARANDO DADOS PARA EXPORTAÇÃO
-# =====================================================
+    # =====================================================
+    # 6. PREPARAR PARA EXPORTAÇÃO
+    # =====================================================
 
     def preparar_para_exportacao(self, df):
-        """
-        Ordena colunas e prepara DataFrame final
-        """
+        """Ordena colunas e prepara DataFrame final"""
         print("\n4️⃣ PREPARANDO DADOS PARA EXPORTAÇÃO...")
 
         colunas_finais = [
-            # IDs e Metadados
             "cliente_id",
             "bling_cliente_id",
-
-            # Dados do Cliente
             "nome",
             "cpf_cnpj",
             "tipo_pessoa",
             "telefone",
-
-            # Endereço
             "cidade",
             "estado",
             "cep",
-
-            # Metadados do Sistem
             "data_ingestao",
-            "data_processamento"
+            "data_processamento",
         ]
-        # Só pega as colunas que realmente existem no DataFrame. Se alguma não existir, simplesmente ignora.
-        df = df[[col for col in colunas_finais if col in df.columns]] 
+
+        df = df[[col for col in colunas_finais if col in df.columns]]
 
         print(f"✅ Dados preparados! {len(df)} registros x {len(df.columns)} colunas")
         return df
 
-# =====================================================
-# 5. EXECUTANDO VALIDAÇÃO DE DADOS
-# =====================================================
+    # =====================================================
+    # 7. VALIDAR DADOS
+    # =====================================================
 
     def validar_dados(self, df):
-        """
-        Executa validações de qualidade
-        """
+        """Executa validações de qualidade"""
         print("\n5️⃣ EXECUTANDO VALIDAÇÕES DE QUALIDADE...")
 
         total = len(df)
@@ -360,51 +328,232 @@ class ContatosTransformer:
 
         return df
 
-# =====================================================
-# 5. EXPORTANDO OS DADOS PARA O BANCO DE DADOS 
-# =====================================================
+    # =====================================================
+    # 8. EXPORTAR COM COMPARAÇÃO INTELIGENTE ✅ CORRIGIDO
+    # =====================================================
 
     def exportar_para_processed(self, df):
         """
-        Exporta dados para processed.dim_contatos
+        ✅ CORREÇÃO: Implementa comparação inteligente (igual sales_dw.py)
+
+        ESTRATÉGIA:
+        1. Buscar contatos existentes
+        2. Comparar campos relevantes
+        3. INSERT apenas novos
+        4. UPDATE apenas diferentes
+        5. SKIP idênticos
         """
         print("\n6️⃣ EXPORTANDO PARA PROCESSED.DIM_CONTATOS...")
 
+        if len(df) == 0:
+            print("⚠️  Nenhum registro para exportar")
+            return 0
+
+        session = Session()
+
         try:
-            # IMPORTANTE: Use 'replace' na PRIMEIRA execução
-            # Depois mude para 'append' para adicionar novos registros
-            df.to_sql(
-                name="dim_contatos",
-                con=self.engine,
-                schema="processed",
-                if_exists="append",  # ⚠️ MUDAR PARA 'append' após primeira execução
-                index=False,
-                method="multi",
-                chunksize=1000,
+            # === BUSCAR REGISTROS EXISTENTES ===
+            print("🔍 Buscando registros existentes para comparação...")
+            inicio_busca = datetime.now()
+
+            query = text(
+                """
+                SELECT 
+                    cliente_id,
+                    bling_cliente_id,
+                    nome,
+                    cpf_cnpj,
+                    telefone,
+                    cidade,
+                    cep
+                FROM processed.dim_contatos
+            """
             )
 
-            print(f"✅ {len(df)} registros exportados com sucesso!")
+            df_existentes = pd.read_sql(query, self.engine)
+            fim_busca = datetime.now()
 
-            # Verificar
+            print(
+                f"📋 {len(df_existentes)} registros existentes carregados em {fim_busca - inicio_busca}"
+            )
+
+            # === CLASSIFICAR: NOVOS, DIFERENTES, IDÊNTICOS ===
+            print("🔍 Comparando registros...")
+            inicio_comparacao = datetime.now()
+
+            existentes_dict = df_existentes.set_index("bling_cliente_id").to_dict(
+                "index"
+            )
+
+            registros_novos = []
+            registros_atualizar = []
+            registros_identicos = 0
+
+            for idx, row in df.iterrows():
+                bling_id = row["bling_cliente_id"]
+
+                if bling_id not in existentes_dict:
+                    # NOVO → INSERT
+                    registros_novos.append(row)
+                else:
+                    # EXISTE → Comparar campos relevantes
+                    existente = existentes_dict[bling_id]
+
+                    # Função auxiliar para comparar com segurança (None-safe)
+                    def comparar_campo(novo, existente):
+                        novo_str = str(novo).strip() if pd.notna(novo) else ""
+                        exist_str = (
+                            str(existente).strip() if pd.notna(existente) else ""
+                        )
+                        return novo_str != exist_str
+
+                    nome_mudou = comparar_campo(row.get("nome"), existente.get("nome"))
+                    cpf_mudou = comparar_campo(
+                        row.get("cpf_cnpj"), existente.get("cpf_cnpj")
+                    )
+                    telefone_mudou = comparar_campo(
+                        row.get("telefone"), existente.get("telefone")
+                    )
+                    cidade_mudou = comparar_campo(
+                        row.get("cidade"), existente.get("cidade")
+                    )
+                    cep_mudou = comparar_campo(row.get("cep"), existente.get("cep"))
+
+                    if (
+                        nome_mudou
+                        or cpf_mudou
+                        or telefone_mudou
+                        or cidade_mudou
+                        or cep_mudou
+                    ):
+                        # DIFERENTE → UPDATE
+                        row["cliente_id"] = existente["cliente_id"]
+                        registros_atualizar.append(row)
+                    else:
+                        # IDÊNTICO → SKIP
+                        registros_identicos += 1
+
+            fim_comparacao = datetime.now()
+            print(f"✅ Comparação concluída em {fim_comparacao - inicio_comparacao}")
+
+            # === RELATÓRIO ===
+            print(f"\n📊 CLASSIFICAÇÃO DOS REGISTROS:")
+            print(f"   • 🆕 Novos (inserir): {len(registros_novos)}")
+            print(f"   • 🔄 Diferentes (atualizar): {len(registros_atualizar)}")
+            print(f"   • ⏭️ Idênticos (ignorar): {registros_identicos}")
+
+            # === INSERIR NOVOS ===
+            if registros_novos:
+                print(f"\n💾 Inserindo {len(registros_novos)} registros novos...")
+                df_novos = pd.DataFrame(registros_novos)
+
+                # Remover cliente_id se existir (será gerado automaticamente)
+                if "cliente_id" in df_novos.columns:
+                    df_novos = df_novos.drop(columns=["cliente_id"])
+
+                df_novos.to_sql(
+                    name="dim_contatos",
+                    con=self.engine,
+                    schema="processed",
+                    if_exists="append",
+                    index=False,
+                    chunksize=500,
+                )
+                print(f"✅ Inserções concluídas")
+
+            # === ATUALIZAR DIFERENTES ===
+            if registros_atualizar:
+                print(
+                    f"\n🔄 Atualizando {len(registros_atualizar)} registros diferentes..."
+                )
+
+                for i, row in enumerate(registros_atualizar):
+                    stmt = text(
+                        """
+                        UPDATE processed.dim_contatos
+                        SET 
+                            bling_cliente_id = :bling_cliente_id,
+                            nome = :nome,
+                            cpf_cnpj = :cpf_cnpj,
+                            tipo_pessoa = :tipo_pessoa,
+                            telefone = :telefone,
+                            cidade = :cidade,
+                            estado = :estado,
+                            cep = :cep,
+                            data_processamento = :data_processamento
+                        WHERE cliente_id = :cliente_id
+                    """
+                    )
+
+                    session.execute(
+                        stmt,
+                        {
+                            "cliente_id": int(row["cliente_id"]),
+                            "bling_cliente_id": int(row["bling_cliente_id"]),
+                            "nome": str(row["nome"]) if pd.notna(row["nome"]) else None,
+                            "cpf_cnpj": (
+                                str(row["cpf_cnpj"])
+                                if pd.notna(row["cpf_cnpj"])
+                                else None
+                            ),
+                            "tipo_pessoa": (
+                                str(row["tipo_pessoa"])
+                                if pd.notna(row["tipo_pessoa"])
+                                else None
+                            ),
+                            "telefone": (
+                                str(row["telefone"])
+                                if pd.notna(row["telefone"])
+                                else None
+                            ),
+                            "cidade": (
+                                str(row["cidade"]) if pd.notna(row["cidade"]) else None
+                            ),
+                            "estado": (
+                                str(row["estado"]) if pd.notna(row["estado"]) else None
+                            ),
+                            "cep": str(row["cep"]) if pd.notna(row["cep"]) else None,
+                            "data_processamento": row["data_processamento"],
+                        },
+                    )
+
+                    if (i + 1) % 100 == 0:
+                        session.commit()
+                        print(
+                            f"   Atualizados {i + 1}/{len(registros_atualizar)} registros..."
+                        )
+
+                session.commit()
+                print(f"✅ Atualizações concluídas")
+
+            if not registros_novos and not registros_atualizar:
+                print(f"\n✨ Nenhum registro novo ou alterado! DW já está atualizado.")
+
+            # === VERIFICAR TOTAL ===
             query = text("SELECT COUNT(*) FROM processed.dim_contatos")
-            with engine.connect() as conn:
-                total = conn.execute(query).scalar()
-                print(f"✅ Verificação: {total} registros na tabela")
+            total = session.execute(query).scalar()
+
+            print(f"\n🎉 EXPORTAÇÃO CONCLUÍDA!")
+            print(f"   • Total na tabela: {total}")
+            print(
+                f"   • Economia: {registros_identicos} atualizações desnecessárias evitadas!"
+            )
 
             return len(df)
 
         except Exception as e:
+            session.rollback()
             print(f"❌ ERRO ao exportar: {e}")
             raise
+        finally:
+            session.close()
 
-# =====================================================
-# 6. ATUALIZANDO STATUS DO RAW
-# =====================================================
+    # =====================================================
+    # 9. ATUALIZAR STATUS RAW
+    # =====================================================
 
     def atualizar_status_raw(self, df):
-        """
-        Atualiza status dos registros processados em raw.contatos_raw
-        """
+        """Atualiza status dos registros processados em raw.contatos_raw"""
         print("\n7️⃣ ATUALIZANDO STATUS NA TABELA RAW...")
 
         session = Session()
@@ -431,14 +580,12 @@ class ContatosTransformer:
         finally:
             session.close()
 
-# =====================================================
-# 7. EXECUTANDO TODOS OS SCRIPTS 
-# =====================================================
+    # =====================================================
+    # 10. EXECUTAR TRANSFORMAÇÃO COMPLETA
+    # =====================================================
 
     def executar_transformacao_completa(self):
-        """
-        Executa o pipeline completo de transformação
-        """
+        """Executa o pipeline completo de transformação"""
         try:
             # 1. Extrair dados raw
             df_raw = self.extrair_dados_raw()
@@ -460,7 +607,7 @@ class ContatosTransformer:
             # 5. Validar
             df = self.validar_dados(df)
 
-            # 6. Exportar
+            # 6. Exportar (COM COMPARAÇÃO INTELIGENTE ✅)
             total_exportado = self.exportar_para_processed(df)
 
             # 7. Atualizar status

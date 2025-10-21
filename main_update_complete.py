@@ -12,7 +12,7 @@ from extract.sales_details import VendasDetalhesExtractor
 from transform.contacts_dw import ContatosTransformer
 from transform.products_dw import ProdutosTransformer
 from transform.sales_dw import VendasTransformer
-from transform.items_dw import ItensTransformer  # ← ADICIONAR ESTA LINHA
+from transform.items_dw import ItensTransformer 
 
 # =====================================================
 # 1. EXECUÇÃO COMPLETA - EXTRAÇÃO
@@ -138,18 +138,51 @@ def executar_transformacao_completa():
     
     inicio_transformacao = datetime.now()
     
-    # Resetar status para reprocessar todos os registros
-    print("\n▶️  Resetando status_processamento...")
+    # Resetar status para reprocessar todos os registros (Apenas quando for executar pela primeira vez)
+    # print("\n▶️  Resetando status_processamento...")
+    # session = Session()
+    # try:
+    #     session.execute(text("UPDATE raw.contatos_raw SET status_processamento = 'pendente'"))
+    #     session.execute(text("UPDATE raw.produtos_raw SET status_processamento = 'pendente'"))
+    #     session.execute(text("UPDATE raw.vendas_raw SET status_processamento = 'pendente'"))
+    #     session.commit()
+    #     print("✅ Status resetado - todos os registros serão reprocessados")
+    # except Exception as e:
+    #     print(f"⚠️  Erro ao resetar status: {e}")
+    #     session.rollback()
+    # finally:
+    #     session.close()
+
+    # NÃO resetar status - processamento incremental (A partir da segunda vez que for rodar, será essa parte aqui)
+    print("\n▶️  Modo incremental: processando apenas registros 'pendente'...")
+
     session = Session()
     try:
-        session.execute(text("UPDATE raw.contatos_raw SET status_processamento = 'pendente'"))
-        session.execute(text("UPDATE raw.produtos_raw SET status_processamento = 'pendente'"))
-        session.execute(text("UPDATE raw.vendas_raw SET status_processamento = 'pendente'"))
-        session.commit()
-        print("✅ Status resetado - todos os registros serão reprocessados")
+        # Verificar quantos registros pendentes existem
+        contatos_pendentes = session.execute(text(
+            "SELECT COUNT(*) FROM raw.contatos_raw WHERE status_processamento = 'pendente'"
+        )).scalar()
+        
+        produtos_pendentes = session.execute(text(
+            "SELECT COUNT(*) FROM raw.produtos_raw WHERE status_processamento = 'pendente'"
+        )).scalar()
+        
+        vendas_pendentes = session.execute(text(
+            "SELECT COUNT(*) FROM raw.vendas_raw WHERE status_processamento = 'pendente'"
+        )).scalar()
+        
+        print(f"   • Contatos pendentes: {contatos_pendentes}")
+        print(f"   • Produtos pendentes: {produtos_pendentes}")
+        print(f"   • Vendas pendentes: {vendas_pendentes}")
+        
+        total_pendentes = contatos_pendentes + produtos_pendentes + vendas_pendentes
+        
+        if total_pendentes == 0:
+            print("\n✨ Nenhum registro pendente - DW já está atualizado!")
+            return []
+            
     except Exception as e:
-        print(f"⚠️  Erro ao resetar status: {e}")
-        session.rollback()
+        print(f"⚠️  Erro ao verificar status: {e}")
     finally:
         session.close()
     

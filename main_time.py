@@ -11,7 +11,7 @@ from sqlalchemy import text
 # 1. FUNÇÃO PARA POPULAR DIM_TEMPO
 # =====================================================
 
-def popular_dim_tempo(data_inicio='2020-01-01', data_fim='2030-12-31'):
+def popular_dim_tempo(data_inicio='2015-01-01', data_fim='2030-12-31'):
     """
     Popula a dimensão tempo com todas as datas no intervalo
     
@@ -154,7 +154,7 @@ if __name__ == "__main__":
         
         # Popular dim_tempo
         popular_dim_tempo(
-            data_inicio='2018-01-01',  # Ajustar conforme necessário
+            data_inicio='2015-01-01',  # Ajustar conforme necessário
             data_fim='2030-12-31'      # Ajustar conforme necessário
         )
         
