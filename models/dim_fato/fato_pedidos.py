@@ -21,7 +21,9 @@ class FatoPedidos(Base):
     # Chave de negócio (ID da API Bling)
     bling_pedido_id = Column(BigInteger, unique=True, nullable=False, index=True)
     # Número do pedido (visível para usuários)
-    numero_pedido = Column(String(50), index=True)
+    numero_pedido_lv = Column(String(50), index=True)
+    # Número do pedido que vai na NF
+    numero_pedido_bling = Column(BigInteger, index=True)
     
     # ============================
     # CHAVES ESTRANGEIRAS
@@ -67,4 +69,4 @@ class FatoPedidos(Base):
     data_processamento = Column(DateTime, default=datetime.now, nullable=False)
 
     def __repr__(self):
-        return f"<FatoPedidos(pedido_id={self.pedido_id}, numero={self.numero_pedido}, valor={self.valor_total})>"
+        return f"<FatoPedidos(pedido_id={self.pedido_id}, numero={self.numero_pedido_bling}, valor={self.valor_total})>"

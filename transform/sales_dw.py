@@ -95,7 +95,6 @@ class VendasTransformer:
         print("   • Removendo colunas desnecessárias...")
         colunas_remover = [
             "id_bling",
-            "numero",
             "contato.nome",
             "dataSaida",
             "dataPrevista",
@@ -143,10 +142,11 @@ class VendasTransformer:
         df = df.rename(
             columns={
                 "id": "pedido_id",
+                "numero": "numero_pedido_bling",
                 "bling_id": "bling_pedido_id",
                 "total": "valor_total",
                 "data": "data_pedido",
-                "numeroLoja": "numero_pedido",
+                "numeroLoja": "numero_pedido_lv", # Numero do pedido Loja Virtual (lv)
                 "loja.id": "canal_id",
                 "contato.id": "bling_cliente_id",
                 "transporte.frete": "valor_frete",
@@ -270,7 +270,8 @@ class VendasTransformer:
         colunas_finais = [
             "pedido_id",
             "bling_pedido_id",
-            "numero_pedido",
+            "numero_pedido_lv",
+            "numero_pedido_bling",
             "data_pedido",
             "cliente_id",
             "canal_id",
@@ -308,7 +309,7 @@ class VendasTransformer:
             print(f"   ⚠️  {removidos_sem_data} registros sem data removidos")
 
         # Validações
-        com_numero = df["numero_pedido"].notna().sum()
+        com_numero = df["numero_pedido_bling"].notna().sum()
         com_cliente = df["cliente_id"].notna().sum()
         com_situacao = df["situacao"].notna().sum()
 
@@ -440,7 +441,8 @@ class VendasTransformer:
                         UPDATE processed.fato_pedidos
                         SET 
                             bling_pedido_id = :bling_pedido_id,
-                            numero_pedido = :numero_pedido,
+                            numero_pedido_lv = :numero_pedido_lv,
+                            numero_pedido_bling = :numero_pedido_bling,
                             data_pedido = :data_pedido,
                             cliente_id = :cliente_id,
                             canal_id = :canal_id,
@@ -456,7 +458,8 @@ class VendasTransformer:
                     session.execute(stmt, {
                         'pedido_id': int(row['pedido_id']),
                         'bling_pedido_id': int(row['bling_pedido_id']),
-                        'numero_pedido': str(row['numero_pedido']) if pd.notna(row['numero_pedido']) else None,
+                        'numero_pedido_lv': str(row['numero_pedido_lv']) if pd.notna(row['numero_pedido_lv']) else None,
+                        'numero_pedido_bling': str(row['numero_pedido_bling']) if pd.notna(row['numero_pedido_bling']) else None,
                         'data_pedido': row['data_pedido'].date() if pd.notna(row['data_pedido']) else None,
                         'cliente_id': int(row['cliente_id']) if pd.notna(row['cliente_id']) else None,
                         'canal_id': int(row['canal_id']) if pd.notna(row['canal_id']) else None,
