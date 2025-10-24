@@ -80,17 +80,19 @@ def create_all_tables():
     from models.contact_raw import ContatoRaw
     from models.product_raw import ProdutoRaw
     from models.sales_raw import VendasRaw
-    from models.stocks_raw import EstoqueRaw
     from models.situation_raw import SituacoesRaw
     from models.channels_raw import CanaisRaw
+    from models.accounts_payable_raw import ContasPagarRaw
+    from models.accounts_payable_categories_raw import CategoriasRaw
     
 
     print("   ✓ ContatoRaw")
     print("   ✓ ProdutoRaw")
     print("   ✓ VendasRaw")
-    print("   ✓ EstoqueRaw")
     print("   ✓ SituacoesRaw")
     print("   ✓ CanaisRaw")
+    print("   ✓ ContasPgarRaw")
+    print("   ✓ CategoriasRaw")
 
     # =====================================================
     # 3.2. IMPORTAÇÃO DOS MODELOS PROCESSED (Dimensões)
@@ -116,11 +118,9 @@ def create_all_tables():
     
     from models.dim_fato.fato_pedidos import FatoPedidos 
     from models.dim_fato.fato_itens_pedidos import FatoItensPedidos
-    #from models.dim_fato.fato_estoques import FatoEstoques
     
     print("   ✓ FatoPedidos")
     print("   ✓ FatoItensPedidos")
-    print("   ✓ FatoEstoques")
 
     # =====================================================
     # 3.4. CRIAÇÃO DAS TABELAS
@@ -133,9 +133,9 @@ def create_all_tables():
     print("   • raw.contatos_raw")
     print("   • raw.produtos_raw") 
     print("   • raw.vendas_raw")
-    print("   • raw.estoque_raw")
     print("   • raw.situacoes_raw") 
     print("   • raw.canais_raw") 
+    print("   • raw.contas_pagar_raw") 
     
     print("\nTabelas PROCESSED que serão criadas:")
     print("   • processed.dim_contatos")
@@ -144,7 +144,6 @@ def create_all_tables():
     print("   • processed.dim_canais")
     print("   • processed.fato_pedidos")
     print("   • processed.fato_itens_pedidos")
-    print("   • processed.fato_estoques")
     
     # Cria todas as tabelas de uma vez
     Base.metadata.create_all(engine)

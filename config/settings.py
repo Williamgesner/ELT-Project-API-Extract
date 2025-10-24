@@ -54,5 +54,12 @@ endpoints = {
     'vendas': 'https://api.bling.com.br/Api/v3/pedidos/vendas',
     'estoque': 'https://api.bling.com.br/Api/v3/estoques',
     'situacoes': 'https://api.bling.com.br/Api/v3/situacoes',
-    'canais': 'https://api.bling.com.br/Api/v3/canais-venda'
+    'canais': 'https://api.bling.com.br/Api/v3/canais-venda',
+
+     # ===== DASHBOARD FINANCEIRO =====
+    'contas_pagar': 'https://api.bling.com.br/Api/v3/contas/pagar',
+    'contas_receber': 'https://api.bling.com.br/Api/v3/contas/receber',
+    'categorias': 'https://api.bling.com.br/Api/v3/categorias/receitas-despesas',
+    'nfe': 'https://api.bling.com.br/Api/v3/nfe',
+    'nfce': 'https://api.bling.com.br/Api/v3/nfce'
 }
