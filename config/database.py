@@ -86,6 +86,7 @@ def create_all_tables():
     from models.accounts_payable_categories_raw import CategoriasRaw
     from models.nfe_raw import NFeRaw
     from models.accounts_receivable_raw import ContasReceberRaw
+    from models.payment_methods_raw import FormasPagamentosRaw
     
 
     print("   ✓ ContatoRaw")
@@ -97,6 +98,7 @@ def create_all_tables():
     print("   ✓ CategoriasRaw")
     print("   ✓ NfeRaw")
     print("   ✓ ContasReceberRaw")
+    print("   ✓ FormasPagamentosRaw")
 
     # =====================================================
     # 3.2. IMPORTAÇÃO DOS MODELOS PROCESSED (Dimensões)
@@ -143,6 +145,7 @@ def create_all_tables():
     print("   ✓ raw.categorias_contas_pagar_raw")
     print("   ✓ raw.nfe_raw")
     print("   ✓ raw.contas_receber_raw")
+    print("   ✓ raw.formas_pagamentos_raw")
     
     print("\nTabelas PROCESSED que serão criadas:")
     print("   • processed.dim_contatos")
