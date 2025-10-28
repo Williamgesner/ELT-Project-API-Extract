@@ -110,6 +110,8 @@ def create_all_tables():
     from models.dim_fato.dim_tempo import DimTempo
     from models.dim_fato.dim_produtos import DimProdutos
     from models.dim_fato.dim_formas_pagamento import DimFormasPagamento
+    from models.dim_fato.dim_categorias_contas_pagar import DimCategoriasContasPagar
+
     
     
     print("   ✓ DimContatos")
@@ -117,6 +119,7 @@ def create_all_tables():
     print("   ✓ DimProdutos")
     print("   ✓ DimCanais")
     print("   ✓ DimFormasPagamento")
+    print("   ✓ DimCategoriasContasPagar")
 
     # =====================================================
     # 3.3. IMPORTAÇÃO DOS MODELOS PROCESSED (Fatos)
