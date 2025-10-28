@@ -109,12 +109,14 @@ def create_all_tables():
     from models.dim_fato.dim_contatos import DimContatos
     from models.dim_fato.dim_tempo import DimTempo
     from models.dim_fato.dim_produtos import DimProdutos
+    from models.dim_fato.dim_formas_pagamento import DimFormasPagamento
     
     
     print("   ✓ DimContatos")
     print("   ✓ DimTempo")
     print("   ✓ DimProdutos")
     print("   ✓ DimCanais")
+    print("   ✓ DimFormasPagamento")
 
     # =====================================================
     # 3.3. IMPORTAÇÃO DOS MODELOS PROCESSED (Fatos)
@@ -124,9 +126,11 @@ def create_all_tables():
     
     from models.dim_fato.fato_pedidos import FatoPedidos 
     from models.dim_fato.fato_itens_pedidos import FatoItensPedidos
+    from models.dim_fato.fato_contas_pagar import FatoContasPagar
     
     print("   ✓ FatoPedidos")
     print("   ✓ FatoItensPedidos")
+    print("   ✓ FatoContasPagar")
 
     # =====================================================
     # 3.4. CRIAÇÃO DAS TABELAS
@@ -151,9 +155,10 @@ def create_all_tables():
     print("   • processed.dim_contatos")
     print("   • processed.dim_tempo") 
     print("   • processed.dim_produtos")
-    print("   • processed.dim_canais")
+    print("   • processed.dim_formas_pagamento")
     print("   • processed.fato_pedidos")
     print("   • processed.fato_itens_pedidos")
+    print("   • processed.fato_contas_pagar")
     
     # Cria todas as tabelas de uma vez
     Base.metadata.create_all(engine)
