@@ -27,7 +27,7 @@ class DimCategoriasContasPagar(Base):
     # ============================
     
     tipo_categoria = Column(String(50), nullable=True, index=True)  # Despesa, Receita, etc.
-    descricao = Column(String(255), nullable=False)
+    categoria = Column(String(255), nullable=False)
     
     # ============================
     # METADADOS
@@ -37,4 +37,4 @@ class DimCategoriasContasPagar(Base):
     data_processamento = Column(DateTime, default=datetime.now, nullable=False)
 
     def __repr__(self):
-        return f"<DimCategoriasContasPagar(categoria_id={self.categoria_id}, descricao='{self.descricao}', tipo='{self.tipo_categoria}')>"
+        return f"<DimCategoriasContasPagar(categoria_id={self.categoria_id}, categoria='{self.categoria}', tipo='{self.tipo_categoria}')>"

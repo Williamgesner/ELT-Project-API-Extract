@@ -122,6 +122,7 @@ class CategoriasContasPagarTransformer:
                 "id": "categoria_id",
                 "bling_id": "bling_categorias_id",
                 "tipo": "tipo_categoria",
+                "descricao": "categoria",
             }
         )
 
@@ -144,11 +145,11 @@ class CategoriasContasPagarTransformer:
             df[coluna] = df[coluna].replace("", np.nan)
             df[coluna] = df[coluna].replace(" ", np.nan)
 
-        # === LIMPAR E PADRONIZAR DESCRIÇÃO ===
-        print("   • Padronizando descrição...")
-        if "descricao" in df.columns:
-            df["descricao"] = df["descricao"].str.strip()
-            df["descricao"] = df["descricao"].str.title()
+        # === LIMPAR E PADRONIZAR CATEGORIA ===
+        print("   • Padronizando categoria...")
+        if "categoria" in df.columns:
+            df["categoria"] = df["categoria"].str.strip()
+            df["categoria"] = df["categoria"].str.title()
 
         # === ADICIONAR METADADOS ===
         print("   • Adicionando metadados de processamento...")
@@ -172,7 +173,7 @@ class CategoriasContasPagarTransformer:
             "categoria_id",
             "bling_categorias_id",
             "tipo_categoria",
-            "descricao",
+            "categoria",
             "data_ingestao",
             "data_processamento",
         ]
@@ -212,9 +213,9 @@ class CategoriasContasPagarTransformer:
             print(f"⚠️  {nulos_id} registros sem categoria_id")
             df = df[df["categoria_id"].notna()]
 
-        nulos_descricao = df["descricao"].isna().sum()
-        if nulos_descricao > 0:
-            print(f"⚠️  {nulos_descricao} registros sem descrição")
+        nulos_categoria = df["categoria"].isna().sum()
+        if nulos_categoria > 0:
+            print(f"⚠️  {nulos_categoria} registros sem categoria")
 
         print(f"✅ Validação concluída! {len(df)} registros válidos")
 
@@ -251,8 +252,7 @@ class CategoriasContasPagarTransformer:
                 # Buscar registro existente
                 resultado = session.execute(
                     text("""
-                        SELECT categoria_id, bling_categorias_id, tipo_categoria,
-                               descricao, data_ingestao, data_processamento
+                        SELECT categoria_id, bling_categorias_id, tipo_categoria, categoria, data_ingestao, data_processamento
                         FROM processed.dim_categorias_contas_pagar
                         WHERE categoria_id = :id
                     """),
@@ -266,7 +266,7 @@ class CategoriasContasPagarTransformer:
                     campos_comparar = [
                         "bling_categorias_id",
                         "tipo_categoria",
-                        "descricao",
+                        "categoria",
                         "data_ingestao",
                     ]
 
@@ -314,8 +314,7 @@ class CategoriasContasPagarTransformer:
                 # Buscar registro existente
                 resultado = session.execute(
                     text("""
-                        SELECT categoria_id, bling_categorias_id, tipo_categoria,
-                               descricao, data_ingestao, data_processamento
+                        SELECT categoria_id, bling_categorias_id, tipo_categoria, categoria, data_ingestao, data_processamento
                         FROM processed.dim_categorias_contas_pagar
                         WHERE categoria_id = :id
                     """),
@@ -332,7 +331,7 @@ class CategoriasContasPagarTransformer:
                     campos_comparar = [
                         "bling_categorias_id",
                         "tipo_categoria",
-                        "descricao",
+                        "categoria",
                         "data_ingestao",
                     ]
 
@@ -355,7 +354,7 @@ class CategoriasContasPagarTransformer:
                                 UPDATE processed.dim_categorias_contas_pagar
                                 SET bling_categorias_id = :bling_categorias_id,
                                     tipo_categoria = :tipo_categoria,
-                                    descricao = :descricao,
+                                    categoria = :categoria,
                                     data_ingestao = :data_ingestao,
                                     data_processamento = :data_processamento
                                 WHERE categoria_id = :categoria_id
