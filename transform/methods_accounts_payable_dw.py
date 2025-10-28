@@ -1,8 +1,7 @@
 # =====================================================
 # TRANSFORMADOR DE FORMAS DE PAGAMENTO
 # =====================================================
-# Responsável por: Limpar e transformar dados de formas_pagamentos_raw
-# para dim_formas_pagamento no schema processed
+# Responsável por: Limpar e transformar dados de formas_pagamentos_raw para dim_formas_pagamento no schema processed
 # ESTRATÉGIA: Comparar antes de salvar (igual outros transformers)
 
 import pandas as pd

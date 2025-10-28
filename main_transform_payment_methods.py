@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from config.database import create_schema_processed, create_all_tables
-from transform.categories_accounts_payable_dw import FormasPagamentoTransformer
+from transform.methods_accounts_payable_dw import FormasPagamentoTransformer
 
 # =====================================================
 # 1. EXECUÇÃO DO SCRIPT - TRANSFORMAÇÃO DE FORMAS DE PAGAMENTO
