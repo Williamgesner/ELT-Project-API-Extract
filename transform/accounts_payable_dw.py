@@ -22,14 +22,14 @@ def obter_mapeamento_situacoes_contas_pagar():
     
     Mapeamento conforme regra de negócio:
     1 → Em aberto
-    2 → Recebido
+    2 → Pago
     3 → Parcialmente recebido
     4 → Devolvido
     5 → Cancelado
     """
     return {
         1: "Em aberto",
-        2: "Recebido",
+        2: "Pago",
         3: "Parcialmente recebido",
         4: "Devolvido",
         5: "Cancelado"
@@ -146,17 +146,60 @@ class ContasPagarTransformer:
         try:
             mapa_situacoes = obter_mapeamento_situacoes_contas_pagar()
             if "situacao.id" in df.columns:
-                # Converter para int antes de mapear
-                df["situacao.id"] = pd.to_numeric(df["situacao.id"], errors="coerce")
-                df["situacao"] = df["situacao.id"].map(mapa_situacoes)
+                # Guardar o ID original antes de mapear
+                df["situacao_id_original"] = pd.to_numeric(df["situacao.id"], errors="coerce")
+                df["situacao"] = df["situacao_id_original"].map(mapa_situacoes)
                 print("      ✅ Situações mapeadas com sucesso")
             elif "situacao" in df.columns:
-                # Se já vier como 'situacao', converter para int e mapear
-                df["situacao"] = pd.to_numeric(df["situacao"], errors="coerce")
-                df["situacao"] = df["situacao"].map(mapa_situacoes)
+                # Guardar o ID original antes de mapear
+                df["situacao_id_original"] = pd.to_numeric(df["situacao"], errors="coerce")
+                df["situacao"] = df["situacao_id_original"].map(mapa_situacoes)
                 print("      ✅ Situações mapeadas com sucesso")
         except Exception as e:
             print(f"      ⚠️  Erro ao mapear situações: {e}")
+
+        # === APLICAR LÓGICA CONDICIONAL PARA "EM ABERTO" (SITUAÇÃO = 1) ===
+        print("   • Aplicando regra de negócio para contas 'Em aberto'...")
+        try:
+            if "situacao_id_original" in df.columns and "data_vencimento" in df.columns:
+                hoje = pd.Timestamp.now().normalize()  # Data de hoje sem hora
+                
+                # Criar máscara para situacao = 1 (Em aberto)
+                mascara_em_aberto = df["situacao_id_original"] == 1
+                
+                # Contar quantas são "Em aberto"
+                total_em_aberto = mascara_em_aberto.sum()
+                
+                if total_em_aberto > 0:
+                    # Aplicar regras condicionais
+                    # 1. Atrasada: vencimento < hoje
+                    mascara_atrasada = mascara_em_aberto & (df["data_vencimento"] < hoje)
+                    df.loc[mascara_atrasada, "situacao"] = "Atrasada"
+                    qtd_atrasadas = mascara_atrasada.sum()
+                    
+                    # 2. Vencendo hoje: vencimento = hoje
+                    mascara_vencendo_hoje = mascara_em_aberto & (df["data_vencimento"] == hoje)
+                    df.loc[mascara_vencendo_hoje, "situacao"] = "Vencendo hoje"
+                    qtd_vencendo_hoje = mascara_vencendo_hoje.sum()
+                    
+                    # 3. Em aberto: vencimento > hoje (mantém "Em aberto")
+                    mascara_futuro = mascara_em_aberto & (df["data_vencimento"] > hoje)
+                    qtd_futuro = mascara_futuro.sum()
+                    
+                    print(f"      ✅ Regra aplicada para {total_em_aberto} contas 'Em aberto':")
+                    print(f"         • {qtd_atrasadas} → Atrasada (vencimento < hoje)")
+                    print(f"         • {qtd_vencendo_hoje} → Vencendo hoje (vencimento = hoje)")
+                    print(f"         • {qtd_futuro} → Em aberto (vencimento > hoje)")
+                else:
+                    print(f"      ℹ️  Nenhuma conta com situação 'Em aberto' encontrada")
+                
+                # Remover coluna auxiliar
+                df = df.drop(columns=["situacao_id_original"])
+        except Exception as e:
+            print(f"      ⚠️  Erro ao aplicar regra condicional: {e}")
+            # Se der erro, remove a coluna auxiliar se existir
+            if "situacao_id_original" in df.columns:
+                df = df.drop(columns=["situacao_id_original"])
 
         # === ADICIONAR METADADOS ===
         print("   • Adicionando metadados de processamento...")
