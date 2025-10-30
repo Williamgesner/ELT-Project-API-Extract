@@ -1,8 +1,12 @@
 # =====================================================
-# TRANSFORMADOR DE CONTAS A PAGAR
+# TRANSFORMADOR DE CONTAS A PAGAR - VERSÃO FINAL CORRIGIDA
 # =====================================================
 # Responsável por: Limpar e transformar dados de contas_pagar_raw para fato_contas_pagar no schema processed
 # ESTRATÉGIA: Comparar antes de salvar (igual outros transformers)
+# 
+# ✅ CORREÇÕES:
+# - Adicionado bling_categoria_id
+# - Tratamento correto de forma_pagamento_id = 0 (converte para NULL)
 
 import pandas as pd
 import numpy as np
@@ -126,6 +130,7 @@ class ContasPagarTransformer:
                 "bling_id": "bling_contas_pagar_id",
                 "contato.id": "bling_cliente_id",
                 "formaPagamento.id": "forma_pagamento_id",
+                "categoria.id": "bling_categoria_id",
                 "vencimento": "data_vencimento",
             }
         )
@@ -201,19 +206,30 @@ class ContasPagarTransformer:
             if "situacao_id_original" in df.columns:
                 df = df.drop(columns=["situacao_id_original"])
 
-        # === ADICIONAR METADADOS ===
-        print("   • Adicionando metadados de processamento...")
-        df["data_processamento"] = datetime.now()
-
         # === TRATAR FORMA DE PAGAMENTO INVÁLIDA ===
         print("   • Tratando forma_pagamento_id inválidos...")
-        # Converter 0 para NULL (pois 0 não existe na dim_formas_pagamento)
         if "forma_pagamento_id" in df.columns:
-            df.loc[df["forma_pagamento_id"] == 0, "forma_pagamento_id"] = np.nan
-            df.loc[df["forma_pagamento_id"].isna(), "forma_pagamento_id"] = np.nan
+            # Converter para numérico primeiro
+            df["forma_pagamento_id"] = pd.to_numeric(df["forma_pagamento_id"], errors="coerce")
+            # Converter 0 para NULL (pois 0 não existe na dim_formas_pagamento)
+            df["forma_pagamento_id"] = df["forma_pagamento_id"].replace(0, np.nan)
+            # Contar nulos
             nulos_forma = df["forma_pagamento_id"].isna().sum()
             if nulos_forma > 0:
                 print(f"      ⚠️  {nulos_forma} contas sem forma de pagamento definida (será NULL)")
+
+        # === TRATAR CATEGORIA INVÁLIDA ===
+        print("   • Tratando bling_categoria_id inválidos...")
+        if "bling_categoria_id" in df.columns:
+            # Converter para Int64 (permite NULL)
+            df["bling_categoria_id"] = pd.to_numeric(df["bling_categoria_id"], errors="coerce").astype('Int64')
+            nulos_categoria = df["bling_categoria_id"].isna().sum()
+            if nulos_categoria > 0:
+                print(f"      ⚠️  {nulos_categoria} contas sem categoria definida (será NULL)")
+
+        # === ADICIONAR METADADOS ===
+        print("   • Adicionando metadados de processamento...")
+        df["data_processamento"] = datetime.now()
 
         print("✅ Todas as transformações aplicadas com sucesso!")
         return df
@@ -228,7 +244,7 @@ class ContasPagarTransformer:
         """
         print("\n4️⃣ PREPARANDO DADOS PARA EXPORTAÇÃO...")
 
-        # Colunas finais conforme definido no teste
+        # Colunas finais
         colunas_finais = [
             "contas_pagar_id",
             "bling_contas_pagar_id",
@@ -237,6 +253,7 @@ class ContasPagarTransformer:
             "data_vencimento",
             "bling_cliente_id",
             "forma_pagamento_id",
+            "bling_categoria_id",
             "data_ingestao",
             "data_processamento",
         ]
@@ -250,18 +267,20 @@ class ContasPagarTransformer:
 
         df_final = df[colunas_disponiveis].copy()
 
-        # === CONVERTER NaN PARA None (CRÍTICO PARA POSTGRESQL) ===
-        print("   • Convertendo NaN para None (compatibilidade PostgreSQL)...")
-        # Método mais robusto: replace + fillna
+        # === CONVERTER NaN/NA PARA None (CRÍTICO PARA POSTGRESQL) ===
+        print("   • Convertendo NaN/NA para None (compatibilidade PostgreSQL)...")
+        
         if "forma_pagamento_id" in df_final.columns:
-            # Substituir NaN por None
             df_final["forma_pagamento_id"] = df_final["forma_pagamento_id"].replace({np.nan: None})
-            # Converter para object para aceitar None
             df_final["forma_pagamento_id"] = df_final["forma_pagamento_id"].astype(object)
             
         if "bling_cliente_id" in df_final.columns:
             df_final["bling_cliente_id"] = df_final["bling_cliente_id"].replace({np.nan: None})
             df_final["bling_cliente_id"] = df_final["bling_cliente_id"].astype(object)
+        
+        if "bling_categoria_id" in df_final.columns:
+            df_final["bling_categoria_id"] = df_final["bling_categoria_id"].replace({pd.NA: None, np.nan: None})
+            df_final["bling_categoria_id"] = df_final["bling_categoria_id"].astype(object)
 
         print(f"✅ {len(df_final)} registros prontos para exportação")
         print(f"   Colunas selecionadas: {list(df_final.columns)}")
@@ -302,6 +321,120 @@ class ContasPagarTransformer:
         return df
 
     # =====================================================
+    # 6.5. VALIDAR FOREIGN KEYS
+    # =====================================================
+
+    def validar_foreign_keys(self, df):
+        """
+        Valida se as FKs existem nas tabelas de dimensão
+        Remove/trata registros com FKs inválidas
+        """
+        print("\n🔍 VALIDANDO FOREIGN KEYS...")
+        
+        session = Session()
+        total_original = len(df)
+        
+        try:
+            # === 1. VALIDAR BLING_CATEGORIA_ID ===
+            if "bling_categoria_id" in df.columns:
+                print("   • Validando bling_categoria_id...")
+                
+                # Buscar todas as categorias válidas
+                categorias_validas = session.execute(
+                    text("SELECT bling_categoria_id FROM processed.dim_categorias_contas_pagar")
+                ).fetchall()
+                categorias_validas = {cat[0] for cat in categorias_validas}
+                
+                # Contar registros com categoria inválida
+                df_com_categoria = df[df["bling_categoria_id"].notna()]
+                
+                if len(df_com_categoria) > 0:
+                    categorias_invalidas = df_com_categoria[
+                        ~df_com_categoria["bling_categoria_id"].isin(categorias_validas)
+                    ]
+                    
+                    if len(categorias_invalidas) > 0:
+                        print(f"      ⚠️  {len(categorias_invalidas)} registros com bling_categoria_id INVÁLIDA!")
+                        print(f"      🔧 Convertendo bling_categoria_id inválida para NULL...")
+                        
+                        # Converter categorias inválidas para NULL
+                        df.loc[~df["bling_categoria_id"].isin(categorias_validas), "bling_categoria_id"] = None
+                    else:
+                        print(f"      ✅ Todas as {len(df_com_categoria)} categorias são válidas")
+                else:
+                    print(f"      ℹ️  Nenhum registro com categoria definida")
+            
+            # === 2. VALIDAR FORMA_PAGAMENTO_ID ===
+            if "forma_pagamento_id" in df.columns:
+                print("   • Validando forma_pagamento_id...")
+                
+                # Buscar todas as formas de pagamento válidas
+                formas_validas = session.execute(
+                    text("SELECT forma_pagamento_id FROM processed.dim_formas_pagamento")
+                ).fetchall()
+                formas_validas = {forma[0] for forma in formas_validas}
+                
+                # Contar registros com forma inválida
+                df_com_forma = df[df["forma_pagamento_id"].notna()]
+                
+                if len(df_com_forma) > 0:
+                    formas_invalidas = df_com_forma[
+                        ~df_com_forma["forma_pagamento_id"].isin(formas_validas)
+                    ]
+                    
+                    if len(formas_invalidas) > 0:
+                        print(f"      ⚠️  {len(formas_invalidas)} registros com forma_pagamento_id INVÁLIDA!")
+                        print(f"      🔧 Convertendo forma_pagamento_id inválida para NULL...")
+                        
+                        # Converter formas inválidas para NULL
+                        df.loc[~df["forma_pagamento_id"].isin(formas_validas), "forma_pagamento_id"] = None
+                    else:
+                        print(f"      ✅ Todas as {len(df_com_forma)} formas de pagamento são válidas")
+                else:
+                    print(f"      ℹ️  Nenhum registro com forma de pagamento definida")
+            
+            # === 3. VALIDAR DATA_VENCIMENTO (dim_tempo) ===
+            if "data_vencimento" in df.columns:
+                print("   • Validando data_vencimento...")
+                
+                # Buscar todas as datas válidas na dim_tempo
+                datas_validas = session.execute(
+                    text("SELECT data_completa FROM processed.dim_tempo")
+                ).fetchall()
+                datas_validas = {data[0] for data in datas_validas}
+                
+                # Converter para date se necessário
+                df["data_vencimento"] = pd.to_datetime(df["data_vencimento"]).dt.date
+                
+                # Contar datas inválidas
+                datas_invalidas = df[~df["data_vencimento"].isin(datas_validas)]
+                
+                if len(datas_invalidas) > 0:
+                    print(f"      ⚠️  {len(datas_invalidas)} registros com data_vencimento NÃO CADASTRADA na dim_tempo!")
+                    print(f"      ❌ REMOVENDO estes registros (data_vencimento é obrigatória)")
+                    
+                    # Remover registros com data inválida
+                    df = df[df["data_vencimento"].isin(datas_validas)]
+                else:
+                    print(f"      ✅ Todas as datas existem na dim_tempo")
+            
+            print(f"\n   📊 Registros após validação: {len(df)} de {total_original}")
+            if len(df) < total_original:
+                removidos = total_original - len(df)
+                print(f"   🗑️  {removidos} registros removidos por FK inválida")
+            
+            print("✅ Validação de Foreign Keys concluída!\n")
+            
+            return df
+        
+        except Exception as e:
+            print(f"❌ Erro ao validar Foreign Keys: {e}")
+            raise
+        finally:
+            session.close()
+
+
+    # =====================================================
     # 7. EXPORTAR PARA PROCESSED
     # =====================================================
 
@@ -317,6 +450,28 @@ class ContasPagarTransformer:
         try:
             # Converter para dicionários
             registros = df.to_dict("records")
+            
+            # === TRATAMENTO FINAL: GARANTIR QUE 0 E NaN VIRAM None ===
+            print("   🔧 Aplicando tratamento final de NaN e zeros...")
+            for registro in registros:
+                # Tratar forma_pagamento_id
+                if 'forma_pagamento_id' in registro:
+                    valor = registro['forma_pagamento_id']
+                    if pd.isna(valor) or valor == 0:
+                        registro['forma_pagamento_id'] = None
+                
+                # Tratar bling_categoria_id
+                if 'bling_categoria_id' in registro:
+                    valor = registro['bling_categoria_id']
+                    if pd.isna(valor):
+                        registro['bling_categoria_id'] = None
+                
+                # Tratar bling_cliente_id
+                if 'bling_cliente_id' in registro:
+                    valor = registro['bling_cliente_id']
+                    if pd.isna(valor):
+                        registro['bling_cliente_id'] = None
+            
             total_registros = len(registros)
             
             print(f"   📦 Total de registros a processar: {total_registros}")
@@ -333,7 +488,7 @@ class ContasPagarTransformer:
                 resultado = session.execute(
                     text("""
                         SELECT contas_pagar_id, bling_contas_pagar_id, valor, situacao, 
-                               data_vencimento, bling_cliente_id, forma_pagamento_id,
+                               data_vencimento, bling_cliente_id, forma_pagamento_id, bling_categoria_id,
                                data_ingestao, data_processamento
                         FROM processed.fato_contas_pagar
                         WHERE contas_pagar_id = :id
@@ -352,6 +507,7 @@ class ContasPagarTransformer:
                         "data_vencimento",
                         "bling_cliente_id",
                         "forma_pagamento_id",
+                        "bling_categoria_id",
                         "data_ingestao",
                     ]
 
@@ -360,8 +516,14 @@ class ContasPagarTransformer:
                         valor_novo = registro.get(campo)
                         valor_antigo = getattr(resultado, campo, None)
 
-                        if pd.isna(valor_novo) and pd.isna(valor_antigo):
+                        # Comparar None com None
+                        if valor_novo is None and valor_antigo is None:
                             continue
+                        # Se um é None e outro não
+                        if (valor_novo is None) != (valor_antigo is None):
+                            mudou = True
+                            break
+                        # Comparar valores normais
                         if valor_novo != valor_antigo:
                             mudou = True
                             break
@@ -409,7 +571,7 @@ class ContasPagarTransformer:
                     resultado = session.execute(
                         text("""
                             SELECT contas_pagar_id, bling_contas_pagar_id, valor, situacao, 
-                                   data_vencimento, bling_cliente_id, forma_pagamento_id,
+                                   data_vencimento, bling_cliente_id, forma_pagamento_id, bling_categoria_id,
                                    data_ingestao, data_processamento
                             FROM processed.fato_contas_pagar
                             WHERE contas_pagar_id = :id
@@ -431,6 +593,7 @@ class ContasPagarTransformer:
                             "data_vencimento",
                             "bling_cliente_id",
                             "forma_pagamento_id",
+                            "bling_categoria_id",
                             "data_ingestao",
                         ]
 
@@ -439,9 +602,14 @@ class ContasPagarTransformer:
                             valor_novo = registro.get(campo)
                             valor_antigo = getattr(resultado, campo, None)
 
-                            # Comparar considerando None e NaN como iguais
-                            if pd.isna(valor_novo) and pd.isna(valor_antigo):
+                            # Comparar None com None
+                            if valor_novo is None and valor_antigo is None:
                                 continue
+                            # Se um é None e outro não
+                            if (valor_novo is None) != (valor_antigo is None):
+                                mudou = True
+                                break
+                            # Comparar valores normais
                             if valor_novo != valor_antigo:
                                 mudou = True
                                 break
@@ -457,6 +625,7 @@ class ContasPagarTransformer:
                                         data_vencimento = :data_vencimento,
                                         bling_cliente_id = :bling_cliente_id,
                                         forma_pagamento_id = :forma_pagamento_id,
+                                        bling_categoria_id = :bling_categoria_id,
                                         data_ingestao = :data_ingestao,
                                         data_processamento = :data_processamento
                                     WHERE contas_pagar_id = :contas_pagar_id
@@ -551,6 +720,14 @@ class ContasPagarTransformer:
             df = self.aplicar_transformacoes(df)
             df = self.preparar_para_exportacao(df)
             df = self.validar_dados(df)
+            
+            df = self.validar_foreign_keys(df)
+            
+            # Verificar se ainda há registros após validação
+            if len(df) == 0:
+                print("\n⚠️  Nenhum registro válido após validação de Foreign Keys!")
+                return
+            
             self.exportar_para_processed(df)
             self.atualizar_status_raw(df)
 

@@ -19,14 +19,14 @@ class DimCategoriasContasPagar(Base):
     # Chave primária (mesmo ID da raw)
     categoria_id = Column(Integer, primary_key=True)
     
-    # Chave de negócio (ID da API Bling)
-    bling_categorias_id = Column(BigInteger, unique=True, nullable=False, index=True)
+    # Chave de negócio (ID da API Bling) - ESTA será usada na FK
+    bling_categoria_id = Column(BigInteger, unique=True, nullable=False, index=True)
     
     # ============================
     # ATRIBUTOS DESCRITIVOS
     # ============================
     
-    tipo_categoria = Column(String(50), nullable=True, index=True)  # Despesa, Receita, etc.
+    tipo_categoria = Column(String(50), nullable=True, index=True)
     categoria = Column(String(255), nullable=False)
     
     # ============================

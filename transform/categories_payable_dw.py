@@ -120,7 +120,7 @@ class CategoriasContasPagarTransformer:
         df = df.rename(
             columns={
                 "id": "categoria_id",
-                "bling_id": "bling_categorias_id",
+                "bling_id": "bling_categoria_id",
                 "tipo": "tipo_categoria",
                 "descricao": "categoria",
             }
@@ -171,7 +171,7 @@ class CategoriasContasPagarTransformer:
         # Colunas finais conforme definido no teste
         colunas_finais = [
             "categoria_id",
-            "bling_categorias_id",
+            "bling_categoria_id",
             "tipo_categoria",
             "categoria",
             "data_ingestao",
@@ -203,9 +203,9 @@ class CategoriasContasPagarTransformer:
         print("\n5️⃣ VALIDANDO DADOS...")
 
         # Verificar chaves de negócio duplicadas
-        duplicados = df[df["bling_categorias_id"].duplicated()]["bling_categorias_id"]
+        duplicados = df[df["bling_categoria_id"].duplicated()]["bling_categoria_id"]
         if len(duplicados) > 0:
-            print(f"⚠️  ATENÇÃO: {len(duplicados)} bling_categorias_ids duplicados!")
+            print(f"⚠️  ATENÇÃO: {len(duplicados)} bling_categoria_ids duplicados!")
 
         # Verificar valores obrigatórios
         nulos_id = df["categoria_id"].isna().sum()
@@ -252,7 +252,7 @@ class CategoriasContasPagarTransformer:
                 # Buscar registro existente
                 resultado = session.execute(
                     text("""
-                        SELECT categoria_id, bling_categorias_id, tipo_categoria, categoria, data_ingestao, data_processamento
+                        SELECT categoria_id, bling_categoria_id, tipo_categoria, categoria, data_ingestao, data_processamento
                         FROM processed.dim_categorias_contas_pagar
                         WHERE categoria_id = :id
                     """),
@@ -264,7 +264,7 @@ class CategoriasContasPagarTransformer:
                 else:
                     # Comparar se mudou algo
                     campos_comparar = [
-                        "bling_categorias_id",
+                        "bling_categoria_id",
                         "tipo_categoria",
                         "categoria",
                         "data_ingestao",
@@ -314,7 +314,7 @@ class CategoriasContasPagarTransformer:
                 # Buscar registro existente
                 resultado = session.execute(
                     text("""
-                        SELECT categoria_id, bling_categorias_id, tipo_categoria, categoria, data_ingestao, data_processamento
+                        SELECT categoria_id, bling_categoria_id, tipo_categoria, categoria, data_ingestao, data_processamento
                         FROM processed.dim_categorias_contas_pagar
                         WHERE categoria_id = :id
                     """),
@@ -329,7 +329,7 @@ class CategoriasContasPagarTransformer:
                 else:
                     # Comparar se mudou algo (exceto data_processamento)
                     campos_comparar = [
-                        "bling_categorias_id",
+                        "bling_categoria_id",
                         "tipo_categoria",
                         "categoria",
                         "data_ingestao",
@@ -352,7 +352,7 @@ class CategoriasContasPagarTransformer:
                         session.execute(
                             text("""
                                 UPDATE processed.dim_categorias_contas_pagar
-                                SET bling_categorias_id = :bling_categorias_id,
+                                SET bling_categoria_id = :bling_categoria_id,
                                     tipo_categoria = :tipo_categoria,
                                     categoria = :categoria,
                                     data_ingestao = :data_ingestao,

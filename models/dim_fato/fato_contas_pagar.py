@@ -47,8 +47,9 @@ class FatoContasPagar(Base):
     # FK para dim_formas_pagamento
     forma_pagamento_id = Column(Integer, ForeignKey('processed.dim_formas_pagamento.forma_pagamento_id'), nullable=True, index=True)
     
+    # FK agora aponta para bling_categoria_id (chave de negócio)
     # FK para dim_categorias_contas_pagar
-    categoria_id = Column(Integer, ForeignKey('processed.dim_categorias_contas_pagar.categoria_id'), nullable=True, index=True)
+    bling_categoria_id = Column(BigInteger, ForeignKey('processed.dim_categorias_contas_pagar.bling_categoria_id'), nullable=True, index=True)
     
     # ============================
     # METADADOS

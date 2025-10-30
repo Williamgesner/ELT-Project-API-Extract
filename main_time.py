@@ -11,13 +11,13 @@ from sqlalchemy import text
 # 1. FUNÇÃO PARA POPULAR DIM_TEMPO
 # =====================================================
 
-def popular_dim_tempo(data_inicio='2015-01-01', data_fim='2035-12-31'):
+def popular_dim_tempo(data_inicio='2015-01-01', data_fim='2050-12-31'):
     """
     Popula a dimensão tempo com todas as datas no intervalo
     
     Args:
         data_inicio: Data inicial (padrão: 2020-01-01)
-        data_fim: Data final (padrão: 2035-12-31)
+        data_fim: Data final (padrão: 2050-12-31)
     """
     print("\n" + "=" * 70)
     print("📅 POPULANDO DIM_TEMPO")
@@ -155,7 +155,7 @@ if __name__ == "__main__":
         # Popular dim_tempo
         popular_dim_tempo(
             data_inicio='2015-01-01',  # Ajustar conforme necessário
-            data_fim='2035-12-31'      # Ajustar conforme necessário
+            data_fim='2050-12-31'      # Ajustar conforme necessário
         )
         
         print(f"\n💡 PRÓXIMOS PASSOS:")
