@@ -84,9 +84,9 @@ def create_all_tables():
     from models.channels_raw import CanaisRaw
     from models.accounts_payable_raw import ContasPagarRaw
     from models.accounts_payable_categories_raw import CategoriasRaw
-    from models.nfe_raw import NFeRaw
-    from models.accounts_receivable_raw import ContasReceberRaw
     from models.payment_methods_raw import FormasPagamentosRaw
+    from models.accounts_receivable_raw import ContasReceberRaw
+    from models.nfe_raw import NFeRaw
     
 
     print("   ✓ ContatoRaw")
@@ -96,9 +96,9 @@ def create_all_tables():
     print("   ✓ CanaisRaw")
     print("   ✓ ContasPgarRaw")
     print("   ✓ CategoriasRaw")
-    print("   ✓ NfeRaw")
-    print("   ✓ ContasReceberRaw")
     print("   ✓ FormasPagamentosRaw")
+    print("   ✓ ContasReceberRaw")
+    print("   ✓ NfeRaw")
 
     # =====================================================
     # 3.2. IMPORTAÇÃO DOS MODELOS PROCESSED (Dimensões)
@@ -109,17 +109,16 @@ def create_all_tables():
     from models.dim_fato.dim_contatos import DimContatos
     from models.dim_fato.dim_tempo import DimTempo
     from models.dim_fato.dim_produtos import DimProdutos
-    from models.dim_fato.dim_formas_pagamento import DimFormasPagamento
     from models.dim_fato.dim_categorias_contas_pagar import DimCategoriasContasPagar
+    from models.dim_fato.dim_formas_pagamento import DimFormasPagamento
 
-    
     
     print("   ✓ DimContatos")
     print("   ✓ DimTempo")
     print("   ✓ DimProdutos")
     print("   ✓ DimCanais")
-    print("   ✓ DimFormasPagamento")
     print("   ✓ DimCategoriasContasPagar")
+    print("   ✓ DimFormasPagamento")
 
     # =====================================================
     # 3.3. IMPORTAÇÃO DOS MODELOS PROCESSED (Fatos)
@@ -130,10 +129,12 @@ def create_all_tables():
     from models.dim_fato.fato_pedidos import FatoPedidos 
     from models.dim_fato.fato_itens_pedidos import FatoItensPedidos
     from models.dim_fato.fato_contas_pagar import FatoContasPagar
+    from models.dim_fato.fato_contas_receber import FatoContasReceber
     
     print("   ✓ FatoPedidos")
     print("   ✓ FatoItensPedidos")
     print("   ✓ FatoContasPagar")
+    print("   ✓ FatoContasReceber")
 
     # =====================================================
     # 3.4. CRIAÇÃO DAS TABELAS
@@ -150,18 +151,20 @@ def create_all_tables():
     print("   • raw.canais_raw") 
     print("   • raw.contas_pagar_raw") 
     print("   ✓ raw.categorias_contas_pagar_raw")
-    print("   ✓ raw.nfe_raw")
-    print("   ✓ raw.contas_receber_raw")
     print("   ✓ raw.formas_pagamentos_raw")
+    print("   ✓ raw.contas_receber_raw")
+    print("   ✓ raw.nfe_raw")
     
     print("\nTabelas PROCESSED que serão criadas:")
     print("   • processed.dim_contatos")
     print("   • processed.dim_tempo") 
     print("   • processed.dim_produtos")
+    print("   • processed.dim_categorias_contas_pagar")
     print("   • processed.dim_formas_pagamento")
     print("   • processed.fato_pedidos")
     print("   • processed.fato_itens_pedidos")
     print("   • processed.fato_contas_pagar")
+    print("   • processed.fato_contas_receber")
     
     # Cria todas as tabelas de uma vez
     Base.metadata.create_all(engine)
