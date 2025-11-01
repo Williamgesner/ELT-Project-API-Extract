@@ -61,5 +61,6 @@ endpoints = {
     'contas_receber': 'https://api.bling.com.br/Api/v3/contas/receber',
     'categorias': 'https://api.bling.com.br/Api/v3/categorias/receitas-despesas',
     'nfe': 'https://api.bling.com.br/Api/v3/nfe',
-    'formas_pagamentos': 'https://api.bling.com.br/Api/v3/formas-pagamentos'
+    'formas_pagamentos': 'https://api.bling.com.br/Api/v3/formas-pagamentos',
+    'natureza_operacao': 'https://api.bling.com.br/Api/v3/naturezas-operacoes'
 }

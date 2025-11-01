@@ -11,7 +11,7 @@ from extract.situation import SituacoesExtractor
 
 if __name__ == "__main__":
     try:
-         # Criar schema se não existir
+        # Criar schema se não existir
         create_schema_raw()
     
         # Criar tabelas

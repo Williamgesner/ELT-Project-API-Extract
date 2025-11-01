@@ -87,6 +87,7 @@ def create_all_tables():
     from models.payment_methods_raw import FormasPagamentosRaw
     from models.accounts_receivable_raw import ContasReceberRaw
     from models.nfe_raw import NFeRaw
+    from models.nature_operation_raw import NaturezaOperacaoRaw
     
 
     print("   ✓ ContatoRaw")
@@ -99,6 +100,7 @@ def create_all_tables():
     print("   ✓ FormasPagamentosRaw")
     print("   ✓ ContasReceberRaw")
     print("   ✓ NfeRaw")
+    print("   ✓ NaturezaOperacaoRaw")
 
     # =====================================================
     # 3.2. IMPORTAÇÃO DOS MODELOS PROCESSED (Dimensões)
@@ -111,6 +113,7 @@ def create_all_tables():
     from models.dim_fato.dim_produtos import DimProdutos
     from models.dim_fato.dim_categorias_contas_pagar import DimCategoriasContasPagar
     from models.dim_fato.dim_formas_pagamento import DimFormasPagamento
+    from models.dim_fato.dim_natureza_operacao import DimNaturezaOperacao
 
     
     print("   ✓ DimContatos")
@@ -119,6 +122,7 @@ def create_all_tables():
     print("   ✓ DimCanais")
     print("   ✓ DimCategoriasContasPagar")
     print("   ✓ DimFormasPagamento")
+    print("   ✓ DimNaturezaOperacao")
 
     # =====================================================
     # 3.3. IMPORTAÇÃO DOS MODELOS PROCESSED (Fatos)
@@ -154,6 +158,7 @@ def create_all_tables():
     print("   ✓ raw.formas_pagamentos_raw")
     print("   ✓ raw.contas_receber_raw")
     print("   ✓ raw.nfe_raw")
+    print("   ✓ NaturezaOperacaoRaw")
     
     print("\nTabelas PROCESSED que serão criadas:")
     print("   • processed.dim_contatos")
@@ -161,6 +166,7 @@ def create_all_tables():
     print("   • processed.dim_produtos")
     print("   • processed.dim_categorias_contas_pagar")
     print("   • processed.dim_formas_pagamento")
+    print("   • processed.dim_natureza_operacao")
     print("   • processed.fato_pedidos")
     print("   • processed.fato_itens_pedidos")
     print("   • processed.fato_contas_pagar")
