@@ -15,7 +15,6 @@ class NFeExtractor(BaseExtractor):
     Extrator simples de NFe
     - Extrai apenas lista da API /nfe
     - NÃO busca detalhes individuais
-    - Rápido e eficiente (~5 minutos)
     - Relacionamento com pedidos via vendas_raw.notaFiscal.id
     """
     
