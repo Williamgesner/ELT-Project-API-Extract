@@ -1,7 +1,6 @@
 # Responsável por: definir a estrutura da tabela fato_itens_pedidos no schema processed
 
 from datetime import datetime
-import string
 from tokenize import String
 from sqlalchemy import Column, Integer, BigInteger, Numeric, DateTime, ForeignKey, String
 from config.database import Base

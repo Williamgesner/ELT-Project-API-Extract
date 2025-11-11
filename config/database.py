@@ -134,11 +134,13 @@ def create_all_tables():
     from models.dim_fato.fato_itens_pedidos import FatoItensPedidos
     from models.dim_fato.fato_contas_pagar import FatoContasPagar
     from models.dim_fato.fato_contas_receber import FatoContasReceber
+    from models.dim_fato.fato_nfe import FatoNFe
     
     print("   ✓ FatoPedidos")
     print("   ✓ FatoItensPedidos")
     print("   ✓ FatoContasPagar")
     print("   ✓ FatoContasReceber")
+    print("   ✓ FatoNfe")
 
     # =====================================================
     # 3.4. CRIAÇÃO DAS TABELAS
@@ -171,6 +173,7 @@ def create_all_tables():
     print("   • processed.fato_itens_pedidos")
     print("   • processed.fato_contas_pagar")
     print("   • processed.fato_contas_receber")
+    print("   • processed.fato_NFe")
     
     # Cria todas as tabelas de uma vez
     Base.metadata.create_all(engine)
