@@ -1,4 +1,4 @@
-# Responsável por: extrair NFe (entrada E saída)
+# Responsável por: extrair NFe (entrada E saída) com comparação INTELIGENTE
 
 from datetime import datetime
 import requests
@@ -8,22 +8,21 @@ from models.nfe_raw import NFeRaw
 from config.settings import endpoints, headers
 
 # =====================================================
-# 1. EXTRATOR DE NFe (COM SUPORTE A ENTRADA E SAÍDA)
+# 1. EXTRATOR DE NFe (CORRIGIDO - COMPARAÇÃO INTELIGENTE)
 # =====================================================
 
 class NFeExtractor(BaseExtractor):
     
     """
-    Extrator de NFe com suporte a tipos
-    - Extrai lista completa da API /nfe
-    - ENTRADA (tipo 0) e SAÍDA (tipo 1)
-    - Relacionamento com pedidos via vendas_raw.notaFiscal.id
+    Extrator de NFe com suporte a tipos e COMPARAÇÃO INTELIGENTE
+    
+    CORREÇÃO APLICADA:
+    - Compara apenas campos-chave (id, numero, tipo, situacao, dataEmissao)
+    - Ignora diferenças entre JSON resumido (lista) vs completo (detalhes)
+    - Evita 17.772 "atualizações" falsas!
     """
     
     def __init__(self):
-        """
-        Inicializa o extrator de NFe
-        """
         super().__init__(endpoints['nfe'], NFeRaw)
     
     def extract_dados_bling_paginado_com_tipo(self, tipo, limite_por_pagina=100, 
@@ -31,16 +30,6 @@ class NFeExtractor(BaseExtractor):
                                                max_tentativas=3):
         """
         Extrai NFe de um tipo específico da API Bling
-        
-        Args:
-            tipo (int): 0 para Entrada, 1 para Saída
-            limite_por_pagina (int): Registros por página (máx 100)
-            delay_entre_requests (float): Delay entre requisições
-            max_paginas (int): Limite de páginas
-            max_tentativas (int): Tentativas por página
-        
-        Returns:
-            list: Lista de NFe extraídas
         """
         todos_registros = []
         pagina_atual = 1
@@ -54,7 +43,7 @@ class NFeExtractor(BaseExtractor):
             params = {
                 "limite": limite_por_pagina,
                 "pagina": pagina_atual,
-                "tipo": tipo  # ← FILTRO CRÍTICO
+                "tipo": tipo
             }
 
             print(f"   Processando página {pagina_atual}{'/' + str(total_paginas) if total_paginas else ''}...")
@@ -73,20 +62,16 @@ class NFeExtractor(BaseExtractor):
                         data = response.json()
                         registros = data.get('data', [])
                         
-                        # Primeira página: captura total de páginas
                         if pagina_atual == 1:
-                            # A API Bling pode retornar totalPages de diferentes formas
                             if 'totalPages' in data:
                                 total_paginas = data['totalPages']
                             elif registros and isinstance(registros, list) and len(registros) > 0:
-                                # Alguns endpoints retornam no primeiro item da lista
                                 if isinstance(registros[0], dict) and 'totalPages' in registros[0]:
                                     total_paginas = registros[0]['totalPages']
                             
                             if total_paginas:
                                 print(f"   Total de páginas: {total_paginas}")
                         
-                        # Adiciona registros únicos
                         novos = 0
                         for registro in registros:
                             registro_id = registro.get('id')
@@ -101,7 +86,6 @@ class NFeExtractor(BaseExtractor):
                     
                     elif response.status_code == 401:
                         print(f"   ❌ Erro 401: Token expirado ou inválido")
-                        print(f"   💡 Atualize a API_KEY no .env e execute novamente")
                         raise Exception("API Key expirada - atualize e reinicie")
                     
                     elif response.status_code == 429:
@@ -126,11 +110,10 @@ class NFeExtractor(BaseExtractor):
                     if tentativa < max_tentativas - 1:
                         time.sleep(0.5 * (tentativa + 1))
                     else:
-                        print(f"   ⚠️ FALHA TOTAL na página {pagina_atual} após {max_tentativas} tentativas")
+                        print(f"   ⚠️ FALHA TOTAL na página {pagina_atual}")
                         return todos_registros
                 
                 except Exception as e:
-                    # Se for erro de autenticação, propagar
                     if "API Key expirada" in str(e):
                         raise
                     print(f"   ❌ Erro inesperado: {e}")
@@ -140,7 +123,6 @@ class NFeExtractor(BaseExtractor):
                 print(f"   ⚠️ Parando extração de {tipo_nome} - falha na página {pagina_atual}")
                 break
             
-            # Se não há mais registros ou última página
             if not registros or (total_paginas and pagina_atual >= total_paginas):
                 break
             
@@ -150,16 +132,20 @@ class NFeExtractor(BaseExtractor):
         print(f"   🎉 {tipo_nome}: {len(todos_registros)} notas extraídas")
         return todos_registros
     
-    def executar_extracao_completa(self):
+    def executar_extracao_completa(self, debug=False):
         """
-        Executa o processo completo de extração de NFe (TODAS - entrada e saída)
+        Executa o processo completo de extração de NFe
+        
+        Args:
+            debug: Se True, mostra detalhes das comparações
         """
         try:
             print("\n📄 EXTRAÇÃO: NOTAS FISCAIS ELETRÔNICAS (NFe)")
             print("=" * 60)
+            print("⚡ MODO: Comparação inteligente (apenas campos-chave)")
             inicio_extracao = datetime.now()
 
-            # ===== EXTRAIR NOTAS DE SAÍDA (tipo=1) =====
+            # ===== EXTRAIR NOTAS DE SAÍDA =====
             print("\n📤 EXTRAINDO NOTAS DE SAÍDA...")
             print("-" * 60)
             nfe_saida = self.extract_dados_bling_paginado_com_tipo(
@@ -170,7 +156,7 @@ class NFeExtractor(BaseExtractor):
                 max_tentativas=3
             )
 
-            # ===== EXTRAIR NOTAS DE ENTRADA (tipo=0) =====
+            # ===== EXTRAIR NOTAS DE ENTRADA =====
             print("\n📥 EXTRAINDO NOTAS DE ENTRADA...")
             print("-" * 60)
             nfe_entrada = self.extract_dados_bling_paginado_com_tipo(
@@ -181,14 +167,14 @@ class NFeExtractor(BaseExtractor):
                 max_tentativas=3
             )
 
-            # ===== COMBINAR TODAS AS NFe =====
+            # ===== COMBINAR =====
             todas_nfe = nfe_saida + nfe_entrada
             
             fim_extracao = datetime.now()
             tempo_extracao = fim_extracao - inicio_extracao
 
             if not todas_nfe:
-                print("\n❌ Nenhuma NFe foi extraída. Verificar API ou configurações.")
+                print("\n❌ Nenhuma NFe foi extraída.")
                 return
             
             print("\n" + "=" * 60)
@@ -207,32 +193,30 @@ class NFeExtractor(BaseExtractor):
             for nfe in todas_nfe:
                 dados_formatados = {
                     'bling_id': nfe['id'],
-                    'dados_json': nfe  # JSON completo da lista
+                    'dados_json': nfe
                 }
                 dados_para_salvar.append(dados_formatados)
 
-            # Salvamento inteligente
-            print(f"\n💾 Iniciando salvamento inteligente...")
+            # 🔧 SALVAMENTO COM COMPARAÇÃO INTELIGENTE
+            print(f"\n💾 Iniciando salvamento inteligente (comparação especializada)...")
             inicio_salvamento = datetime.now()
             
-            stats = self.salvar_dados_postgres_bulk(dados_para_salvar)
+            stats = self.salvar_dados_postgres_bulk_nfe(dados_para_salvar, debug=debug)
             
             fim_salvamento = datetime.now()
             tempo_salvamento = fim_salvamento - inicio_salvamento
             tempo_total = fim_salvamento - inicio_extracao
 
-            # Relatório final de performance
+            # Relatório final
             print(f"\n🏁 EXECUÇÃO COMPLETA!")
             print(f"⏱️ Tempo total: {tempo_total}")
             print(f"⏱️ Tempo de salvamento: {tempo_salvamento}")
-            print(f"🚀 Performance geral: {len(todas_nfe)/tempo_total.total_seconds():.1f} notas/segundo")
+            print(f"🚀 Performance: {len(todas_nfe)/tempo_total.total_seconds():.1f} notas/segundo")
             
-            # Eficiência do algoritmo
             if stats['total'] > 0:
                 eficiencia = (stats['ignorados'] / stats['total']) * 100
-                print(f"⚡ Eficiência: {eficiencia:.1f}% dos registros eram idênticos (evitou escritas desnecessárias)")
+                print(f"⚡ Eficiência: {eficiencia:.1f}% idênticos (evitou reprocessamento)")
 
-            # Estatísticas de NFe
             self._exibir_estatisticas_nfe(todas_nfe)
 
             print("\n🎉 Script de NFe executado com sucesso!")
@@ -240,9 +224,7 @@ class NFeExtractor(BaseExtractor):
         except KeyboardInterrupt:
             print("\n⚠️ Execução interrompida pelo usuário")
         except Exception as e:
-            print(f"\n❌ ERRO CRÍTICO durante execução: {e}")
-            print("Script interrompido para análise do erro")
-            print("Todos os dados extraídos até este ponto foram preservados")
+            print(f"\n❌ ERRO CRÍTICO: {e}")
             raise
     
     def _exibir_estatisticas_nfe(self, notas):
@@ -252,7 +234,6 @@ class NFeExtractor(BaseExtractor):
         print(f"\n📊 ESTATÍSTICAS DAS NFe:")
         print("-" * 60)
         
-        # Estatísticas por tipo
         tipos = {}
         for nfe in notas:
             tipo = nfe.get('tipo')
@@ -270,7 +251,6 @@ class NFeExtractor(BaseExtractor):
             percentual = (qtd / len(notas)) * 100
             print(f"      - {tipo}: {qtd} ({percentual:.1f}%)")
         
-        # Estatísticas por situação
         situacoes = {}
         for nfe in notas:
             situacao = nfe.get('situacao', 'Desconhecida')
@@ -281,7 +261,128 @@ class NFeExtractor(BaseExtractor):
             for situacao, qtd in sorted(situacoes.items()):
                 print(f"      - Situação {situacao}: {qtd}")
         
-        # Informação importante sobre relacionamento
         print(f"\n💡 RELACIONAMENTO:")
-        print(f"   • NFe relaciona com Pedidos via vendas_raw.notaFiscal.id")
-        print(f"   • Use: vendas_raw.dados_json->'notaFiscal'->>'id' = nfe_raw.bling_id")
+        print(f"   • NFe → Pedidos via vendas_raw.notaFiscal.id")
+    
+    # 🔧 MÉTODO ESPECIALIZADO PARA NFe
+    def salvar_dados_postgres_bulk_nfe(self, lista_dados, debug=False):
+        """
+        COMPARAÇÃO ESPECIALIZADA para NFe
+        Resolve problema de JSON resumido vs completo
+        """
+        if not lista_dados:
+            print("Nenhum dado para salvar.")
+            return {"inseridos": 0, "atualizados": 0, "ignorados": 0, "total": 0}
+        
+        from config.database import Session
+        from sqlalchemy.dialects.postgresql import insert
+        from datetime import datetime
+        
+        session = Session()
+        stats = {"inseridos": 0, "atualizados": 0, "ignorados": 0, "total": len(lista_dados)}
+
+        try:
+            print(f"🔍 Buscando registros existentes...")
+            inicio = datetime.now()
+
+            registros_existentes = {}
+            existing_records = session.query(
+                self.model_class.bling_id,
+                self.model_class.dados_json
+            ).all()
+
+            for record in existing_records:
+                registros_existentes[record.bling_id] = record.dados_json
+            
+            print(f"📋 {len(registros_existentes)} registros carregados em {datetime.now() - inicio}")
+
+            registros_novos = []
+            registros_para_atualizar = []
+            
+            print(f"🔍 Comparando {len(lista_dados)} registros...")
+            
+            for i, dados in enumerate(lista_dados):
+                bling_id = dados['bling_id']
+                novo_json = dados['dados_json']
+                
+                if (i + 1) % 1000 == 0:
+                    print(f"   Processados {i + 1}/{len(lista_dados)}...")
+                
+                if bling_id not in registros_existentes:
+                    # NOVO
+                    registros_novos.append({
+                        'bling_id': bling_id,
+                        'dados_json': novo_json,
+                        'data_ingestao': datetime.now(),
+                        'status_processamento': 'pendente'
+                    })
+                    stats['inseridos'] += 1
+                else:
+                    # EXISTE - comparar apenas campos-chave
+                    json_existente = registros_existentes[bling_id]
+                    
+                    # Campos-chave para comparação
+                    campos_chave = ['numero', 'tipo', 'situacao', 'dataEmissao']
+                    
+                    mudou = False
+                    for campo in campos_chave:
+                        if campo in novo_json and campo in json_existente:
+                            if str(novo_json[campo]) != str(json_existente[campo]):
+                                mudou = True
+                                break
+                    
+                    # Verificar enriquecimento (valorNota, etc)
+                    if not mudou:
+                        campos_enriquecimento = ['valorNota', 'valorFrete']
+                        for campo in campos_enriquecimento:
+                            if campo in novo_json and campo not in json_existente:
+                                mudou = True
+                                break
+                    
+                    if mudou:
+                        registros_para_atualizar.append({
+                            'bling_id': bling_id,
+                            'dados_json': novo_json,
+                            'data_ingestao': datetime.now()
+                        })
+                        stats['atualizados'] += 1
+                    else:
+                        stats['ignorados'] += 1
+            
+            print(f"\n📊 CLASSIFICAÇÃO:")
+            print(f"   • 🆕 Novos: {stats['inseridos']}")
+            print(f"   • 🔄 Alterados: {stats['atualizados']}")
+            print(f"   • ✓ Idênticos: {stats['ignorados']}")
+            
+            # Inserir
+            if registros_novos:
+                print(f"💾 Inserindo {len(registros_novos)} novos...")
+                stmt = insert(self.model_class.__table__).values(registros_novos)
+                session.execute(stmt)
+                session.commit()
+                print(f"✅ Inserções concluídas")
+            
+            # Atualizar
+            if registros_para_atualizar:
+                print(f"🔄 Atualizando {len(registros_para_atualizar)}...")
+                for registro in registros_para_atualizar:
+                    stmt = insert(self.model_class.__table__).values(registro)
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=['bling_id'],
+                        set_={
+                            'dados_json': stmt.excluded.dados_json,
+                            'data_ingestao': stmt.excluded.data_ingestao
+                        }
+                    )
+                    session.execute(stmt)
+                session.commit()
+                print(f"✅ Atualizações concluídas")
+            
+            return stats
+            
+        except Exception as e:
+            session.rollback()
+            print(f"\n❌ Erro ao salvar: {e}")
+            raise
+        finally:
+            session.close()

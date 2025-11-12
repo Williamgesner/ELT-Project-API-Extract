@@ -1,12 +1,88 @@
 # Responsável por: Limpar e transformar dados de nfe_raw para fato_nfe no schema processed
+# Comparação robusta que evita falsos positivos
 # Inserção em lotes para evitar estouro de parâmetros PostgreSQL
 
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, date
+from decimal import Decimal
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 from config.database import Session, engine
+
+# =====================================================
+# 0. FUNÇÃO DE COMPARAÇÃO ROBUSTA (NOVO!)
+# =====================================================
+
+def valores_sao_iguais(val1, val2):
+    """
+    Compara dois valores de forma robusta, tratando casos especiais
+    
+    Casos tratados:
+    - None vs NaN vs pd.NA
+    - Timestamps com/sem timezone
+    - Floats com pequenas diferenças
+    - Strings vazias vs None
+    - Dates em formatos diferentes
+    
+    Returns:
+        bool: True se valores são considerados iguais
+    """
+    # Caso 1: Ambos são nulos (None, NaN, pd.NA, vazio)
+    val1_is_null = val1 is None or pd.isna(val1) or (isinstance(val1, str) and val1.strip() == '')
+    val2_is_null = val2 is None or pd.isna(val2) or (isinstance(val2, str) and val2.strip() == '')
+    
+    if val1_is_null and val2_is_null:
+        return True
+    
+    if val1_is_null or val2_is_null:
+        return False  # Um é nulo e outro não
+    
+    # Caso 2: Comparação de timestamps/datas
+    if isinstance(val1, (datetime, pd.Timestamp, date)) or isinstance(val2, (datetime, pd.Timestamp, date)):
+        try:
+            # Normalizar ambos para datetime
+            if isinstance(val1, date) and not isinstance(val1, datetime):
+                val1 = datetime.combine(val1, datetime.min.time())
+            if isinstance(val2, date) and not isinstance(val2, datetime):
+                val2 = datetime.combine(val2, datetime.min.time())
+            
+            # Converter para pandas Timestamp (normaliza timezone)
+            ts1 = pd.Timestamp(val1)
+            ts2 = pd.Timestamp(val2)
+            
+            # 🔧 CORREÇÃO: Usar floor() em vez de round()
+            # floor() trunca os microsegundos em vez de arredondar
+            # Comparar até segundos (ignorar microsegundos que podem variar)
+            return ts1.floor('s') == ts2.floor('s')
+        except:
+            return False
+    
+    # Caso 3: Comparação de números (float/int/Decimal)
+    if isinstance(val1, (int, float, Decimal, np.integer, np.floating)) or \
+       isinstance(val2, (int, float, Decimal, np.integer, np.floating)):
+        try:
+            # Converter para float
+            num1 = float(val1)
+            num2 = float(val2)
+            
+            # Comparar com tolerância para erros de ponto flutuante
+            # Tolerância: 0.01 (1 centavo para valores monetários)
+            return abs(num1 - num2) < 0.01
+        except:
+            return False
+    
+    # Caso 4: Comparação de strings
+    if isinstance(val1, str) and isinstance(val2, str):
+        # Normalizar espaços
+        return val1.strip() == val2.strip()
+    
+    # Caso 5: Comparação padrão
+    try:
+        return val1 == val2
+    except:
+        # Se der erro na comparação, considera diferentes
+        return False
 
 # =====================================================
 # 1. FUNÇÃO AUXILIAR DE MAPEAMENTO
@@ -343,15 +419,15 @@ class NFeTransformer:
         return df_final
 
     # =====================================================
-    # 7. COMPARAR E SALVAR (EM LOTES)
+    # 7. COMPARAR E SALVAR (EM LOTES) - VERSÃO CORRIGIDA!
     # =====================================================
 
     def comparar_e_salvar(self, df_novo):
         """
-        Compara dados novos com existentes e salva apenas diferenças
+        🔧 VERSÃO CORRIGIDA: Compara dados novos com existentes usando comparação robusta
         Insere em lotes pequenos para evitar estouro
         """
-        print("\n5️⃣ COMPARANDO COM DADOS EXISTENTES...")
+        print("\n5️⃣ COMPARANDO COM DADOS EXISTENTES (COMPARAÇÃO ROBUSTA)...")
 
         session = Session()
 
@@ -399,102 +475,98 @@ class NFeTransformer:
                     'sem_alteracao': 0
                 }
 
-            # Colunas para comparação (excluindo metadados)
-            colunas_comparacao = [col for col in df_novo.columns 
-                                 if col not in ['data_processamento', 'data_ingestao']]
-
-            # Merge para identificar novos e alterados
-            df_comparacao = df_novo.merge(
-                df_existente[colunas_comparacao],
-                on='bling_nfe_id',
-                how='left',
-                suffixes=('_novo', '_existe'),
-                indicator=True
-            )
-
-            # Registros completamente novos
-            novos = df_comparacao[df_comparacao['_merge'] == 'left_only']
+            # 🔧 CORREÇÃO CRÍTICA: Criar dicionário de registros existentes para comparação rápida
+            print("   • Criando índice de registros existentes...")
             
-            # Registros que precisam ser verificados
-            existentes = df_comparacao[df_comparacao['_merge'] == 'both']
+            # Colunas para comparação (EXCLUINDO metadados que sempre mudam!)
+            colunas_comparacao = [col for col in df_novo.columns 
+                                 if col not in ['data_processamento', 'nfe_id']]
+            
+            # Criar dicionário: bling_nfe_id -> registro completo
+            registros_existentes = {}
+            for _, row in df_existente.iterrows():
+                bling_id = row['bling_nfe_id']
+                registros_existentes[bling_id] = row.to_dict()
+            
+            print(f"   • Índice criado: {len(registros_existentes)} registros")
 
-            # Detectar alterações
+            # Separar em: novos, alterados e sem alteração
+            novos = []
             alterados = []
-            for idx, row in existentes.iterrows():
-                houve_alteracao = False
-                for col in colunas_comparacao:
-                    if col == 'bling_nfe_id':
-                        continue
+            sem_alteracao = []
+            
+            print("   • Comparando registros (usando função robusta)...")
+            
+            for _, row_novo in df_novo.iterrows():
+                bling_id = row_novo['bling_nfe_id']
+                
+                if bling_id not in registros_existentes:
+                    # Registro completamente novo
+                    novos.append(row_novo.to_dict())
+                else:
+                    # Registro existe - verificar se mudou
+                    row_existe = registros_existentes[bling_id]
                     
-                    col_novo = f"{col}_novo"
-                    col_existe = f"{col}_existe"
+                    houve_alteracao = False
                     
-                    if col_novo in row and col_existe in row:
-                        val_novo = row[col_novo]
-                        val_existe = row[col_existe]
-                        
-                        # Comparação considerando NaN
-                        if pd.isna(val_novo) and pd.isna(val_existe):
+                    for col in colunas_comparacao:
+                        if col == 'bling_nfe_id':
                             continue
-                        if val_novo != val_existe:
+                        
+                        val_novo = row_novo.get(col)
+                        val_existe = row_existe.get(col)
+                        
+                        # 🔧 USAR FUNÇÃO DE COMPARAÇÃO ROBUSTA!
+                        if not valores_sao_iguais(val_novo, val_existe):
                             houve_alteracao = True
                             break
-                
-                if houve_alteracao:
-                    alterados.append(row['bling_nfe_id'])
+                    
+                    if houve_alteracao:
+                        alterados.append(row_novo.to_dict())
+                    else:
+                        sem_alteracao.append(bling_id)
 
             print(f"\n   📊 ANÁLISE:")
-            print(f"      • Novos: {len(novos)}")
-            print(f"      • Alterados: {len(alterados)}")
-            print(f"      • Sem alteração: {len(existentes) - len(alterados)}")
+            print(f"      • 🆕 Novos: {len(novos)}")
+            print(f"      • 🔄 Alterados: {len(alterados)}")
+            print(f"      • ✓ Sem alteração: {len(sem_alteracao)}")
 
             # Inserir novos EM LOTES
             inseridos = 0
-            if not novos.empty:
+            if novos:
                 print(f"\n   ➕ Inserindo {len(novos)} novos registros...")
                 
-                # Pegar apenas as colunas originais (sem sufixos)
-                colunas_originais = [col for col in df_novo.columns]
-                novos_limpo = df_novo[df_novo['bling_nfe_id'].isin(novos['bling_nfe_id'])]
+                batch_size = 100
+                total_batches = (len(novos) + batch_size - 1) // batch_size
                 
-                registros_novos = novos_limpo.to_dict('records')
-                
-                if registros_novos:
-                    # INSERIR EM LOTES DE 100 REGISTROS
-                    batch_size = 100
-                    total_batches = (len(registros_novos) + batch_size - 1) // batch_size
+                for i in range(0, len(novos), batch_size):
+                    batch = novos[i:i + batch_size]
+                    batch_num = (i // batch_size) + 1
                     
-                    for i in range(0, len(registros_novos), batch_size):
-                        batch = registros_novos[i:i + batch_size]
-                        batch_num = (i // batch_size) + 1
-                        
-                        print(f"      • Lote {batch_num}/{total_batches}: {len(batch)} registros...", end=" ")
-                        
-                        stmt = insert(self.get_modelo_tabela()).values(batch)
-                        session.execute(stmt)
-                        session.commit()  # Commit por lote
-                        
-                        print("✅")
-                        inseridos += len(batch)
+                    print(f"      • Lote {batch_num}/{total_batches}: {len(batch)} registros...", end=" ")
+                    
+                    stmt = insert(self.get_modelo_tabela()).values(batch)
+                    session.execute(stmt)
+                    session.commit()  # Commit por lote
+                    
+                    print("✅")
+                    inseridos += len(batch)
 
             # Atualizar alterados EM LOTES
             atualizados = 0
             if alterados:
                 print(f"\n   🔄 Atualizando {len(alterados)} registros alterados...")
                 
-                # ATUALIZAR EM LOTES DE 100 REGISTROS
                 batch_size = 100
                 total_batches = (len(alterados) + batch_size - 1) // batch_size
                 
                 for i in range(0, len(alterados), batch_size):
-                    batch_ids = alterados[i:i + batch_size]
+                    batch = alterados[i:i + batch_size]
                     batch_num = (i // batch_size) + 1
                     
-                    print(f"      • Lote {batch_num}/{total_batches}: {len(batch_ids)} registros...", end=" ")
+                    print(f"      • Lote {batch_num}/{total_batches}: {len(batch)} registros...", end=" ")
                     
-                    for bling_id in batch_ids:
-                        registro = df_novo[df_novo['bling_nfe_id'] == bling_id].iloc[0].to_dict()
-                        
+                    for registro in batch:
                         stmt = insert(self.get_modelo_tabela()).values(registro)
                         stmt = stmt.on_conflict_do_update(
                             index_elements=['bling_nfe_id'],
@@ -512,7 +584,7 @@ class NFeTransformer:
             return {
                 'inseridos': inseridos,
                 'atualizados': atualizados,
-                'sem_alteracao': len(existentes) - len(alterados)
+                'sem_alteracao': len(sem_alteracao)
             }
 
         except Exception as e:
@@ -570,7 +642,7 @@ class NFeTransformer:
                 for situacao, qtd in situacoes.head(5).items():
                     print(f"      - {situacao}: {qtd}")
 
-            # 6. Comparar e salvar (EM LOTES!)
+            # 6. Comparar e salvar (EM LOTES COM COMPARAÇÃO ROBUSTA!)
             stats = self.comparar_e_salvar(df_final)
 
             # 7. Relatório final
@@ -581,6 +653,13 @@ class NFeTransformer:
             print(f"   🔄 Atualizados: {stats['atualizados']}")
             print(f"   ✓ Sem alteração: {stats['sem_alteracao']}")
             print(f"   📈 Total processado: {sum(stats.values())}")
+            
+            # Calcular eficiência
+            if stats['sem_alteracao'] > 0:
+                total = sum(stats.values())
+                eficiencia = (stats['sem_alteracao'] / total) * 100
+                print(f"   ⚡ Eficiência: {eficiencia:.1f}% sem alteração (evitou reprocessamento)")
+            
             print("=" * 70)
 
         except Exception as e:
