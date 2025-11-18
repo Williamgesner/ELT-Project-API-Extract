@@ -1,7 +1,9 @@
 # Responsável por: Orquestrar a transformação de vendas de raw.vendas_raw para processed.fato_pedidos
 
+import time
 from datetime import datetime
 from config.database import create_schema_processed, create_all_tables
+from config.settings import empresas
 from transform.sales_dw import VendasTransformer
 
 # =====================================================
@@ -9,12 +11,12 @@ from transform.sales_dw import VendasTransformer
 # =====================================================
 
 if __name__ == "__main__":
+    inicio = time.time()
+    
     try:
         print("\n" + "=" * 70)
         print("🔄 TRANSFORMAÇÃO: VENDAS RAW → FATO_PEDIDOS")
         print("=" * 70)
-        
-        inicio = datetime.now()
         
         # Criar schema processed se não existir
         print("\n📂 Verificando schema processed...")
@@ -24,17 +26,25 @@ if __name__ == "__main__":
         print("📋 Verificando tabelas...")
         create_all_tables()
         
-        # Criar e executar o transformer
-        print("\n🚀 Iniciando transformação...")
-        transformer = VendasTransformer()
-        transformer.executar_transformacao_completa()
+        # Loop para processar cada empresa
+        for empresa_config in empresas:
+            empresa_id = empresa_config['empresa_id']
+            nome = empresa_config['nome']
+            
+            print(f"\n{'='*70}")
+            print(f"🏢 Transformando: {nome} (ID: {empresa_id})")
+            print(f"{'='*70}")
+            
+            # Criar e executar o transformer
+            transformer = VendasTransformer(empresa_id)
+            transformer.executar_transformacao_completa()
         
-        fim = datetime.now()
+        fim = time.time()
         tempo_total = fim - inicio
         
         print(f"\n{'='*70}")
-        print(f"✅ TRANSFORMAÇÃO CONCLUÍDA COM SUCESSO!")
-        print(f"⏱️  Tempo total: {tempo_total}")
+        print(f"✅ TRANSFORMAÇÃO DE TODAS AS EMPRESAS CONCLUÍDA!")
+        print(f"⏱️  Tempo total: {tempo_total:.2f} segundos")
         print(f"{'='*70}")
         
         print(f"\n💡 PRÓXIMOS PASSOS:")
@@ -51,5 +61,3 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         raise
-
-

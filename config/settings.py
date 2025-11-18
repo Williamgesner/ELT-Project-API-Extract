@@ -1,7 +1,8 @@
 # Responsável por: carregar .env, validar variáveis, configurar API
 
-import os # Esse modulo é usado para interagir com o sistema operacional
-from dotenv import load_dotenv # Biblioteca para carregar as variáveis de ambiente
+import os
+import pandas as pd
+from dotenv import load_dotenv
 
 # =====================================================
 # 1. CONFIGURAÇÃO DE AMBIENTE
@@ -17,15 +18,9 @@ postgres_host = os.getenv("postgres_host")
 postgres_port = os.getenv("postgres_port")
 postgres_database = os.getenv("postgres_database")
 
-# Configurando a API_KEY BLING
-access_token = os.getenv("API_KEY")
-
 # Validação das variáveis
 if not all([postgres_username, postgres_password, postgres_host, postgres_port, postgres_database]):
     raise Exception("Variáveis do PostgreSQL não encontradas no .env")
-
-if not access_token:
-    raise Exception("API_KEY não encontrada no .env")
 
 # Construção da URL do banco
 database_url = (
@@ -39,13 +34,6 @@ print(f"Banco: {postgres_host}:{postgres_port}/{postgres_database}")
 # =====================================================
 # 2. CONFIGURAÇÃO DA API BLING - TODOS OS ENDPOINTS
 # =====================================================
-
-# Definindo os headers da requisição (Segundo a documentação da API)
-headers = {
-    "Authorization": f"Bearer {access_token}",  # Token OAuth obtido no fluxo
-    "Content-Type": "application/json",
-    "Accept": "application/json",
-}
 
 # URLs de todos os endpoints da API Bling
 endpoints = {
@@ -64,3 +52,65 @@ endpoints = {
     'formas_pagamentos': 'https://api.bling.com.br/Api/v3/formas-pagamentos',
     'natureza_operacao': 'https://api.bling.com.br/Api/v3/naturezas-operacoes'
 }
+
+# =====================================================
+# 3. CONFIGURAÇÃO MULTI-CNPJ (CARREGA DO CSV)
+# =====================================================
+
+def carregar_empresas_do_csv():
+    """
+    Carrega as empresas do CSV e adiciona as API keys do .env
+    """
+    try:
+        # Ler o CSV
+        df = pd.read_csv('empresas.csv') # Lê as 5 empresas
+        
+        empresas_list = []
+        
+        for _, row in df.iterrows():
+            empresa_id = int(row['empresa_id'])
+            
+            # Buscar API key correspondente no .env
+            api_key_var = f"API_KEY_{empresa_id:02d}"  # API_KEY_01, API_KEY_02, etc
+            api_key = os.getenv(api_key_var) # Aqui busca no .env
+            
+            if not api_key:
+                print(f"⚠️ AVISO: API Key '{api_key_var}' não encontrada no .env para empresa ID {empresa_id}")
+                print(f"   Empresa '{row['razao_social']}' será ignorada nas extrações")
+                continue
+            
+            # Só adiciona se tiver API key válida
+            empresas_list.append({
+                'empresa_id': empresa_id,
+                'nome': row['razao_social'],
+                'cnpj': row['cnpj'],
+                'api_key': api_key
+            })
+        
+        if not empresas_list:
+            raise Exception("Nenhuma empresa com API Key válida foi encontrada!")
+        
+        return empresas_list
+        
+    except FileNotFoundError:
+        raise Exception(
+            "Arquivo 'empresas.csv' não encontrado na raiz do projeto!\n"
+            "Certifique-se de que o arquivo existe com as colunas: empresa_id, cnpj, razao_social"
+        )
+    except Exception as e:
+        raise Exception(f"Erro ao carregar empresas do CSV: {e}")
+
+# Carregar empresas automaticamente
+empresas = carregar_empresas_do_csv()
+
+print(f"✅ {len(empresas)} empresa(s) configurada(s) com API Key:")
+for emp in empresas:
+    print(f"   • ID {emp['empresa_id']}: {emp['nome']}")
+
+# =====================================================
+# 4. HEADERS - MANTIDO VAZIO PARA COMPATIBILIDADE
+# =====================================================
+# IMPORTANTE: Este headers global NÃO é mais usado
+# Cada extractor agora cria seu próprio headers com sua API key
+# Mantido aqui apenas para não quebrar o base_extractor.py
+headers = {}

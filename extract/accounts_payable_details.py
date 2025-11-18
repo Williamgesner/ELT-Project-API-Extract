@@ -25,7 +25,7 @@ não retorna a categoria, apenas o endpoint individual (/contas/pagar/{id})
 import requests
 import time
 from datetime import datetime
-from config.settings import endpoints, headers
+from config.settings import endpoints
 from config.database import Session
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
@@ -37,10 +37,22 @@ class ContasPagarDetalhesExtractor:
     COM GARANTIA DE RETOMADA AUTOMÁTICA
     """
     
-    def __init__(self):
+    def __init__(self, api_key, empresa_id):
+        """
+        Args:
+            api_key: Token de autenticação da API Bling
+            empresa_id: ID da empresa na tabela dim_empresas
+        """
         self.base_url = endpoints['contas_pagar']
-        self.headers = headers
         self.session = Session()
+        self.empresa_id = empresa_id
+        
+        # Sobrescrever headers com a API key específica
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
     
     def buscar_detalhes_conta(self, conta_id, tentativas=3):
         """
@@ -107,13 +119,14 @@ class ContasPagarDetalhesExtractor:
         try:
             stmt = insert(ContasPagarRaw).values(
                 bling_id=conta_id,
+                empresa_id=self.empresa_id,
                 dados_json=dados_completos,
                 data_ingestao=datetime.now(),
                 status_processamento='pendente'  # Marca como pendente para reprocessar
             )
             
             stmt = stmt.on_conflict_do_update(
-                index_elements=['bling_id'],
+                index_elements=['bling_id', 'empresa_id'], 
                 set_={
                     'dados_json': stmt.excluded.dados_json,
                     'data_ingestao': stmt.excluded.data_ingestao,
@@ -148,8 +161,13 @@ class ContasPagarDetalhesExtractor:
                     ),
                     status_processamento = 'processado'
                 WHERE bling_id = :conta_id
+                  AND empresa_id = :empresa_id
             """)
-            self.session.execute(query, {"conta_id": conta_id, "motivo": motivo})
+            self.session.execute(query, {
+                "conta_id": conta_id,
+                "empresa_id": self.empresa_id,
+                "motivo": motivo
+            })
             return True
         except Exception as e:
             print(f"   ❌ Erro ao marcar conta {conta_id}: {e}")
@@ -166,7 +184,7 @@ class ContasPagarDetalhesExtractor:
             delay_entre_requests: Tempo entre requisições (respeitar rate limit)
             batch_size: Quantas contas processar antes de fazer commit
         """
-        print("\n🔍 EXTRATOR DE DETALHES COMPLETOS DE CONTAS A PAGAR V2")
+        print(f"\n🔍 EXTRATOR DE DETALHES COMPLETOS DE CONTAS A PAGAR (Empresa ID: {self.empresa_id})")
         print("=" * 70)
         print("Este processo busca os detalhes de CADA conta individualmente")
         print("para obter a categoria (categoria.id).")
@@ -201,7 +219,8 @@ class ContasPagarDetalhesExtractor:
                 query = text("""
                     SELECT bling_id
                     FROM raw.contas_pagar_raw
-                    WHERE status_processamento != 'processado'
+                    WHERE empresa_id = :empresa_id
+                      AND status_processamento != 'processado'
                       AND (dados_json IS NULL 
                            OR NOT (dados_json ? 'categoria')
                            OR dados_json->'categoria' IS NULL
@@ -210,7 +229,10 @@ class ContasPagarDetalhesExtractor:
                     LIMIT :batch_size
                 """)
                 
-                resultado = self.session.execute(query, {"batch_size": batch_size})
+                resultado = self.session.execute(query, {
+                    "empresa_id": self.empresa_id,
+                    "batch_size": batch_size
+                })
                 contas_pendentes = [row.bling_id for row in resultado.fetchall()]
                 
                 if not contas_pendentes:
@@ -229,8 +251,9 @@ class ContasPagarDetalhesExtractor:
                                      AND dados_json->'categoria' != 'null'::jsonb 
                                 THEN 1 ELSE 0 END) as com_categoria
                         FROM raw.contas_pagar_raw
+                        WHERE empresa_id = :empresa_id
                     """)
-                    totais = self.session.execute(query_total).fetchone()
+                    totais = self.session.execute(query_total, {"empresa_id": self.empresa_id}).fetchone()
                     total_contas = totais.total
                     stats['ja_tinham_categoria'] = totais.com_categoria
                     
@@ -372,9 +395,10 @@ class ContasPagarDetalhesExtractor:
                     SUM(CASE WHEN status_processamento != 'processado'
                         THEN 1 ELSE 0 END) as pendentes
                 FROM raw.contas_pagar_raw
+                WHERE empresa_id = :empresa_id
             """)
             
-            validacao = self.session.execute(query_validacao).fetchone()
+            validacao = self.session.execute(query_validacao, {"empresa_id": self.empresa_id}).fetchone()
             
             print(f"✅ Validação:")
             print(f"   • Total de contas: {validacao.total}")

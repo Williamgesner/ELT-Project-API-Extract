@@ -108,6 +108,7 @@ def create_all_tables():
     
     print("\n📊 MODELOS PROCESSED - DIMENSÕES:")
     
+    from models.dim_fato.dim_empresas import DimEmpresas
     from models.dim_fato.dim_contatos import DimContatos
     from models.dim_fato.dim_tempo import DimTempo
     from models.dim_fato.dim_produtos import DimProdutos
@@ -116,6 +117,7 @@ def create_all_tables():
     from models.dim_fato.dim_natureza_operacao import DimNaturezaOperacao
 
     
+    print("   ✓ DimEmpresas")
     print("   ✓ DimContatos")
     print("   ✓ DimTempo")
     print("   ✓ DimProdutos")
@@ -163,6 +165,7 @@ def create_all_tables():
     print("   ✓ NaturezaOperacaoRaw")
     
     print("\nTabelas PROCESSED que serão criadas:")
+    print("   • processed.dim_empresas")
     print("   • processed.dim_contatos")
     print("   • processed.dim_tempo") 
     print("   • processed.dim_produtos")

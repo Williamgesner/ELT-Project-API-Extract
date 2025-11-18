@@ -3,7 +3,6 @@
 import requests
 import time
 from datetime import datetime
-from config.settings import headers
 from config.database import Session
 from config.settings import endpoints
 from models.nature_operation_raw import NaturezaOperacaoRaw
@@ -23,9 +22,21 @@ class NaturezaOperacaoExtractor:
     2. Salva cada uma no banco
     """
     
-    def __init__(self):
+    def __init__(self, api_key, empresa_id):
+        """
+        Args:
+            api_key: Token de autenticação da API Bling
+            empresa_id: ID da empresa na tabela dim_empresas
+        """
         self.base_url = endpoints["natureza_operacao"]
-        self.headers = headers
+        self.empresa_id = empresa_id
+        
+        # Definir headers com a API key específica
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
     
     def buscar_todas_naturezas(self):
         """
@@ -66,13 +77,14 @@ class NaturezaOperacaoExtractor:
             
             stmt = insert(NaturezaOperacaoRaw).values(
                 bling_id=natureza_id,
+                empresa_id=self.empresa_id, 
                 dados_json=natureza,
                 data_ingestao=datetime.now()
             )
             
             # Se já existir, atualiza
             stmt = stmt.on_conflict_do_update(
-                index_elements=['bling_id'],
+                index_elements=['bling_id', 'empresa_id'], 
                 set_={
                     'dados_json': stmt.excluded.dados_json,
                     'data_ingestao': stmt.excluded.data_ingestao
@@ -94,7 +106,7 @@ class NaturezaOperacaoExtractor:
         """
         Executa o processo completo de extração de naturezas de operação
         """
-        print("\n🌿 EXTRAÇÃO: NATUREZAS DE OPERAÇÃO")
+        print(f"\n🌿 EXTRAÇÃO: NATUREZAS DE OPERAÇÃO (Empresa ID: {self.empresa_id})")
         print("=" * 70)
         print("Este processo busca TODAS as naturezas de operação do Bling")
         print("=" * 70)
@@ -143,7 +155,7 @@ class NaturezaOperacaoExtractor:
             
             if stats['sucesso'] > 0:
                 print(f"\n💡 PRÓXIMOS PASSOS:")
-                print(f"   1. Verificar dados: SELECT * FROM raw.natureza_operacao_raw;")
+                print(f"   1. Verificar dados: SELECT * FROM raw.natureza_operacao_raw WHERE empresa_id = {self.empresa_id};")
                 print(f"   2. Usar na transformação de NFe")
             
         except Exception as e:
@@ -155,9 +167,12 @@ class NaturezaOperacaoExtractor:
 # 2. FUNÇÕES AUXILIARES
 # =====================================================
 
-def verificar_naturezas_cadastradas():
+def verificar_naturezas_cadastradas(empresa_id):
     """
     Verifica quantas naturezas estão cadastradas no banco
+    
+    Args:
+        empresa_id: ID da empresa para filtrar
     """
     session = Session()
     
@@ -165,22 +180,24 @@ def verificar_naturezas_cadastradas():
         query = text("""
             SELECT COUNT(*) as total
             FROM raw.natureza_operacao_raw
+            WHERE empresa_id = :empresa_id
         """)
         
-        resultado = session.execute(query).fetchone()
+        resultado = session.execute(query, {"empresa_id": empresa_id}).fetchone()
         
-        print(f"\n📊 Naturezas de operação cadastradas: {resultado.total}")
+        print(f"\n📊 Naturezas de operação cadastradas (empresa_id={empresa_id}): {resultado.total}")
         
         if resultado.total > 0:
             # Mostrar algumas
             query_lista = text("""
                 SELECT bling_id, dados_json->>'descricao' as descricao
                 FROM raw.natureza_operacao_raw
+                WHERE empresa_id = :empresa_id
                 ORDER BY bling_id
                 LIMIT 5
             """)
             
-            lista = session.execute(query_lista).fetchall()
+            lista = session.execute(query_lista, {"empresa_id": empresa_id}).fetchall()
             
             print(f"\n📋 Primeiras 5:")
             for nat in lista:

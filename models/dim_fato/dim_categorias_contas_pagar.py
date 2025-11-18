@@ -1,7 +1,7 @@
 # Responsável por: definir a estrutura da tabela dim_categorias_contas_pagar no schema processed
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, BigInteger, String, DateTime
+from sqlalchemy import Column, Integer, BigInteger, String, DateTime, ForeignKey, UniqueConstraint
 from config.database import Base
 
 # =====================================================
@@ -9,8 +9,11 @@ from config.database import Base
 # =====================================================
 
 class DimCategoriasContasPagar(Base):
-    __table_args__ = {"schema": "processed"}
     __tablename__ = "dim_categorias_contas_pagar"
+    __table_args__ = (
+        UniqueConstraint('bling_categoria_id', 'empresa_id', name='uq_dim_categorias_bling_empresa'),
+        {"schema": "processed"}
+    )
 
     # ============================
     # CHAVES
@@ -20,7 +23,10 @@ class DimCategoriasContasPagar(Base):
     categoria_id = Column(Integer, primary_key=True)
     
     # Chave de negócio (ID da API Bling) - ESTA será usada na FK
-    bling_categoria_id = Column(BigInteger, unique=True, nullable=False, index=True)
+    bling_categoria_id = Column(BigInteger, nullable=False, index=True)
+    
+    # Chave da empresa
+    empresa_id = Column(Integer, ForeignKey('processed.dim_empresas.empresa_id'), nullable=False, index=True)
     
     # ============================
     # ATRIBUTOS DESCRITIVOS
@@ -37,4 +43,4 @@ class DimCategoriasContasPagar(Base):
     data_processamento = Column(DateTime, default=datetime.now, nullable=False)
 
     def __repr__(self):
-        return f"<DimCategoriasContasPagar(categoria_id={self.categoria_id}, categoria='{self.categoria}', tipo='{self.tipo_categoria}')>"
+        return f"<DimCategoriasContasPagar(categoria_id={self.categoria_id}, empresa_id={self.empresa_id}, categoria='{self.categoria}', tipo='{self.tipo_categoria}')>"

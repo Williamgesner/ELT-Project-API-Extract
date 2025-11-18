@@ -1,8 +1,10 @@
 # Responsável por: Orquestrar a transformação de contas a receber de raw → fato_contas_receber
 # ⚠️ Antes de rodar esse, precisa garantir que a tabela de formas de pagamento está populada! 
 
+import time
 from datetime import datetime
 from config.database import create_schema_processed, create_all_tables
+from config.settings import empresas
 from transform.accounts_receivable_dw import ContasReceberTransformer
 
 # =====================================================
@@ -10,6 +12,8 @@ from transform.accounts_receivable_dw import ContasReceberTransformer
 # =====================================================
 
 if __name__ == "__main__":
+    inicio = time.time()
+    
     try:
         print("\n" + "=" * 70)
         print("🔄 TRANSFORMAÇÃO: CONTAS A RECEBER RAW → FATO_CONTAS_RECEBER")
@@ -20,8 +24,6 @@ if __name__ == "__main__":
         print("   ✓ processed.dim_formas_pagamento deve estar populada (opcional)")
         print("=" * 70)
         
-        inicio = datetime.now()
-        
         # Criar schema processed se não existir
         print("\n📂 Verificando schema processed...")
         create_schema_processed()
@@ -30,17 +32,25 @@ if __name__ == "__main__":
         print("📋 Verificando tabelas...")
         create_all_tables()
         
-        # Criar e executar o transformer
-        print("\n🚀 Iniciando transformação...")
-        transformer = ContasReceberTransformer()
-        transformer.executar_transformacao_completa()
+        # Loop para processar cada empresa
+        for empresa_config in empresas:
+            empresa_id = empresa_config['empresa_id']
+            nome = empresa_config['nome']
+            
+            print(f"\n{'='*70}")
+            print(f"🏢 Transformando: {nome} (ID: {empresa_id})")
+            print(f"{'='*70}")
+            
+            # Criar e executar o transformer
+            transformer = ContasReceberTransformer(empresa_id)
+            transformer.executar_transformacao_completa()
         
-        fim = datetime.now()
+        fim = time.time()
         tempo_total = fim - inicio
         
         print(f"\n{'='*70}")
-        print(f"✅ TRANSFORMAÇÃO CONCLUÍDA COM SUCESSO!")
-        print(f"⏱️  Tempo total: {tempo_total}")
+        print(f"✅ TRANSFORMAÇÃO DE TODAS AS EMPRESAS CONCLUÍDA!")
+        print(f"⏱️  Tempo total: {tempo_total:.2f} segundos")
         print(f"{'='*70}")
         
         print(f"\n💡 PRÓXIMOS PASSOS:")

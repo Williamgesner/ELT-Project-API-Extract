@@ -284,6 +284,7 @@ class BaseExtractor:
                     # Registro novo → INSERT
                     registros_novos.append({
                         'bling_id': bling_id,
+                        'empresa_id': dados.get('empresa_id'),  # Adicionado empresa_id
                         'dados_json': novo_json,
                         'data_ingestao': datetime.now(),
                         'status_processamento': 'pendente'
@@ -331,13 +332,14 @@ class BaseExtractor:
                     
                     stmt = insert(self.model_class).values(
                         bling_id=dados['bling_id'],
+                        empresa_id=dados.get('empresa_id'),
                         dados_json=dados['dados_json'],
                         data_ingestao=datetime.now(),
                         status_processamento='pendente'
                     )
                     
                     stmt = stmt.on_conflict_do_update(
-                        index_elements=['bling_id'],
+                        index_elements=['bling_id', 'empresa_id'],  # CORREÇÃO: chave composta!
                         set_={
                             'dados_json': stmt.excluded.dados_json, 
                             'data_ingestao': stmt.excluded.data_ingestao,

@@ -13,7 +13,7 @@ Fluxo:
 import requests
 import time
 from datetime import datetime
-from config.settings import endpoints, headers
+from config.settings import endpoints
 from config.database import Session
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
@@ -24,10 +24,22 @@ class VendasDetalhesExtractor:
     Extrator específico para buscar detalhes completos de vendas
     """
     
-    def __init__(self):
+    def __init__(self, api_key, empresa_id):
+        """
+        Args:
+            api_key: Token de autenticação da API Bling
+            empresa_id: ID da empresa na tabela dim_empresas
+        """
         self.base_url = endpoints['vendas']
-        self.headers = headers
         self.session = Session()
+        self.empresa_id = empresa_id
+        
+        # Definir headers com a API key específica
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
     
     def buscar_detalhes_venda(self, venda_id, tentativas=3):
         """
@@ -82,13 +94,14 @@ class VendasDetalhesExtractor:
         try:
             stmt = insert(VendasRaw).values(
                 bling_id=venda_id,
+                empresa_id=self.empresa_id, 
                 dados_json=dados_completos,
                 data_ingestao=datetime.now(),
                 status_processamento='pendente'
             )
             
             stmt = stmt.on_conflict_do_update(
-                index_elements=['bling_id'],
+                index_elements=['bling_id', 'empresa_id'],  
                 set_={
                     'dados_json': stmt.excluded.dados_json,
                     'data_ingestao': stmt.excluded.data_ingestao
@@ -110,7 +123,7 @@ class VendasDetalhesExtractor:
             delay_entre_requests: Tempo entre requisições (respeitar rate limit)
             batch_size: Quantas vendas processar antes de fazer commit
         """
-        print("\n🔍 EXTRATOR DE DETALHES COMPLETOS DE VENDAS")
+        print(f"\n🔍 EXTRATOR DE DETALHES COMPLETOS DE VENDAS (Empresa ID: {self.empresa_id})")
         print("=" * 70)
         print("Este processo busca os detalhes de CADA venda individualmente")
         print("para obter os itens dos pedidos.")
@@ -124,10 +137,11 @@ class VendasDetalhesExtractor:
             query = text("""
                 SELECT bling_id, dados_json
                 FROM raw.vendas_raw
+                WHERE empresa_id = :empresa_id
                 ORDER BY bling_id
             """)
             
-            resultado = self.session.execute(query)
+            resultado = self.session.execute(query, {"empresa_id": self.empresa_id})
             vendas = resultado.fetchall()
             
             if not vendas:
@@ -257,9 +271,10 @@ class VendasDetalhesExtractor:
                     SUM(CASE WHEN dados_json ? 'itens' THEN 1 ELSE 0 END) as com_campo_itens,
                     SUM(CASE WHEN jsonb_array_length(dados_json->'itens') > 0 THEN 1 ELSE 0 END) as com_itens_preenchidos
                 FROM raw.vendas_raw
+                WHERE empresa_id = :empresa_id
             """)
             
-            validacao = self.session.execute(query_validacao).fetchone()
+            validacao = self.session.execute(query_validacao, {"empresa_id": self.empresa_id}).fetchone()
             
             print(f"   • Total de vendas: {validacao.total}")
             print(f"   • Com campo 'itens': {validacao.com_campo_itens}")
@@ -288,7 +303,10 @@ class VendasDetalhesExtractor:
 
 if __name__ == "__main__":
     try:
-        extrator = VendasDetalhesExtractor()
+        # ATENÇÃO: Passar empresa_id aqui!
+        empresa_id = 1  # TODO: Ajustar conforme necessário
+        
+        extrator = VendasDetalhesExtractor(empresa_id)
         extrator.executar_extracao_detalhes(
             delay_entre_requests=0.4,  # Respeitar rate limit (2.5 req/s)
             batch_size=100             # Commit a cada 100 vendas

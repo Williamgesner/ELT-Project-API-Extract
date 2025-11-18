@@ -1,7 +1,7 @@
 # Responsável por: definir a estrutura da tabela dim_canais no schema processed
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
 from config.database import Base
 
 # =====================================================
@@ -9,11 +9,20 @@ from config.database import Base
 # =====================================================
 
 class DimCanais(Base):
-    __table_args__ = {"schema": "processed"}
     __tablename__ = "dim_canais"
+    __table_args__ = (
+        UniqueConstraint('bling_canal_id', 'empresa_id', name='uq_dim_canais_bling_empresa'),
+        {"schema": "processed"}
+    )
+    
+    # Chave primária
+    canal_id = Column(Integer, primary_key=True, autoincrement=True)
     
     # Chave de negócio
-    bling_canal_id = Column(Integer, unique=True, nullable=False, index=True)
+    bling_canal_id = Column(Integer, nullable=False, index=True)
+    
+    # Chave da empresa
+    empresa_id = Column(Integer, ForeignKey('processed.dim_empresas.empresa_id'), nullable=False, index=True)
     
     # Atributos descritivos
     nome_canal = Column(String(200), nullable=False)
@@ -23,4 +32,4 @@ class DimCanais(Base):
     data_processamento = Column(DateTime, default=datetime.now, nullable=False)
 
     def __repr__(self):
-        return f"<DimCanais(canal_id={self.canal_id}, nome_canal='{self.nome_canal}')>"
+        return f"<DimCanais(canal_id={self.canal_id}, empresa_id={self.empresa_id}, nome_canal='{self.nome_canal}')>"

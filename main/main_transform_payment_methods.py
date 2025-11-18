@@ -1,7 +1,9 @@
 # Responsável por: Orquestrar a transformação de formas de pagamento de raw → dim_formas_pagamento
 
+import time
 from datetime import datetime
 from config.database import create_schema_processed, create_all_tables
+from config.settings import empresas
 from transform.methods_accounts_payable_dw import FormasPagamentoTransformer
 
 # =====================================================
@@ -9,6 +11,8 @@ from transform.methods_accounts_payable_dw import FormasPagamentoTransformer
 # =====================================================
 
 if __name__ == "__main__":
+    inicio = time.time()
+    
     try:
         print("\n" + "=" * 70)
         print("🔄 TRANSFORMAÇÃO: FORMAS DE PAGAMENTO RAW → DIM_FORMAS_PAGAMENTO")
@@ -18,8 +22,6 @@ if __name__ == "__main__":
         print("   Motivo: fato_contas_pagar depende de dim_formas_pagamento")
         print("=" * 70)
         
-        inicio = datetime.now()
-        
         # Criar schema processed se não existir
         print("\n📂 Verificando schema processed...")
         create_schema_processed()
@@ -28,17 +30,25 @@ if __name__ == "__main__":
         print("📋 Verificando tabelas...")
         create_all_tables()
         
-        # Criar e executar o transformer
-        print("\n🚀 Iniciando transformação...")
-        transformer = FormasPagamentoTransformer()
-        transformer.executar_transformacao_completa()
+        # Loop para processar cada empresa
+        for empresa_config in empresas:
+            empresa_id = empresa_config['empresa_id']
+            nome = empresa_config['nome']
+            
+            print(f"\n{'='*70}")
+            print(f"🏢 Transformando: {nome} (ID: {empresa_id})")
+            print(f"{'='*70}")
+            
+            # Criar e executar o transformer
+            transformer = FormasPagamentoTransformer(empresa_id)
+            transformer.executar_transformacao_completa()
         
-        fim = datetime.now()
+        fim = time.time()
         tempo_total = fim - inicio
         
         print(f"\n{'='*70}")
-        print(f"✅ TRANSFORMAÇÃO CONCLUÍDA COM SUCESSO!")
-        print(f"⏱️  Tempo total: {tempo_total}")
+        print(f"✅ TRANSFORMAÇÃO DE TODAS AS EMPRESAS CONCLUÍDA!")
+        print(f"⏱️  Tempo total: {tempo_total:.2f} segundos")
         print(f"{'='*70}")
         
         print(f"\n💡 PRÓXIMOS PASSOS:")

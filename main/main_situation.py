@@ -2,7 +2,9 @@
 # ⚠️ Só executar esse Scrip depois que o Scrip de vendas_raw for executado ! 
 # ⚠️ Só roda esse Script uma vez, ou quando alterar ou incluir novas situações !
 
+import time
 from config.database import create_schema_raw, create_all_tables
+from config.settings import empresas
 from extract.situation import SituacoesExtractor
 
 # =====================================================
@@ -10,6 +12,8 @@ from extract.situation import SituacoesExtractor
 # =====================================================
 
 if __name__ == "__main__":
+    inicio = time.time()
+    
     try:
         # Criar schema se não existir
         create_schema_raw()
@@ -17,11 +21,25 @@ if __name__ == "__main__":
         # Criar tabelas
         create_all_tables()
     
-        # Executar extração
-        extrator_situacao = SituacoesExtractor()
-        extrator_situacao.executar_extracao_completa()
-    
-        print("\n✅ Script executado com sucesso!")
+        print("\n📊 INICIANDO EXTRAÇÃO DE SITUAÇÕES")
+        print("=" * 70)
+        
+        # Loop para processar cada empresa
+        for empresa_config in empresas:
+            empresa_id = empresa_config['empresa_id']
+            api_key = empresa_config['api_key']
+            nome = empresa_config['nome']
+            
+            print(f"\n🏢 Processando: {nome} (ID: {empresa_id})")
+            print("-" * 70)
+            
+            # Executar extração
+            extrator_situacao = SituacoesExtractor(api_key, empresa_id)
+            extrator_situacao.executar_extracao_completa()
+        
+        fim = time.time()
+        tempo_total = fim - inicio
+        print(f"\n✅ Script executado com sucesso em {tempo_total:.2f} segundos!")
     
     except KeyboardInterrupt:
         print("\n⚠️ Execução interrompida pelo usuário")

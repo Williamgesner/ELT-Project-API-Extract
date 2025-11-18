@@ -16,19 +16,31 @@ class FormasPagamentosExtractor(BaseExtractor):
     Herda toda a lógica comum da BaseExtractor e adiciona só o que é específico
     """
     
-    def __init__(self):
+    def __init__(self, api_key, empresa_id):
         """
         Inicializa o extrator de formas de pagamento
         Passa para a classe pai (BaseExtractor) a URL e modelo específicos
+        
+        Args:
+            api_key: Token de autenticação da API Bling
+            empresa_id: ID da empresa na tabela dim_empresas
         """
         super().__init__(endpoints['formas_pagamentos'], FormasPagamentosRaw)
+        self.empresa_id = empresa_id
+        
+        # Sobrescrever headers do base_extractor com a API key específica
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
     
     def executar_extracao_completa(self):
         """
         Executa o processo completo de extração de formas de pagamento
         """
         try:
-            print("\n💳 EXTRAÇÃO: FORMAS DE PAGAMENTO")
+            print(f"\n💳 EXTRAÇÃO: FORMAS DE PAGAMENTO (Empresa ID: {self.empresa_id})")
             print("=" * 60)
             inicio_extracao = datetime.now()
 
@@ -60,6 +72,7 @@ class FormasPagamentosExtractor(BaseExtractor):
             for forma in todas_formas:
                 dados_formatados = {
                     'bling_id': forma['id'],
+                    'empresa_id': self.empresa_id, 
                     'dados_json': forma  # JSON completo e puro
                 }
                 dados_para_salvar.append(dados_formatados)

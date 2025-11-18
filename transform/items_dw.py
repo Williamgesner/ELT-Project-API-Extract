@@ -1,5 +1,5 @@
 # =====================================================
-# TRANSFORMADOR DE ITENS DE PEDIDOS
+# TRANSFORMADOR DE ITENS DE PEDIDOS - MULTI-CNPJ
 # =====================================================
 # Responsável por: Extrair itens do array dentro de vendas_raw
 # e transformar para fato_itens_pedidos
@@ -20,7 +20,8 @@ class ItensTransformer:
     Extrai itens do JSON de vendas_raw e cria registros individuais
     """
 
-    def __init__(self):
+    def __init__(self, empresa_id):
+        self.empresa_id = empresa_id
         self.engine = engine
 
     # =====================================================
@@ -34,7 +35,7 @@ class ItensTransformer:
         """
         print("\n1️⃣ EXTRAINDO VENDAS COM ITENS DE RAW.VENDAS_RAW...")
 
-        query = """
+        query = text("""
             SELECT 
                 vr.bling_id as bling_pedido_id,
                 vr.dados_json->'itens' as itens_json,
@@ -42,13 +43,15 @@ class ItensTransformer:
             FROM raw.vendas_raw vr
             INNER JOIN processed.fato_pedidos fp 
                 ON vr.bling_id = fp.bling_pedido_id
-            WHERE vr.dados_json->'itens' IS NOT NULL
+                AND vr.empresa_id = fp.empresa_id
+            WHERE vr.empresa_id = :empresa_id
+            AND vr.dados_json->'itens' IS NOT NULL
             AND jsonb_array_length(vr.dados_json->'itens') > 0
             ORDER BY fp.pedido_id
-        """
+        """)
 
-        df_vendas = pd.read_sql(query, self.engine)
-        print(f"✅ {len(df_vendas)} pedidos com itens encontrados")
+        df_vendas = pd.read_sql(query, self.engine, params={"empresa_id": self.empresa_id})
+        print(f"✅ {len(df_vendas)} pedidos com itens encontrados (empresa_id = {self.empresa_id})")
 
         return df_vendas
 
@@ -77,6 +80,7 @@ class ItensTransformer:
                 for item in itens_json:
                     item_processado = {
                         'pedido_id': pedido_id,
+                        'empresa_id': self.empresa_id,
                         'bling_item_id': item.get('id'),
                         'bling_produto_id': item.get('produto', {}).get('id'),
                         'descricao_item': item.get('descricao'),
@@ -108,13 +112,14 @@ class ItensTransformer:
         session = Session()
 
         try:
-            # Buscar mapeamento de produtos
+            # Buscar mapeamento de produtos PARA ESTA EMPRESA
             query = text("""
                 SELECT bling_produto_id, produto_id
                 FROM processed.dim_produtos
+                WHERE empresa_id = :empresa_id
             """)
 
-            resultado = session.execute(query)
+            resultado = session.execute(query, {"empresa_id": self.empresa_id})
             mapa_produtos = {row.bling_produto_id: row.produto_id for row in resultado}
 
             if mapa_produtos:
@@ -188,6 +193,7 @@ class ItensTransformer:
         # Colunas finais (sem item_id que é autoincremental)
         colunas_finais = [
             'pedido_id',
+            'empresa_id',
             'produto_id',
             'bling_item_id',
             'quantidade',
@@ -259,11 +265,13 @@ class ItensTransformer:
             query = text("""
                 SELECT 
                     pedido_id,
+                    empresa_id,
                     bling_item_id
                 FROM processed.fato_itens_pedidos
+                WHERE empresa_id = :empresa_id
             """)
 
-            df_existentes = pd.read_sql(query, self.engine)
+            df_existentes = pd.read_sql(query, self.engine, params={"empresa_id": self.empresa_id})
             fim_busca = datetime.now()
 
             print(f"📋 {len(df_existentes)} itens existentes carregados em {fim_busca - inicio_busca}")
@@ -304,6 +312,7 @@ class ItensTransformer:
                 # Garantir que as colunas estão na ordem correta
                 colunas_finais = [
                     'pedido_id',
+                    'empresa_id',
                     'produto_id', 
                     'bling_item_id',
                     'quantidade',
@@ -340,11 +349,11 @@ class ItensTransformer:
                 print(f"\n✨ Nenhum item novo! Tabela já está atualizada.")
 
             # === VERIFICAR TOTAL ===
-            query = text("SELECT COUNT(*) FROM processed.fato_itens_pedidos")
-            total = session.execute(query).scalar()
+            query = text("SELECT COUNT(*) FROM processed.fato_itens_pedidos WHERE empresa_id = :empresa_id")
+            total = session.execute(query, {"empresa_id": self.empresa_id}).scalar()
 
             print(f"\n🎉 EXPORTAÇÃO CONCLUÍDA!")
-            print(f"   • Total na tabela: {total}")
+            print(f"   • Total na tabela (empresa_id={self.empresa_id}): {total}")
             if itens_ignorados > 0:
                 print(f"   • Economia: {itens_ignorados} duplicatas evitadas!")
 
@@ -378,8 +387,7 @@ class ItensTransformer:
             df_vendas = self.extrair_vendas_com_itens()
 
             if len(df_vendas) == 0:
-                print("\n⚠️  Nenhuma venda com itens encontrada")
-                print("💡 Execute primeiro: python main_transform_sales.py")
+                print(f"\n⚠️  Nenhuma venda com itens encontrada para empresa_id = {self.empresa_id}")
                 return
 
             # 2. Explodir array de itens

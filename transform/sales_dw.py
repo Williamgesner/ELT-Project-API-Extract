@@ -1,5 +1,5 @@
 # =====================================================
-# TRANSFORMADOR DE VENDAS
+# TRANSFORMADOR DE VENDAS - MULTI-CNPJ
 # =====================================================
 # Responsável por: Limpar e transformar dados de vendas_raw
 # para fato_pedidos no schema processed
@@ -23,7 +23,8 @@ class VendasTransformer:
     Aplica todas as limpezas e padronizações necessárias
     """
 
-    def __init__(self):
+    def __init__(self, empresa_id):
+        self.empresa_id = empresa_id
         self.engine = engine
 
     # =====================================================
@@ -34,9 +35,9 @@ class VendasTransformer:
         """
         Extrai dados da tabela raw.vendas_raw
         """
-        print("\n1️⃣ EXTRAINDO DADOS DE RAW.VENDAS_RAW...")
+        print(f"\n1️⃣ EXTRAINDO DADOS DE RAW.VENDAS_RAW (empresa_id={self.empresa_id})...")
 
-        query = """
+        query = text("""
             SELECT 
                 id,
                 bling_id,
@@ -44,10 +45,11 @@ class VendasTransformer:
                 data_ingestao
             FROM raw.vendas_raw
             WHERE status_processamento = 'pendente'
+              AND empresa_id = :empresa_id
             ORDER BY bling_id
-        """
+        """)
 
-        df_raw = pd.read_sql(query, self.engine)
+        df_raw = pd.read_sql(query, self.engine, params={"empresa_id": self.empresa_id})
         print(f"✅ {len(df_raw)} registros extraídos (status = 'pendente')")
 
         return df_raw
@@ -153,6 +155,10 @@ class VendasTransformer:
             }
         )
 
+        # === ADICIONAR EMPRESA_ID ===
+        print(f"   • Adicionando empresa_id={self.empresa_id}...")
+        df["empresa_id"] = self.empresa_id
+
         # === CONVERTER DATA DO PEDIDO ===
         print("   • Convertendo data_pedido...")
         df["data_pedido"] = df["data_pedido"].replace(["0000-00-00", "", " "], pd.NaT)
@@ -184,7 +190,7 @@ class VendasTransformer:
         # === LIMPAR STRINGS VAZIAS ===
         print("   • Limpando strings vazias...")
         for coluna in df.select_dtypes(include=["object"]).columns:
-            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True)
+            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True).infer_objects(copy=False)
             df[coluna] = df[coluna].replace(["", " "], np.nan)
 
         # === MAPEAR SITUAÇÕES ===
@@ -223,14 +229,13 @@ class VendasTransformer:
         session = Session()
 
         try:
-            query = text(
-                """
+            query = text("""
                 SELECT bling_cliente_id, cliente_id
                 FROM processed.dim_contatos
-            """
-            )
+                WHERE empresa_id = :empresa_id
+            """)
 
-            resultado = session.execute(query)
+            resultado = session.execute(query, {"empresa_id": self.empresa_id})
             mapa_clientes = {row.bling_cliente_id: row.cliente_id for row in resultado}
 
             if mapa_clientes:
@@ -270,6 +275,7 @@ class VendasTransformer:
         colunas_finais = [
             "pedido_id",
             "bling_pedido_id",
+            "empresa_id",
             "numero_pedido_lv",
             "numero_pedido_bling",
             "data_pedido",
@@ -320,10 +326,10 @@ class VendasTransformer:
         print(f"      • Com situação: {com_situacao} ({com_situacao/len(df)*100:.1f}%)")
 
         # Verificar duplicatas
-        duplicatas = df.duplicated(subset=["bling_pedido_id"]).sum()
+        duplicatas = df.duplicated(subset=["bling_pedido_id", "empresa_id"]).sum()
         if duplicatas > 0:
             print(f"\n   ⚠️  {duplicatas} registros duplicados encontrados!")
-            df = df.drop_duplicates(subset=["bling_pedido_id"], keep="first")
+            df = df.drop_duplicates(subset=["bling_pedido_id", "empresa_id"], keep="first")
         else:
             print(f"\n   ✅ Nenhuma duplicata encontrada")
 
@@ -342,7 +348,7 @@ class VendasTransformer:
         - UPDATE apenas diferentes
         - SKIP idênticos
         """
-        print("\n6️⃣ EXPORTANDO PARA PROCESSED.FATO_PEDIDOS...")
+        print(f"\n6️⃣ EXPORTANDO PARA PROCESSED.FATO_PEDIDOS (empresa_id={self.empresa_id})...")
         
         if len(df) == 0:
             print("⚠️  Nenhum registro para exportar")
@@ -359,14 +365,16 @@ class VendasTransformer:
                 SELECT 
                     pedido_id,
                     bling_pedido_id,
+                    empresa_id,
                     valor_total,
                     situacao,
                     quantidade_itens_total,
                     quantidade_produtos_total
                 FROM processed.fato_pedidos
+                WHERE empresa_id = :empresa_id
             """)
             
-            df_existentes = pd.read_sql(query, self.engine)
+            df_existentes = pd.read_sql(query, self.engine, params={"empresa_id": self.empresa_id})
             fim_busca = datetime.now()
             
             print(f"📋 {len(df_existentes)} registros existentes carregados em {fim_busca - inicio_busca}")
@@ -375,22 +383,25 @@ class VendasTransformer:
             print("🔍 Comparando registros...")
             inicio_comparacao = datetime.now()
             
-            # Criar dicionário de existentes para lookup rápido
-            existentes_dict = df_existentes.set_index('bling_pedido_id').to_dict('index')
+            # Criar dicionário de existentes para lookup rápido (chave composta)
+            existentes_dict = {}
+            for _, row in df_existentes.iterrows():
+                chave = (row['bling_pedido_id'], row['empresa_id'])
+                existentes_dict[chave] = row.to_dict()
             
             registros_novos = []
             registros_atualizar = []
             registros_identicos = 0
             
             for idx, row in df.iterrows():
-                bling_id = row['bling_pedido_id']
+                chave = (row['bling_pedido_id'], row['empresa_id'])
                 
-                if bling_id not in existentes_dict:
+                if chave not in existentes_dict:
                     # NOVO → INSERT
                     registros_novos.append(row)
                 else:
                     # EXISTE → Comparar campos relevantes
-                    existente = existentes_dict[bling_id]
+                    existente = existentes_dict[chave]
                     
                     # Comparar valores (arredondar floats)
                     valor_mudou = round(float(row['valor_total']), 2) != round(float(existente['valor_total']), 2)
@@ -441,6 +452,7 @@ class VendasTransformer:
                         UPDATE processed.fato_pedidos
                         SET 
                             bling_pedido_id = :bling_pedido_id,
+                            empresa_id = :empresa_id,
                             numero_pedido_lv = :numero_pedido_lv,
                             numero_pedido_bling = :numero_pedido_bling,
                             data_pedido = :data_pedido,
@@ -458,6 +470,7 @@ class VendasTransformer:
                     session.execute(stmt, {
                         'pedido_id': int(row['pedido_id']),
                         'bling_pedido_id': int(row['bling_pedido_id']),
+                        'empresa_id': int(row['empresa_id']),
                         'numero_pedido_lv': str(row['numero_pedido_lv']) if pd.notna(row['numero_pedido_lv']) else None,
                         'numero_pedido_bling': str(row['numero_pedido_bling']) if pd.notna(row['numero_pedido_bling']) else None,
                         'data_pedido': row['data_pedido'].date() if pd.notna(row['data_pedido']) else None,
@@ -482,11 +495,11 @@ class VendasTransformer:
                 print(f"\n✨ Nenhum registro novo ou alterado! DW já está atualizado.")
             
             # === VERIFICAR TOTAL ===
-            query = text("SELECT COUNT(*) FROM processed.fato_pedidos")
-            total = session.execute(query).scalar()
+            query = text("SELECT COUNT(*) FROM processed.fato_pedidos WHERE empresa_id = :empresa_id")
+            total = session.execute(query, {"empresa_id": self.empresa_id}).scalar()
             
             print(f"\n🎉 EXPORTAÇÃO CONCLUÍDA!")
-            print(f"   • Total na tabela: {total}")
+            print(f"   • Total na tabela (empresa {self.empresa_id}): {total}")
             print(f"   • Economia: {registros_identicos} atualizações desnecessárias evitadas!")
             
             return len(df)
@@ -513,15 +526,17 @@ class VendasTransformer:
         try:
             ids_processados = df["pedido_id"].tolist()
 
-            query = text(
-                """
+            query = text("""
                 UPDATE raw.vendas_raw
                 SET status_processamento = 'processado'
                 WHERE id = ANY(:ids)
-            """
-            )
+                  AND empresa_id = :empresa_id
+            """)
 
-            resultado = session.execute(query, {"ids": ids_processados})
+            resultado = session.execute(query, {
+                "ids": ids_processados,
+                "empresa_id": self.empresa_id
+            })
             session.commit()
 
             print(f"✅ {resultado.rowcount} registros marcados como 'processado'")

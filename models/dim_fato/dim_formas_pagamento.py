@@ -1,7 +1,7 @@
 # Responsável por: definir a estrutura da tabela dim_formas_pagamento no schema processed
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, BigInteger, String, DateTime, Boolean
+from sqlalchemy import Column, Integer, BigInteger, String, DateTime, Boolean, ForeignKey, UniqueConstraint
 from config.database import Base
 
 # =====================================================
@@ -9,8 +9,11 @@ from config.database import Base
 # =====================================================
 
 class DimFormasPagamento(Base):
-    __table_args__ = {"schema": "processed"}
     __tablename__ = "dim_formas_pagamento"
+    __table_args__ = (
+        UniqueConstraint('forma_pagamento_id', 'empresa_id', name='uq_dim_formas_pagamento_bling_empresa'),
+        {"schema": "processed"}
+    )
 
     # ============================
     # CHAVES
@@ -18,6 +21,9 @@ class DimFormasPagamento(Base):
     
     # Chave primária (mesmo ID do Bling - SEM autoincrement)
     forma_pagamento_id = Column(BigInteger, primary_key=True)
+    
+    # Chave da empresa
+    empresa_id = Column(Integer, ForeignKey('processed.dim_empresas.empresa_id'), nullable=False, index=True)
     
     # ============================
     # ATRIBUTOS DESCRITIVOS
@@ -33,4 +39,4 @@ class DimFormasPagamento(Base):
     data_processamento = Column(DateTime, default=datetime.now, nullable=False)
 
     def __repr__(self):
-        return f"<DimFormasPagamento(forma_pagamento_id={self.forma_pagamento_id}, forma_pagamento='{self.forma_pagamento}')>"
+        return f"<DimFormasPagamento(forma_pagamento_id={self.forma_pagamento_id}, empresa_id={self.empresa_id}, forma_pagamento='{self.forma_pagamento}')>"

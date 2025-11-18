@@ -5,7 +5,7 @@ import time
 import requests
 from core.base_extractor import BaseExtractor
 from models.contact_raw import ContatoRaw
-from config.settings import endpoints, headers
+from config.settings import endpoints
 from config.database import Session
 from sqlalchemy import text
 
@@ -20,15 +20,28 @@ class ContatosCompletoExtractor(BaseExtractor):
     MUDANÇA: Não usa salvar_dados_postgres_bulk() igual os contatos e vendas.
     """
     
-    def __init__(self):
+    def __init__(self, api_key, empresa_id):
+        """
+        Args:
+            api_key: Token de autenticação da API Bling
+            empresa_id: ID da empresa na tabela dim_empresas
+        """
         super().__init__(endpoints['contatos'], ContatoRaw)
+        self.empresa_id = empresa_id
+        
+        # Sobrescrever headers do base_extractor com a API key específica
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
     
     def executar_extracao_completa(self):
         """
         Processo otimizado: inserir apenas novos (SEM COMPARAÇÃO)
         """
         try:
-            print("🚀 EXTRAÇÃO: CONTATOS COMPLETOS")
+            print(f"🚀 EXTRAÇÃO: CONTATOS COMPLETOS (Empresa ID: {self.empresa_id})")
             print("⚡ Estratégia: Inserir apenas novos (SEM comparação de JSON)")
             print("=" * 60)
             inicio_total = datetime.now()
@@ -154,9 +167,13 @@ class ContatosCompletoExtractor(BaseExtractor):
                 SELECT bling_id 
                 FROM raw.contatos_raw 
                 WHERE bling_id = ANY(:ids)
+                  AND empresa_id = :empresa_id
             """)
             
-            resultado = session.execute(query, {"ids": ids_api})
+            resultado = session.execute(query, {
+                "ids": ids_api,
+                "empresa_id": self.empresa_id
+            })
             ids_existentes = set(row.bling_id for row in resultado)
             
             # Filtra apenas os que NÃO existem
@@ -202,6 +219,7 @@ class ContatosCompletoExtractor(BaseExtractor):
                     # Cria objeto diretamente (sem verificações)
                     novo_registro = ContatoRaw(
                         bling_id=contato['id'],
+                        empresa_id=self.empresa_id, 
                         dados_json=contato,
                         data_ingestao=datetime.now(),
                         status_processamento='pendente'
@@ -286,7 +304,7 @@ class ContatosCompletoExtractor(BaseExtractor):
         """
         try:
             url = f"{endpoints['contatos']}/{contato_id}"
-            response = requests.get(url, headers=headers, timeout=30)
+            response = requests.get(url, headers=self.headers, timeout=30)
             
             if response.status_code == 200:
                 return response.json().get('data', {})
@@ -387,8 +405,12 @@ class ContatosCompletoExtractor(BaseExtractor):
         """
         session = Session()
         try:
-            query = text("SELECT COUNT(*) FROM raw.contatos_raw")
-            resultado = session.execute(query)
+            query = text("""
+                SELECT COUNT(*) 
+                FROM raw.contatos_raw 
+                WHERE empresa_id = :empresa_id
+            """)
+            resultado = session.execute(query, {"empresa_id": self.empresa_id})
             total = resultado.scalar()
             return total
         finally:

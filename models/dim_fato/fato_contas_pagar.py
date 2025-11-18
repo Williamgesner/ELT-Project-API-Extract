@@ -1,7 +1,7 @@
 # Responsável por: definir a estrutura da tabela fato_contas_pagar no schema processed
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, BigInteger, Numeric, Date, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, BigInteger, Numeric, Date, String, DateTime, ForeignKey, UniqueConstraint
 from config.database import Base
 
 # =====================================================
@@ -9,8 +9,11 @@ from config.database import Base
 # =====================================================
 
 class FatoContasPagar(Base):
-    __table_args__ = {"schema": "processed"}
     __tablename__ = "fato_contas_pagar"
+    __table_args__ = (
+        UniqueConstraint('bling_contas_pagar_id', 'empresa_id', name='uq_fato_contas_pagar_bling_empresa'),
+        {"schema": "processed"}
+    )
 
     # ============================
     # CHAVES
@@ -20,7 +23,10 @@ class FatoContasPagar(Base):
     contas_pagar_id = Column(Integer, primary_key=True)
     
     # Chave de negócio (ID da API Bling)
-    bling_contas_pagar_id = Column(BigInteger, unique=True, nullable=False, index=True)
+    bling_contas_pagar_id = Column(BigInteger, nullable=False, index=True)
+    
+    # Chave da empresa
+    empresa_id = Column(Integer, ForeignKey('processed.dim_empresas.empresa_id'), nullable=False, index=True)
     
     # ============================
     # MÉTRICAS FINANCEIRAS
@@ -59,4 +65,4 @@ class FatoContasPagar(Base):
     data_processamento = Column(DateTime, default=datetime.now, nullable=False)
 
     def __repr__(self):
-        return f"<FatoContasPagar(contas_pagar_id={self.contas_pagar_id}, valor={self.valor}, situacao='{self.situacao}')>"
+        return f"<FatoContasPagar(contas_pagar_id={self.contas_pagar_id}, empresa_id={self.empresa_id}, valor={self.valor}, situacao='{self.situacao}')>"

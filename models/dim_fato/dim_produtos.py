@@ -1,7 +1,7 @@
 # Responsável por: definir a estrutura da tabela dim_produtos no schema processed
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, BigInteger, Numeric, DateTime
+from sqlalchemy import Column, Integer, String, BigInteger, Numeric, DateTime, ForeignKey, UniqueConstraint
 from config.database import Base
 
 # =====================================================
@@ -9,8 +9,11 @@ from config.database import Base
 # =====================================================
 
 class DimProdutos(Base):
-    __table_args__ = {"schema": "processed"}
     __tablename__ = "dim_produtos"
+    __table_args__ = (
+        UniqueConstraint('bling_produto_id', 'empresa_id', name='uq_dim_produtos_bling_empresa'),
+        {"schema": "processed"}
+    )
 
     # ============================
     # CHAVES
@@ -20,7 +23,10 @@ class DimProdutos(Base):
     produto_id = Column(Integer, primary_key=True, autoincrement=True)
     
     # Chave de negócio (ID da API Bling)
-    bling_produto_id = Column(BigInteger, unique=True, nullable=False, index=True)
+    bling_produto_id = Column(BigInteger, nullable=False, index=True)
+    
+    # Chave da empresa
+    empresa_id = Column(Integer, ForeignKey('processed.dim_empresas.empresa_id'), nullable=False, index=True)
 
     # Tipo do produto
     tipo_produto = Column(String(50))  # "Bicicleta" ou None
@@ -71,4 +77,4 @@ class DimProdutos(Base):
     data_processamento = Column(DateTime, default=datetime.now, nullable=False)
 
     def __repr__(self):
-        return f"<DimProdutos(produto_id={self.produto_id}, sku='{self.sku}', descricao='{self.descricao_produto[:50]}...')>"
+        return f"<DimProdutos(produto_id={self.produto_id}, empresa_id={self.empresa_id}, sku='{self.sku}', descricao='{self.descricao_produto[:50]}...')>"

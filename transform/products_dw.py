@@ -1,5 +1,5 @@
 # =====================================================
-# TRANSFORMADOR DE PRODUTOS 
+# TRANSFORMADOR DE PRODUTOS - MULTI-CNPJ
 # =====================================================
 # CORREÇÃO: Implementa comparação inteligente (igual sales_dw.py)
 # - Compara antes de salvar
@@ -24,8 +24,13 @@ class ProdutosTransformer:
     Transformador de produtos com COMPARAÇÃO INTELIGENTE
     """
 
-    def __init__(self):
+    def __init__(self, empresa_id):
+        """
+        Args:
+            empresa_id: ID da empresa na tabela dim_empresas
+        """
         self.engine = engine
+        self.empresa_id = empresa_id
 
     # =====================================================
     # 2. EXTRAIR DADOS RAW
@@ -33,9 +38,9 @@ class ProdutosTransformer:
 
     def extrair_dados_raw(self):
         """Extrai dados da tabela raw.produtos_raw"""
-        print("\n1️⃣ EXTRAINDO DADOS DE RAW.PRODUTOS_RAW...")
+        print(f"\n1️⃣ EXTRAINDO DADOS DE RAW.PRODUTOS_RAW (Empresa ID: {self.empresa_id})...")
 
-        query = """
+        query = text("""
             SELECT 
                 id,
                 bling_id,
@@ -43,10 +48,11 @@ class ProdutosTransformer:
                 data_ingestao
             FROM raw.produtos_raw
             WHERE status_processamento = 'pendente'
+              AND empresa_id = :empresa_id
             ORDER BY bling_id
-        """
+        """)
 
-        df_raw = pd.read_sql(query, self.engine)
+        df_raw = pd.read_sql(query, self.engine, params={"empresa_id": self.empresa_id})
         print(f"✅ {len(df_raw)} registros extraídos (status = 'pendente')")
 
         return df_raw
@@ -432,7 +438,8 @@ class ProdutosTransformer:
             if col in df.columns:
                 df[col] = df[col].round(2)
 
-        # Adicionar metadados
+        # Adicionar empresa_id e metadados
+        df["empresa_id"] = self.empresa_id  
         df["data_processamento"] = datetime.now()
 
         print("✅ Transformações aplicadas")
@@ -449,6 +456,7 @@ class ProdutosTransformer:
         colunas_finais = [
             "produto_id",
             "bling_produto_id",
+            "empresa_id", 
             "sku",
             "descricao_produto",
             "preco_venda",
@@ -492,17 +500,17 @@ class ProdutosTransformer:
         print(f"      • Com preço: {com_preco} ({com_preco/total*100:.1f}%)")
 
         # Duplicatas
-        duplicatas = df.duplicated(subset=["bling_produto_id"]).sum()
+        duplicatas = df.duplicated(subset=["bling_produto_id", "empresa_id"]).sum()  
         if duplicatas > 0:
             print(f"\n   ⚠️  {duplicatas} duplicatas encontradas - removendo...")
-            df = df.drop_duplicates(subset=["bling_produto_id"], keep="first")
+            df = df.drop_duplicates(subset=["bling_produto_id", "empresa_id"], keep="first")  
         else:
             print(f"\n   ✅ Sem duplicatas")
 
         return df
 
     # =====================================================
-    # 9. EXPORTAR COM COMPARAÇÃO INTELIGENTE ✅ CORRIGIDO
+    # 9. EXPORTAR COM COMPARAÇÃO INTELIGENTE 
     # =====================================================
 
     def exportar_para_processed(self, df):
@@ -541,10 +549,11 @@ class ProdutosTransformer:
                     cor_principal,
                     situacao
                 FROM processed.dim_produtos
+                WHERE empresa_id = :empresa_id
             """
             )
 
-            df_existentes = pd.read_sql(query, self.engine)
+            df_existentes = pd.read_sql(query, self.engine, params={"empresa_id": self.empresa_id})
             fim_busca = datetime.now()
 
             print(
@@ -657,6 +666,7 @@ class ProdutosTransformer:
                         UPDATE processed.dim_produtos
                         SET 
                             bling_produto_id = :bling_produto_id,
+                            empresa_id = :empresa_id,
                             sku = :sku,
                             descricao_produto = :descricao_produto,
                             preco_venda = :preco_venda,
@@ -683,6 +693,7 @@ class ProdutosTransformer:
                         {
                             "produto_id": int(row["produto_id"]),
                             "bling_produto_id": int(row["bling_produto_id"]),
+                            "empresa_id": int(self.empresa_id), 
                             "sku": str(row["sku"]) if pd.notna(row["sku"]) else None,
                             "descricao_produto": str(row["descricao_produto"]),
                             "preco_venda": (
@@ -762,11 +773,15 @@ class ProdutosTransformer:
                 print(f"\n✨ Nenhum registro novo ou alterado! DW já está atualizado.")
 
             # === VERIFICAR TOTAL ===
-            query = text("SELECT COUNT(*) FROM processed.dim_produtos")
-            total = session.execute(query).scalar()
+            query = text("""
+                SELECT COUNT(*) 
+                FROM processed.dim_produtos 
+                WHERE empresa_id = :empresa_id
+            """)
+            total = session.execute(query, {"empresa_id": self.empresa_id}).scalar()
 
             print(f"\n🎉 EXPORTAÇÃO CONCLUÍDA!")
-            print(f"   • Total na tabela: {total}")
+            print(f"   • Total na tabela (empresa {self.empresa_id}): {total}")
             print(
                 f"   • Economia: {registros_identicos} atualizações desnecessárias evitadas!"
             )
@@ -798,10 +813,14 @@ class ProdutosTransformer:
                 UPDATE raw.produtos_raw
                 SET status_processamento = 'processado'
                 WHERE id = ANY(:ids)
+                  AND empresa_id = :empresa_id
             """
             )
 
-            resultado = session.execute(query, {"ids": ids})
+            resultado = session.execute(query, {
+                "ids": ids,
+                "empresa_id": self.empresa_id
+            })
             session.commit()
 
             print(f"✅ {resultado.rowcount} registros atualizados")

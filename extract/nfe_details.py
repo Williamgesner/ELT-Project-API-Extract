@@ -16,7 +16,7 @@ import requests
 import time
 import json
 from datetime import datetime
-from config.settings import endpoints, headers
+from config.settings import endpoints
 from config.database import Session
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
@@ -27,10 +27,22 @@ class NFeDetalhesExtractor:
     Extrator COMPLETO para enriquecer NFe com valorNota
     """
     
-    def __init__(self):
+    def __init__(self, api_key, empresa_id):
+        """
+        Args:
+            api_key: Token de autenticação da API Bling
+            empresa_id: ID da empresa na tabela dim_empresas
+        """
         self.base_url = endpoints['nfe']
-        self.headers = headers
         self.session = Session()
+        self.empresa_id = empresa_id
+        
+        # Definir headers com a API key específica
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
     
     def buscar_detalhes_nfe(self, nfe_id, tentativas=3):
         """
@@ -89,12 +101,13 @@ class NFeDetalhesExtractor:
         try:
             stmt = insert(NFeRaw).values(
                 bling_id=nfe_id,
+                empresa_id=self.empresa_id, 
                 dados_json=dados_completos,
                 data_ingestao=datetime.now()
             )
             
             stmt = stmt.on_conflict_do_update(
-                index_elements=['bling_id'],
+                index_elements=['bling_id', 'empresa_id'], 
                 set_={
                     'dados_json': stmt.excluded.dados_json,
                     'data_ingestao': stmt.excluded.data_ingestao
@@ -116,7 +129,7 @@ class NFeDetalhesExtractor:
             delay_entre_requests: Tempo entre requisições (respeitar rate limit)
             batch_size: Quantas NFe processar antes de fazer commit
         """
-        print("\n💎 ENRIQUECIMENTO COMPLETO DE NFe")
+        print(f"\n💎 ENRIQUECIMENTO COMPLETO DE NFe (Empresa ID: {self.empresa_id})")
         print("=" * 70)
         print("Este processo adiciona 'valorNota' em TODAS as NFe")
         print("=" * 70)
@@ -136,10 +149,11 @@ class NFeDetalhesExtractor:
             query = text("""
                 SELECT bling_id, dados_json
                 FROM raw.nfe_raw
+                WHERE empresa_id = :empresa_id
                 ORDER BY bling_id
             """)
             
-            resultado = self.session.execute(query)
+            resultado = self.session.execute(query, {"empresa_id": self.empresa_id})
             nfes = resultado.fetchall()
             
             if not nfes:
@@ -273,9 +287,10 @@ class NFeDetalhesExtractor:
                     COUNT(*) as total,
                     SUM(CASE WHEN dados_json ? 'valorNota' THEN 1 ELSE 0 END) as com_valor_nota
                 FROM raw.nfe_raw
+                WHERE empresa_id = :empresa_id
             """)
             
-            validacao = self.session.execute(query_validacao).fetchone()
+            validacao = self.session.execute(query_validacao, {"empresa_id": self.empresa_id}).fetchone()
             
             print(f"   • Total de NFe no banco: {validacao.total}")
             print(f"   • NFe com valorNota: {validacao.com_valor_nota}")
@@ -320,7 +335,10 @@ if __name__ == "__main__":
         print("Tempo estimado: 4-5 horas para ~16.000 registros")
         print("\n" + "=" * 70)
         
-        extrator = NFeDetalhesExtractor()
+        # ATENÇÃO: Passar empresa_id aqui!
+        empresa_id = 1  # TODO: Ajustar conforme necessário
+        
+        extrator = NFeDetalhesExtractor(empresa_id)
         extrator.executar_enriquecimento_completo(
             delay_entre_requests=0.35,  # Respeitar rate limit (2.5 req/s)
             batch_size=100              # Commit a cada 100 NFe

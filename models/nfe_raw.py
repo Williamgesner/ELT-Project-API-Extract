@@ -1,7 +1,7 @@
 # Responsável por: definir a estrutura da tabela nfe_raw
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, BigInteger, DateTime, String
+from sqlalchemy import Column, Integer, BigInteger, DateTime, String, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from config.database import Base
 
@@ -10,14 +10,20 @@ from config.database import Base
 # =====================================================
 
 class NFeRaw(Base):
-    __table_args__ = {"schema": "raw"}
     __tablename__ = "nfe_raw"
+    __table_args__ = (
+        UniqueConstraint('bling_id', 'empresa_id', name='uq_nfe_bling_empresa'),
+        {"schema": "raw"}
+    )
 
     # Chave primária
     id = Column(Integer, primary_key=True, autoincrement=True)
     
     # Chave de negócio (ID da API Bling)
-    bling_id = Column(BigInteger, unique=True, nullable=False, index=True)
+    bling_id = Column(BigInteger, nullable=False, index=True)
+    
+    # Chave da empresa
+    empresa_id = Column(Integer, ForeignKey('processed.dim_empresas.empresa_id'), nullable=False, index=True)
     
     # JSON completo da API (dados brutos)
     dados_json = Column(JSONB, nullable=False)
@@ -27,4 +33,4 @@ class NFeRaw(Base):
     status_processamento = Column(String(20), default='pendente')
 
     def __repr__(self):
-        return f"<NFeRaw(bling_id={self.bling_id}, data_ingestao={self.data_ingestao})>"
+        return f"<NFeRaw(bling_id={self.bling_id}, empresa_id={self.empresa_id}, data_ingestao={self.data_ingestao})>"

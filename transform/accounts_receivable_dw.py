@@ -1,5 +1,5 @@
 # =====================================================
-# TRANSFORMADOR DE CONTAS A RECEBER - VERSÃO FINAL
+# TRANSFORMADOR DE CONTAS A RECEBER - VERSÃO MULTI-CNPJ
 # =====================================================
 # Responsável por: Limpar e transformar dados de contas_receber_raw para fato_contas_receber no schema processed
 # ESTRATÉGIA: Comparar antes de salvar (igual outros transformers)
@@ -45,7 +45,8 @@ class ContasReceberTransformer:
     Aplica todas as limpezas e padronizações necessárias
     """
 
-    def __init__(self):
+    def __init__(self, empresa_id):
+        self.empresa_id = empresa_id
         self.engine = engine
 
     # =====================================================
@@ -58,19 +59,21 @@ class ContasReceberTransformer:
         """
         print("\n1️⃣ EXTRAINDO DADOS DE RAW.CONTAS_RECEBER_RAW...")
 
-        query = """
+        query = text("""
             SELECT 
                 id,
                 bling_id,
+                empresa_id,
                 dados_json,
                 data_ingestao
             FROM raw.contas_receber_raw
             WHERE status_processamento = 'pendente'
+            AND empresa_id = :empresa_id
             ORDER BY bling_id
-        """
+        """)
 
-        df_raw = pd.read_sql(query, self.engine)
-        print(f"✅ {len(df_raw)} registros extraídos (status = 'pendente')")
+        df_raw = pd.read_sql(query, self.engine, params={"empresa_id": self.empresa_id})
+        print(f"✅ {len(df_raw)} registros extraídos (empresa_id = {self.empresa_id})")
 
         return df_raw
 
@@ -94,7 +97,7 @@ class ContasReceberTransformer:
         # Combinar com colunas originais
         df = pd.concat(
             [
-                df_raw[["id", "bling_id", "data_ingestao"]],
+                df_raw[["id", "bling_id", "empresa_id", "data_ingestao"]],
                 df_json,
             ],
             axis=1,
@@ -160,7 +163,7 @@ class ContasReceberTransformer:
         # === CONVERTENDO E PADRONIZANDO STRINGS VAZIAS ===
         print("   • Convertendo strings vazias para NaN...")
         for coluna in df.select_dtypes(include=["object"]).columns:
-            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True)
+            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True).infer_objects(copy=False)
             df[coluna] = df[coluna].replace("", np.nan)
             df[coluna] = df[coluna].replace(" ", np.nan)
 
@@ -257,6 +260,7 @@ class ContasReceberTransformer:
         colunas_finais = [
             "contas_receber_id",
             "bling_contas_receber_id",
+            "empresa_id",
             "valor",
             "situacao",
             "data_vencimento",
@@ -309,9 +313,9 @@ class ContasReceberTransformer:
         print("\n5️⃣ VALIDANDO DADOS...")
 
         # Verificar chaves de negócio duplicadas
-        duplicados = df[df["bling_contas_receber_id"].duplicated()]["bling_contas_receber_id"]
+        duplicados = df[df.duplicated(subset=["bling_contas_receber_id", "empresa_id"])][["bling_contas_receber_id", "empresa_id"]]
         if len(duplicados) > 0:
-            print(f"⚠️ ATENÇÃO: {len(duplicados)} bling_contas_receber_ids duplicados!")
+            print(f"⚠️ ATENÇÃO: {len(duplicados)} bling_contas_receber_ids duplicados para mesma empresa!")
 
         # Verificar valores obrigatórios
         nulos_bling = df["bling_contas_receber_id"].isna().sum()
@@ -350,9 +354,14 @@ class ContasReceberTransformer:
             if "forma_pagamento_id" in df.columns:
                 print("   • Validando forma_pagamento_id...")
                 
-                # Buscar todas as formas de pagamento válidas
+                # Buscar todas as formas de pagamento válidas PARA ESTA EMPRESA
                 formas_validas = session.execute(
-                    text("SELECT forma_pagamento_id FROM processed.dim_formas_pagamento")
+                    text("""
+                        SELECT forma_pagamento_id 
+                        FROM processed.dim_formas_pagamento
+                        WHERE empresa_id = :empresa_id
+                    """),
+                    {"empresa_id": self.empresa_id}
                 ).fetchall()
                 formas_validas = {forma[0] for forma in formas_validas}
                 
@@ -468,13 +477,14 @@ class ContasReceberTransformer:
                 # Buscar registro existente
                 resultado = session.execute(
                     text("""
-                        SELECT contas_receber_id, bling_contas_receber_id, valor, situacao, 
+                        SELECT contas_receber_id, bling_contas_receber_id, empresa_id, valor, situacao, 
                                data_vencimento, numero_contas_receber, origem, bling_cliente_id,
                                conta_contabil, forma_pagamento_id, data_ingestao, data_processamento
                         FROM processed.fato_contas_receber
                         WHERE contas_receber_id = :id
+                        AND empresa_id = :empresa_id
                     """),
-                    {"id": registro["contas_receber_id"]},
+                    {"id": registro["contas_receber_id"], "empresa_id": self.empresa_id},
                 ).fetchone()
 
                 if resultado is None:
@@ -553,18 +563,34 @@ class ContasReceberTransformer:
                     # Buscar registro existente
                     resultado = session.execute(
                         text("""
-                            SELECT contas_receber_id, bling_contas_receber_id, valor, situacao, 
+                            SELECT contas_receber_id, bling_contas_receber_id, empresa_id, valor, situacao, 
                                    data_vencimento, numero_contas_receber, origem, bling_cliente_id,
                                    conta_contabil, forma_pagamento_id, data_ingestao, data_processamento
                             FROM processed.fato_contas_receber
                             WHERE contas_receber_id = :id
+                            AND empresa_id = :empresa_id
                         """),
-                        {"id": registro["contas_receber_id"]},
+                        {"id": registro["contas_receber_id"], "empresa_id": self.empresa_id},
                     ).fetchone()
 
                     if resultado is None:
                         # INSERIR novo registro
                         stmt = insert(FatoContasReceber).values(**registro)
+                        stmt = stmt.on_conflict_do_update(
+                            index_elements=['bling_contas_receber_id', 'empresa_id'],
+                            set_={
+                                'valor': stmt.excluded.valor,
+                                'situacao': stmt.excluded.situacao,
+                                'data_vencimento': stmt.excluded.data_vencimento,
+                                'numero_contas_receber': stmt.excluded.numero_contas_receber,
+                                'origem': stmt.excluded.origem,
+                                'bling_cliente_id': stmt.excluded.bling_cliente_id,
+                                'conta_contabil': stmt.excluded.conta_contabil,
+                                'forma_pagamento_id': stmt.excluded.forma_pagamento_id,
+                                'data_ingestao': stmt.excluded.data_ingestao,
+                                'data_processamento': stmt.excluded.data_processamento
+                            }
+                        )
                         session.execute(stmt)
                         registros_inseridos += 1
                     else:
@@ -616,6 +642,7 @@ class ContasReceberTransformer:
                                         data_ingestao = :data_ingestao,
                                         data_processamento = :data_processamento
                                     WHERE contas_receber_id = :contas_receber_id
+                                    AND empresa_id = :empresa_id
                                 """),
                                 registro,
                             )
@@ -671,15 +698,14 @@ class ContasReceberTransformer:
         try:
             ids = df["contas_receber_id"].tolist()
 
-            query = text(
-                """
+            query = text("""
                 UPDATE raw.contas_receber_raw
                 SET status_processamento = 'processado'
                 WHERE id = ANY(:ids)
-            """
-            )
+                AND empresa_id = :empresa_id
+            """)
 
-            resultado = session.execute(query, {"ids": ids})
+            resultado = session.execute(query, {"ids": ids, "empresa_id": self.empresa_id})
             session.commit()
 
             print(f"✅ {resultado.rowcount} registros atualizados")
@@ -700,7 +726,7 @@ class ContasReceberTransformer:
             df_raw = self.extrair_dados_raw()
 
             if len(df_raw) == 0:
-                print("\n✅ Nenhum registro pendente")
+                print(f"\n✅ Nenhum registro pendente para empresa_id = {self.empresa_id}")
                 return
 
             df = self.expandir_json(df_raw)

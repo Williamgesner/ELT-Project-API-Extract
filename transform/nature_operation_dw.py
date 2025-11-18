@@ -1,3 +1,6 @@
+# =====================================================
+# TRANSFORMADOR DE NATUREZA DE OPERAÇÃO - MULTI-CNPJ
+# =====================================================
 # Responsável por: transformar dados de natureza_operacao_raw para dim_natureza_operacao
 
 import pandas as pd
@@ -17,7 +20,8 @@ class NaturezaOperacaoTransformer:
     Transforma dados de natureza_operacao_raw para dim_natureza_operacao
     """
     
-    def __init__(self):
+    def __init__(self, empresa_id):
+        self.empresa_id = empresa_id
         self.engine = create_engine(database_url)
         self.session = Session()
     
@@ -27,18 +31,20 @@ class NaturezaOperacaoTransformer:
         """
         print("\n1️⃣ EXTRAINDO DADOS DE natureza_operacao_raw...")
         
-        query = """
+        query = text("""
             SELECT 
                 id,
                 bling_id,
+                empresa_id,
                 dados_json,
                 data_ingestao
             FROM raw.natureza_operacao_raw
+            WHERE empresa_id = :empresa_id
             ORDER BY bling_id
-        """
+        """)
         
-        df_raw = pd.read_sql(query, self.engine)
-        print(f"✅ {len(df_raw)} registros extraídos")
+        df_raw = pd.read_sql(query, self.engine, params={"empresa_id": self.empresa_id})
+        print(f"✅ {len(df_raw)} registros extraídos (empresa_id = {self.empresa_id})")
         
         return df_raw
     
@@ -57,7 +63,7 @@ class NaturezaOperacaoTransformer:
         
         # Combinar com colunas originais
         df = pd.concat(
-            [df_raw[["id", "bling_id", "data_ingestao"]], df_json],
+            [df_raw[["id", "bling_id", "empresa_id", "data_ingestao"]], df_json],
             axis=1,
         )
         
@@ -79,6 +85,7 @@ class NaturezaOperacaoTransformer:
         colunas_finais = [
             "natureza_operacao_id",
             "bling_natureza_operacao_id",
+            "empresa_id",
             "natureza_operacao",
             "data_ingestao"
         ]
@@ -104,13 +111,14 @@ class NaturezaOperacaoTransformer:
             try:
                 stmt = insert(DimNaturezaOperacao).values(
                     bling_natureza_operacao_id=int(row['bling_natureza_operacao_id']),
+                    empresa_id=int(row['empresa_id']),
                     natureza_operacao=row['natureza_operacao'],
                     data_ingestao=row['data_ingestao']
                 )
                 
                 # UPSERT: Se já existe, atualiza
                 stmt = stmt.on_conflict_do_update(
-                    index_elements=['bling_natureza_operacao_id'],
+                    index_elements=['bling_natureza_operacao_id', 'empresa_id'],
                     set_={
                         'natureza_operacao': stmt.excluded.natureza_operacao,
                         'data_ingestao': stmt.excluded.data_ingestao
@@ -150,11 +158,12 @@ class NaturezaOperacaoTransformer:
                 COUNT(*) as total,
                 COUNT(DISTINCT bling_natureza_operacao_id) as ids_unicos
             FROM processed.dim_natureza_operacao
+            WHERE empresa_id = :empresa_id
         """)
         
-        resultado = self.session.execute(query_validacao).fetchone()
+        resultado = self.session.execute(query_validacao, {"empresa_id": self.empresa_id}).fetchone()
         
-        print(f"📊 Total de registros: {resultado.total}")
+        print(f"📊 Total de registros (empresa_id={self.empresa_id}): {resultado.total}")
         print(f"📊 IDs únicos: {resultado.ids_unicos}")
         
         # Mostrar alguns exemplos
@@ -162,13 +171,15 @@ class NaturezaOperacaoTransformer:
             SELECT 
                 natureza_operacao_id,
                 bling_natureza_operacao_id,
+                empresa_id,
                 natureza_operacao
             FROM processed.dim_natureza_operacao
+            WHERE empresa_id = :empresa_id
             ORDER BY natureza_operacao_id
             LIMIT 5
         """)
         
-        exemplos = self.session.execute(query_exemplos).fetchall()
+        exemplos = self.session.execute(query_exemplos, {"empresa_id": self.empresa_id}).fetchall()
         
         print(f"\n📋 Primeiros 5 registros:")
         for ex in exemplos:
@@ -188,7 +199,7 @@ class NaturezaOperacaoTransformer:
             df_raw = self.extrair_dados_raw()
             
             if df_raw.empty:
-                print("⚠️  Nenhum dado encontrado em natureza_operacao_raw")
+                print(f"⚠️  Nenhum dado encontrado em natureza_operacao_raw para empresa_id = {self.empresa_id}")
                 return
             
             # 2. Transformar
@@ -215,6 +226,7 @@ class NaturezaOperacaoTransformer:
             print(f"\n💡 PRÓXIMOS PASSOS:")
             print(f"   1. Usar esta dimensão nas transformações de NFe")
             print(f"   2. Fazer JOIN: nfe_raw.natureza_operacao_id = dim_natureza_operacao.bling_natureza_operacao_id")
+            print(f"      (filtrando por empresa_id)")
             
         except Exception as e:
             print(f"\n❌ ERRO na transformação: {e}")

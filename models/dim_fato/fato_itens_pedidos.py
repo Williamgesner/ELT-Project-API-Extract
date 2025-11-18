@@ -20,6 +20,9 @@ class FatoItensPedidos(Base):
     # Chave primária
     item_id = Column(Integer, primary_key=True, autoincrement=True)
     
+    # Chave da empresa
+    empresa_id = Column(Integer, ForeignKey('processed.dim_empresas.empresa_id'), nullable=False, index=True)
+    
     # Chaves estrangeiras
     pedido_id = Column(Integer, ForeignKey('processed.fato_pedidos.pedido_id'), nullable=False, index=True)
     produto_id = Column(Integer, ForeignKey('processed.dim_produtos.produto_id'), index=True)
@@ -57,4 +60,4 @@ class FatoItensPedidos(Base):
     data_processamento = Column(DateTime, default=datetime.now, nullable=False)
 
     def __repr__(self):
-        return f"<FatoItensPedidos(item_id={self.item_id}, pedido_id={self.pedido_id}, quantidade={self.quantidade}, valor={self.preco_total})>"
+        return f"<FatoItensPedidos(item_id={self.item_id}, empresa_id={self.empresa_id}, pedido_id={self.pedido_id}, quantidade={self.quantidade}, valor={self.preco_total})>"

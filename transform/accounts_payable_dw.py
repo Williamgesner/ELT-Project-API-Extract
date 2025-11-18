@@ -1,5 +1,5 @@
 # =====================================================
-# TRANSFORMADOR DE CONTAS A PAGAR - VERSÃO FINAL CORRIGIDA
+# TRANSFORMADOR DE CONTAS A PAGAR - VERSÃO MULTI-CNPJ
 # =====================================================
 # Responsável por: Limpar e transformar dados de contas_pagar_raw para fato_contas_pagar no schema processed
 # ESTRATÉGIA: Comparar antes de salvar (igual outros transformers)
@@ -45,7 +45,8 @@ class ContasPagarTransformer:
     Aplica todas as limpezas e padronizações necessárias
     """
 
-    def __init__(self):
+    def __init__(self, empresa_id):
+        self.empresa_id = empresa_id    # Armazena empresa_id
         self.engine = engine
 
     # =====================================================
@@ -58,19 +59,21 @@ class ContasPagarTransformer:
         """
         print("\n1️⃣ EXTRAINDO DADOS DE RAW.CONTAS_PAGAR_RAW...")
 
-        query = """
+        query = text("""
             SELECT 
                 id,
                 bling_id,
+                empresa_id,
                 dados_json,
                 data_ingestao
             FROM raw.contas_pagar_raw
             WHERE status_processamento = 'pendente'
+            AND empresa_id = :empresa_id
             ORDER BY bling_id
-        """
+        """)
 
-        df_raw = pd.read_sql(query, self.engine)
-        print(f"✅ {len(df_raw)} registros extraídos (status = 'pendente')")
+        df_raw = pd.read_sql(query, self.engine, params={"empresa_id": self.empresa_id})
+        print(f"✅ {len(df_raw)} registros extraídos (empresa_id = {self.empresa_id})")
 
         return df_raw
 
@@ -94,7 +97,7 @@ class ContasPagarTransformer:
         # Combinar com colunas originais
         df = pd.concat(
             [
-                df_raw[["id", "bling_id", "data_ingestao"]],
+                df_raw[["id", "bling_id", "empresa_id", "data_ingestao"]],
                 df_json,
             ],
             axis=1,
@@ -138,7 +141,7 @@ class ContasPagarTransformer:
         # === CONVERTENDO E PADRONIZANDO STRINGS VAZIAS ===
         print("   • Convertendo strings vazias para NaN...")
         for coluna in df.select_dtypes(include=["object"]).columns:
-            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True)
+            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True).infer_objects(copy=False)
             df[coluna] = df[coluna].replace("", np.nan)
             df[coluna] = df[coluna].replace(" ", np.nan)
 
@@ -244,6 +247,7 @@ class ContasPagarTransformer:
         colunas_finais = [
             "contas_pagar_id",
             "bling_contas_pagar_id",
+            "empresa_id",
             "valor",
             "situacao",
             "data_vencimento",
@@ -294,9 +298,9 @@ class ContasPagarTransformer:
         print("\n5️⃣ VALIDANDO DADOS...")
 
         # Verificar chaves de negócio duplicadas
-        duplicados = df[df["bling_contas_pagar_id"].duplicated()]["bling_contas_pagar_id"]
+        duplicados = df[df.duplicated(subset=["bling_contas_pagar_id", "empresa_id"])][["bling_contas_pagar_id", "empresa_id"]]
         if len(duplicados) > 0:
-            print(f"⚠️  ATENÇÃO: {len(duplicados)} bling_contas_pagar_ids duplicados!")
+            print(f"⚠️  ATENÇÃO: {len(duplicados)} bling_contas_pagar_ids duplicados para mesma empresa!")
 
         # Verificar valores obrigatórios
         nulos_bling = df["bling_contas_pagar_id"].isna().sum()
@@ -335,9 +339,14 @@ class ContasPagarTransformer:
             if "bling_categoria_id" in df.columns:
                 print("   • Validando bling_categoria_id...")
                 
-                # Buscar todas as categorias válidas
+                # Buscar todas as categorias válidas PARA ESTA EMPRESA
                 categorias_validas = session.execute(
-                    text("SELECT bling_categoria_id FROM processed.dim_categorias_contas_pagar")
+                    text("""
+                        SELECT bling_categoria_id 
+                        FROM processed.dim_categorias_contas_pagar
+                        WHERE empresa_id = :empresa_id
+                    """),
+                    {"empresa_id": self.empresa_id}
                 ).fetchall()
                 categorias_validas = {cat[0] for cat in categorias_validas}
                 
@@ -364,9 +373,14 @@ class ContasPagarTransformer:
             if "forma_pagamento_id" in df.columns:
                 print("   • Validando forma_pagamento_id...")
                 
-                # Buscar todas as formas de pagamento válidas
+                # Buscar todas as formas de pagamento válidas PARA ESTA EMPRESA
                 formas_validas = session.execute(
-                    text("SELECT forma_pagamento_id FROM processed.dim_formas_pagamento")
+                    text("""
+                        SELECT forma_pagamento_id 
+                        FROM processed.dim_formas_pagamento
+                        WHERE empresa_id = :empresa_id
+                    """),
+                    {"empresa_id": self.empresa_id}
                 ).fetchall()
                 formas_validas = {forma[0] for forma in formas_validas}
                 
@@ -483,13 +497,14 @@ class ContasPagarTransformer:
                 # Buscar registro existente
                 resultado = session.execute(
                     text("""
-                        SELECT contas_pagar_id, bling_contas_pagar_id, valor, situacao, 
+                        SELECT contas_pagar_id, bling_contas_pagar_id, empresa_id, valor, situacao, 
                                data_vencimento, bling_cliente_id, forma_pagamento_id, bling_categoria_id,
                                data_ingestao, data_processamento
                         FROM processed.fato_contas_pagar
                         WHERE contas_pagar_id = :id
+                        AND empresa_id = :empresa_id
                     """),
-                    {"id": registro["contas_pagar_id"]},
+                    {"id": registro["contas_pagar_id"], "empresa_id": self.empresa_id},
                 ).fetchone()
 
                 if resultado is None:
@@ -566,18 +581,32 @@ class ContasPagarTransformer:
                     # Buscar registro existente
                     resultado = session.execute(
                         text("""
-                            SELECT contas_pagar_id, bling_contas_pagar_id, valor, situacao, 
+                            SELECT contas_pagar_id, bling_contas_pagar_id, empresa_id, valor, situacao, 
                                    data_vencimento, bling_cliente_id, forma_pagamento_id, bling_categoria_id,
                                    data_ingestao, data_processamento
                             FROM processed.fato_contas_pagar
                             WHERE contas_pagar_id = :id
+                            AND empresa_id = :empresa_id
                         """),
-                        {"id": registro["contas_pagar_id"]},
+                        {"id": registro["contas_pagar_id"], "empresa_id": self.empresa_id},
                     ).fetchone()
 
                     if resultado is None:
                         # INSERIR novo registro
                         stmt = insert(FatoContasPagar).values(**registro)
+                        stmt = stmt.on_conflict_do_update(
+                            index_elements=['bling_contas_pagar_id', 'empresa_id'],
+                            set_={
+                                'valor': stmt.excluded.valor,
+                                'situacao': stmt.excluded.situacao,
+                                'data_vencimento': stmt.excluded.data_vencimento,
+                                'bling_cliente_id': stmt.excluded.bling_cliente_id,
+                                'forma_pagamento_id': stmt.excluded.forma_pagamento_id,
+                                'bling_categoria_id': stmt.excluded.bling_categoria_id,
+                                'data_ingestao': stmt.excluded.data_ingestao,
+                                'data_processamento': stmt.excluded.data_processamento
+                            }
+                        )
                         session.execute(stmt)
                         registros_inseridos += 1
                     else:
@@ -625,6 +654,7 @@ class ContasPagarTransformer:
                                         data_ingestao = :data_ingestao,
                                         data_processamento = :data_processamento
                                     WHERE contas_pagar_id = :contas_pagar_id
+                                    AND empresa_id = :empresa_id
                                 """),
                                 registro,
                             )
@@ -680,15 +710,14 @@ class ContasPagarTransformer:
         try:
             ids = df["contas_pagar_id"].tolist()
 
-            query = text(
-                """
+            query = text("""
                 UPDATE raw.contas_pagar_raw
                 SET status_processamento = 'processado'
                 WHERE id = ANY(:ids)
-            """
-            )
+                AND empresa_id = :empresa_id
+            """)
 
-            resultado = session.execute(query, {"ids": ids})
+            resultado = session.execute(query, {"ids": ids, "empresa_id": self.empresa_id})
             session.commit()
 
             print(f"✅ {resultado.rowcount} registros atualizados")
@@ -709,7 +738,7 @@ class ContasPagarTransformer:
             df_raw = self.extrair_dados_raw()
 
             if len(df_raw) == 0:
-                print("\n✅ Nenhum registro pendente")
+                print(f"\n✅ Nenhum registro pendente para empresa_id = {self.empresa_id}")
                 return
 
             df = self.expandir_json(df_raw)

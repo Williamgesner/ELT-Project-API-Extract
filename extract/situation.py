@@ -3,7 +3,6 @@
 import requests
 import time
 from datetime import datetime
-from config.settings import headers
 from config.database import Session
 from config.settings import endpoints
 from models.situation_raw import SituacoesRaw
@@ -24,15 +23,27 @@ class SituacoesExtractor:
     3. Salva no banco
     """
     
-    def __init__(self):
+    def __init__(self, api_key, empresa_id):
+        """
+        Args:
+            api_key: Token de autenticação da API Bling
+            empresa_id: ID da empresa na tabela dim_empresas
+        """
         self.base_url = endpoints["situacoes"]
-        self.headers = headers
+        self.empresa_id = empresa_id
+        
+        # Definir headers com a API key específica
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
     
     def obter_situacoes_dos_pedidos(self):
         """
         Busca IDs únicos de situação na tabela vendas_raw
         """
-        print("\n🔍 BUSCANDO IDs DE SITUAÇÃO NOS PEDIDOS...")
+        print(f"\n🔍 BUSCANDO IDs DE SITUAÇÃO NOS PEDIDOS (Empresa ID: {self.empresa_id})...")
         print("=" * 70)
         
         session = Session()
@@ -43,10 +54,11 @@ class SituacoesExtractor:
                 SELECT DISTINCT (dados_json->'situacao'->>'id')::integer as situacao_id
                 FROM raw.vendas_raw
                 WHERE dados_json->'situacao'->>'id' IS NOT NULL
+                  AND empresa_id = :empresa_id
                 ORDER BY situacao_id
             """)
             
-            resultado = session.execute(query)
+            resultado = session.execute(query, {"empresa_id": self.empresa_id})
             situacoes_ids = [row.situacao_id for row in resultado]
             
             print(f"✅ {len(situacoes_ids)} situações únicas encontradas nos pedidos")
@@ -114,6 +126,7 @@ class SituacoesExtractor:
             # UPSERT: Insert ou Update se já existir
             stmt = insert(SituacoesRaw).values(
                 bling_situacao_id=situacao_id,
+                empresa_id=self.empresa_id, 
                 nome=nome,
                 cor=cor,
                 dados_json=situacao_data,
@@ -121,7 +134,7 @@ class SituacoesExtractor:
             )
             
             stmt = stmt.on_conflict_do_update(
-                index_elements=['bling_situacao_id'],
+                index_elements=['bling_situacao_id', 'empresa_id'],  
                 set_={
                     'nome': stmt.excluded.nome,
                     'cor': stmt.excluded.cor,
@@ -146,7 +159,7 @@ class SituacoesExtractor:
         """
         Executa o processo completo de extração de situações
         """
-        print("\n📊 EXTRAÇÃO: SITUAÇÕES DE VENDAS")
+        print(f"\n📊 EXTRAÇÃO: SITUAÇÕES DE VENDAS (Empresa ID: {self.empresa_id})")
         print("=" * 70)
         print("Estratégia: Buscar situações baseadas nos pedidos existentes")
         print("=" * 70)
@@ -203,7 +216,7 @@ class SituacoesExtractor:
             
             if stats['sucesso'] > 0:
                 print(f"\n💡 PRÓXIMOS PASSOS:")
-                print(f"   1. Verificar dados: SELECT * FROM raw.situacoes_raw;")
+                print(f"   1. Verificar dados: SELECT * FROM raw.situacoes_raw WHERE empresa_id = {self.empresa_id};")
                 print(f"   2. Usar na transformação de vendas (vendas_dw.py)")
             
         except Exception as e:
@@ -215,12 +228,15 @@ class SituacoesExtractor:
 # 2. FUNÇÃO AUXILIAR - OBTER MAPEAMENTO
 # =====================================================
 
-def obter_mapeamento_situacoes():
+def obter_mapeamento_situacoes(empresa_id):
     """
     Retorna dicionário {id: nome} para lookup rápido
     
+    Args:
+        empresa_id: ID da empresa para filtrar situações
+    
     Uso na transformação:
-        mapa = obter_mapeamento_situacoes()
+        mapa = obter_mapeamento_situacoes(empresa_id=1)
         df['situacao'] = df['situacao_id'].map(mapa)
     """
     session = Session()
@@ -229,11 +245,13 @@ def obter_mapeamento_situacoes():
         situacoes = session.query(
             SituacoesRaw.bling_situacao_id,
             SituacoesRaw.nome
+        ).filter(
+            SituacoesRaw.empresa_id == empresa_id
         ).all()
         
         mapa = {sit.bling_situacao_id: sit.nome for sit in situacoes}
         
-        print(f"📋 {len(mapa)} situações carregadas para mapeamento")
+        print(f"📋 {len(mapa)} situações carregadas para mapeamento (empresa_id={empresa_id})")
         return mapa
         
     except Exception as e:

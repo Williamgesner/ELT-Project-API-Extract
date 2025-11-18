@@ -16,12 +16,24 @@ class VendasExtractor(BaseExtractor):
     Herda toda a lógica comum da BaseExtractor e adiciona só o que é específico de vendas
     """
     
-    def __init__(self): # Essa é a função que inicializa a classe
+    def __init__(self, api_key, empresa_id): # Essa é a função que inicializa a classe
         """
         Inicializa o extrator de vendas
         Passa para a classe pai (BaseExtractor) a URL e modelo específicos de vendas
+        
+        Args:
+            api_key: Token de autenticação da API Bling
+            empresa_id: ID da empresa na tabela dim_empresas
         """
         super().__init__(endpoints['vendas'], VendasRaw)
+        self.empresa_id = empresa_id
+        
+        # Sobrescrever headers do base_extractor com a API key específica
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
     
     def executar_extracao_completa(self):
         """
@@ -29,7 +41,7 @@ class VendasExtractor(BaseExtractor):
         """
         try:
             # Extrai TODOS os dados da API usando paginação
-            print("Extraindo todos as vendas da API...")
+            print(f"Extraindo todos as vendas da API (Empresa ID: {self.empresa_id})...")
             inicio_extracao = datetime.now()
 
             todas_vendas = self.extract_dados_bling_paginado(
@@ -58,6 +70,7 @@ class VendasExtractor(BaseExtractor):
             for venda in todas_vendas:
                 dados_formatados = {
                     'bling_id': venda['id'],
+                    'empresa_id': self.empresa_id,  
                     'dados_json': venda
                 }
                 dados_para_salvar.append(dados_formatados)
@@ -92,4 +105,3 @@ class VendasExtractor(BaseExtractor):
             print("Script interrompido para análise do erro")
             print("Todos os dados extraídos até este ponto foram preservados")
             raise
-

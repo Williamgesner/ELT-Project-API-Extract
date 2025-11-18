@@ -3,7 +3,6 @@
 import requests
 import time
 from datetime import datetime
-from config.settings import headers
 from config.database import Session
 from config.settings import endpoints
 from models.channels_raw import CanaisRaw
@@ -24,15 +23,27 @@ class CanaisExtractor:
     3. Salva no banco
     """
     
-    def __init__(self):
+    def __init__(self, api_key, empresa_id):
+        """
+        Args:
+            api_key: Token de autenticação da API Bling
+            empresa_id: ID da empresa na tabela dim_empresas
+        """
         self.base_url = endpoints["canais"]
-        self.headers = headers
+        self.empresa_id = empresa_id
+        
+        # Definir headers com a API key específica
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
     
     def obter_canais_dos_pedidos(self):
         """
         Busca IDs únicos de canal na tabela vendas_raw
         """
-        print("\n🔍 BUSCANDO IDs DE CANAIS NOS PEDIDOS...")
+        print(f"\n🔍 BUSCANDO IDs DE CANAIS NOS PEDIDOS (Empresa ID: {self.empresa_id})...")
         print("=" * 70)
         
         session = Session()
@@ -43,10 +54,11 @@ class CanaisExtractor:
                 SELECT DISTINCT (dados_json->'loja'->>'id')::integer as canal_id
                 FROM raw.vendas_raw
                 WHERE dados_json->'loja'->>'id' IS NOT NULL
+                  AND empresa_id = :empresa_id
                 ORDER BY canal_id
             """)
             
-            resultado = session.execute(query)
+            resultado = session.execute(query, {"empresa_id": self.empresa_id})
             canais_ids = [row.canal_id for row in resultado]
             
             print(f"✅ {len(canais_ids)} canais únicos encontrados nos pedidos")
@@ -113,13 +125,14 @@ class CanaisExtractor:
             # UPSERT: Insert ou Update se já existir
             stmt = insert(CanaisRaw).values(
                 bling_canal_id=canal_id,
+                empresa_id=self.empresa_id,  
                 descricao=descricao,
                 dados_json=canal_data,
                 data_ingestao=datetime.now()
             )
             
             stmt = stmt.on_conflict_do_update(
-                index_elements=['bling_canal_id'],
+                index_elements=['bling_canal_id', 'empresa_id'], 
                 set_={
                     'descricao': stmt.excluded.descricao,
                     'dados_json': stmt.excluded.dados_json,
@@ -143,7 +156,7 @@ class CanaisExtractor:
         """
         Executa o processo completo de extração de canais
         """
-        print("\n📊 EXTRAÇÃO: CANAIS DE VENDA")
+        print(f"\n📊 EXTRAÇÃO: CANAIS DE VENDA (Empresa ID: {self.empresa_id})")
         print("=" * 70)
         print("Estratégia: Buscar canais baseados nos pedidos existentes")
         print("=" * 70)
@@ -200,7 +213,7 @@ class CanaisExtractor:
             
             if stats['sucesso'] > 0:
                 print(f"\n💡 PRÓXIMOS PASSOS:")
-                print(f"   1. Verificar dados: SELECT * FROM raw.canais_raw;")
+                print(f"   1. Verificar dados: SELECT * FROM raw.canais_raw WHERE empresa_id = {self.empresa_id};")
                 print(f"   2. Usar na transformação de vendas (vendas_dw.py)")
             
         except Exception as e:
@@ -212,12 +225,15 @@ class CanaisExtractor:
 # 2. FUNÇÃO AUXILIAR - OBTER MAPEAMENTO
 # =====================================================
 
-def obter_mapeamento_canais():
+def obter_mapeamento_canais(empresa_id):
     """
     Retorna dicionário {id: descricao} para lookup rápido
     
+    Args:
+        empresa_id: ID da empresa para filtrar canais
+    
     Uso na transformação:
-        mapa = obter_mapeamento_canais()
+        mapa = obter_mapeamento_canais(empresa_id=1)
         df['canal_nome'] = df['canal_id'].map(mapa)
     """
     session = Session()
@@ -226,11 +242,13 @@ def obter_mapeamento_canais():
         canais = session.query(
             CanaisRaw.bling_canal_id,
             CanaisRaw.descricao
+        ).filter(
+            CanaisRaw.empresa_id == empresa_id
         ).all()
         
         mapa = {canal.bling_canal_id: canal.descricao for canal in canais}
         
-        print(f"📋 {len(mapa)} canais carregados para mapeamento")
+        print(f"📋 {len(mapa)} canais carregados para mapeamento (empresa_id={empresa_id})")
         return mapa
         
     except Exception as e:

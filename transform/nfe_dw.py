@@ -1,3 +1,6 @@
+# =====================================================
+# TRANSFORMADOR DE NFE - MULTI-CNPJ
+# =====================================================
 # Responsável por: Limpar e transformar dados de nfe_raw para fato_nfe no schema processed
 # Comparação robusta que evita falsos positivos
 # Inserção em lotes para evitar estouro de parâmetros PostgreSQL
@@ -11,7 +14,7 @@ from sqlalchemy.dialects.postgresql import insert
 from config.database import Session, engine
 
 # =====================================================
-# 0. FUNÇÃO DE COMPARAÇÃO ROBUSTA (NOVO!)
+# 0. FUNÇÃO DE COMPARAÇÃO ROBUSTA
 # =====================================================
 
 def valores_sao_iguais(val1, val2):
@@ -143,7 +146,8 @@ class NFeTransformer:
     Inserção em lotes
     """
 
-    def __init__(self):
+    def __init__(self, empresa_id):
+        self.empresa_id = empresa_id
         self.engine = engine
 
     # =====================================================
@@ -156,32 +160,35 @@ class NFeTransformer:
         """
         print("\n1️⃣ EXTRAINDO DADOS DE RAW.NFE_RAW...")
 
-        query_nfe = """
+        query_nfe = text("""
             SELECT 
                 id,
                 bling_id,
+                empresa_id,
                 dados_json,
                 data_ingestao
             FROM raw.nfe_raw
+            WHERE empresa_id = :empresa_id
             ORDER BY bling_id
-        """
+        """)
 
-        df_nfe_raw = pd.read_sql(query_nfe, self.engine)
-        print(f"✅ {len(df_nfe_raw)} NFe extraídas")
+        df_nfe_raw = pd.read_sql(query_nfe, self.engine, params={"empresa_id": self.empresa_id})
+        print(f"✅ {len(df_nfe_raw)} NFe extraídas (empresa_id = {self.empresa_id})")
 
         # Buscar dados de vendas para relacionamento
         print("   • Importando dados de vendas para relacionamento...")
-        query_vendas = """
+        query_vendas = text("""
             SELECT 
                 bling_id,
                 dados_json->>'numero' as numero_pedido,
                 dados_json->'notaFiscal'->>'id' as nf_id
             FROM raw.vendas_raw
-            WHERE dados_json->'notaFiscal'->>'id' IS NOT NULL
-                AND dados_json->'notaFiscal'->>'id' != '0'
-        """
+            WHERE empresa_id = :empresa_id
+            AND dados_json->'notaFiscal'->>'id' IS NOT NULL
+            AND dados_json->'notaFiscal'->>'id' != '0'
+        """)
 
-        df_vendas = pd.read_sql(query_vendas, self.engine)
+        df_vendas = pd.read_sql(query_vendas, self.engine, params={"empresa_id": self.empresa_id})
         print(f"   ✅ {len(df_vendas)} vendas com NFe vinculada importadas")
 
         return df_nfe_raw, df_vendas
@@ -205,7 +212,7 @@ class NFeTransformer:
 
         # Combinar com as colunas originais
         df = pd.concat(
-            [df_nfe_raw[["id", "bling_id", "data_ingestao"]], df_json],
+            [df_nfe_raw[["id", "bling_id", "empresa_id", "data_ingestao"]], df_json],
             axis=1,
         )
 
@@ -331,7 +338,7 @@ class NFeTransformer:
         # === CONVERTENDO STRINGS VAZIAS PARA NaN ===
         print("   • Convertendo strings vazias para NaN...")
         for coluna in df.select_dtypes(include=["object"]).columns:
-            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True)
+            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True).infer_objects(copy=False)
             df[coluna] = df[coluna].replace("", np.nan)
             df[coluna] = df[coluna].replace(" ", np.nan)
 
@@ -356,6 +363,7 @@ class NFeTransformer:
         colunas_finais = [
             "nfe_id",
             "bling_nfe_id",
+            "empresa_id",
             "tipo",
             "numero_nfe",
             "situacao",
@@ -419,12 +427,12 @@ class NFeTransformer:
         return df_final
 
     # =====================================================
-    # 7. COMPARAR E SALVAR (EM LOTES) - VERSÃO CORRIGIDA!
+    # 7. COMPARAR E SALVAR (EM LOTES) - VERSÃO MULTI-CNPJ
     # =====================================================
 
     def comparar_e_salvar(self, df_novo):
         """
-        🔧 VERSÃO CORRIGIDA: Compara dados novos com existentes usando comparação robusta
+        🔧 VERSÃO MULTI-CNPJ: Compara dados novos com existentes usando comparação robusta
         Insere em lotes pequenos para evitar estouro
         """
         print("\n5️⃣ COMPARANDO COM DADOS EXISTENTES (COMPARAÇÃO ROBUSTA)...")
@@ -432,12 +440,15 @@ class NFeTransformer:
         session = Session()
 
         try:
-            # Buscar dados existentes
-            query_existente = "SELECT * FROM processed.fato_nfe"
+            # Buscar dados existentes PARA ESTA EMPRESA
+            query_existente = text("""
+                SELECT * FROM processed.fato_nfe
+                WHERE empresa_id = :empresa_id
+            """)
             
             try:
-                df_existente = pd.read_sql(query_existente, self.engine)
-                print(f"   • Registros existentes: {len(df_existente)}")
+                df_existente = pd.read_sql(query_existente, self.engine, params={"empresa_id": self.empresa_id})
+                print(f"   • Registros existentes (empresa_id={self.empresa_id}): {len(df_existente)}")
             except:
                 # Tabela não existe ou está vazia
                 df_existente = pd.DataFrame()
@@ -569,9 +580,9 @@ class NFeTransformer:
                     for registro in batch:
                         stmt = insert(self.get_modelo_tabela()).values(registro)
                         stmt = stmt.on_conflict_do_update(
-                            index_elements=['bling_nfe_id'],
+                            index_elements=['bling_nfe_id', 'empresa_id'],
                             set_={k: v for k, v in registro.items() 
-                                 if k not in ['nfe_id', 'bling_nfe_id']}
+                                 if k not in ['nfe_id', 'bling_nfe_id', 'empresa_id']}
                         )
                         session.execute(stmt)
                         atualizados += 1
@@ -616,6 +627,10 @@ class NFeTransformer:
 
             # 1. Extrair
             df_nfe_raw, df_vendas = self.extrair_dados_raw()
+
+            if len(df_nfe_raw) == 0:
+                print(f"\n⚠️ Nenhuma NFe encontrada para empresa_id = {self.empresa_id}")
+                return
 
             # 2. Expandir JSON
             df_expandido = self.expandir_json(df_nfe_raw)

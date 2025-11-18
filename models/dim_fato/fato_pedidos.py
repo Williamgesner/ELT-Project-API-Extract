@@ -1,7 +1,7 @@
 # Responsável por: definir a estrutura da tabela fato_pedidos no schema processed
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, BigInteger, Date, Numeric, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, BigInteger, Date, Numeric, DateTime, ForeignKey, UniqueConstraint
 from config.database import Base
 
 # =====================================================
@@ -9,8 +9,11 @@ from config.database import Base
 # =====================================================
 
 class FatoPedidos(Base):
-    __table_args__ = {"schema": "processed"}
     __tablename__ = "fato_pedidos"
+    __table_args__ = (
+        UniqueConstraint('bling_pedido_id', 'empresa_id', name='uq_fato_pedidos_bling_empresa'),
+        {"schema": "processed"}
+    )
 
     # ============================
     # CHAVES
@@ -18,8 +21,13 @@ class FatoPedidos(Base):
     
     # Chave primária
     pedido_id = Column(Integer, primary_key=True, autoincrement=True)
+    
     # Chave de negócio (ID da API Bling)
-    bling_pedido_id = Column(BigInteger, unique=True, nullable=False, index=True)
+    bling_pedido_id = Column(BigInteger, nullable=False, index=True)
+    
+    # Chave da empresa
+    empresa_id = Column(Integer, ForeignKey('processed.dim_empresas.empresa_id'), nullable=False, index=True)
+    
     # Número do pedido (visível para usuários)
     numero_pedido_lv = Column(String(50), index=True)
     # Número do pedido que vai na NF
@@ -69,4 +77,4 @@ class FatoPedidos(Base):
     data_processamento = Column(DateTime, default=datetime.now, nullable=False)
 
     def __repr__(self):
-        return f"<FatoPedidos(pedido_id={self.pedido_id}, numero={self.numero_pedido_bling}, valor={self.valor_total})>"
+        return f"<FatoPedidos(pedido_id={self.pedido_id}, empresa_id={self.empresa_id}, numero={self.numero_pedido_bling}, valor={self.valor_total})>"

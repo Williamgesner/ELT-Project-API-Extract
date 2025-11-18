@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from extract.accounts_payable_details import ContasPagarDetalhesExtractor
+from config.settings import empresas
 
 # =====================================================
 # 1. EXECUÇÃO DO ENRIQUECIMENTO
@@ -28,13 +29,21 @@ if __name__ == "__main__":
         
         inicio = datetime.now()
         
-        # Criar e executar o extrator
+        # Processar cada empresa
         print("\n🚀 Iniciando enriquecimento...")
-        extrator = ContasPagarDetalhesExtractor()
-        extrator.executar_extracao_detalhes(
-            delay_entre_requests=0.35,  # 2.5 requests/segundo (seguro)
-            batch_size=100              # Commit a cada 100 contas
-        )
+
+        for empresa_config in empresas:
+            empresa_id = empresa_config['empresa_id']
+            api_key = empresa_config['api_key']
+            nome = empresa_config['nome']
+            
+            print(f"\n🏢 Processando: {nome} (ID: {empresa_id})")
+            
+            extrator = ContasPagarDetalhesExtractor(api_key, empresa_id)
+            extrator.executar_extracao_detalhes(
+                delay_entre_requests=0.35,
+                batch_size=100
+            )
         
         fim = datetime.now()
         tempo_total = fim - inicio

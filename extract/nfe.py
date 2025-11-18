@@ -5,7 +5,7 @@ import requests
 import time
 from core.base_extractor import BaseExtractor
 from models.nfe_raw import NFeRaw
-from config.settings import endpoints, headers
+from config.settings import endpoints
 
 # =====================================================
 # 1. EXTRATOR DE NFe (CORRIGIDO - COMPARAÇÃO INTELIGENTE)
@@ -22,8 +22,21 @@ class NFeExtractor(BaseExtractor):
     - Evita 17.772 "atualizações" falsas!
     """
     
-    def __init__(self):
+    def __init__(self, api_key, empresa_id):
+        """
+        Args:
+            api_key: Token de autenticação da API Bling
+            empresa_id: ID da empresa na tabela dim_empresas
+        """
         super().__init__(endpoints['nfe'], NFeRaw)
+        self.empresa_id = empresa_id
+        
+        # Sobrescrever headers do base_extractor com a API key específica
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
     
     def extract_dados_bling_paginado_com_tipo(self, tipo, limite_por_pagina=100, 
                                                delay_entre_requests=0.35, max_paginas=1000, 
@@ -53,7 +66,7 @@ class NFeExtractor(BaseExtractor):
                 try:
                     response = requests.get(
                         self.base_url,
-                        headers=headers,
+                        headers=self.headers,
                         params=params,
                         timeout=30
                     )
@@ -140,7 +153,7 @@ class NFeExtractor(BaseExtractor):
             debug: Se True, mostra detalhes das comparações
         """
         try:
-            print("\n📄 EXTRAÇÃO: NOTAS FISCAIS ELETRÔNICAS (NFe)")
+            print(f"\n📄 EXTRAÇÃO: NOTAS FISCAIS ELETRÔNICAS (NFe) (Empresa ID: {self.empresa_id})")
             print("=" * 60)
             print("⚡ MODO: Comparação inteligente (apenas campos-chave)")
             inicio_extracao = datetime.now()
@@ -193,6 +206,7 @@ class NFeExtractor(BaseExtractor):
             for nfe in todas_nfe:
                 dados_formatados = {
                     'bling_id': nfe['id'],
+                    'empresa_id': self.empresa_id,
                     'dados_json': nfe
                 }
                 dados_para_salvar.append(dados_formatados)
@@ -289,6 +303,8 @@ class NFeExtractor(BaseExtractor):
             existing_records = session.query(
                 self.model_class.bling_id,
                 self.model_class.dados_json
+            ).filter(
+                self.model_class.empresa_id == self.empresa_id  
             ).all()
 
             for record in existing_records:
@@ -312,6 +328,7 @@ class NFeExtractor(BaseExtractor):
                     # NOVO
                     registros_novos.append({
                         'bling_id': bling_id,
+                        'empresa_id': self.empresa_id,  # ← ADICIONAR
                         'dados_json': novo_json,
                         'data_ingestao': datetime.now(),
                         'status_processamento': 'pendente'
@@ -342,6 +359,7 @@ class NFeExtractor(BaseExtractor):
                     if mudou:
                         registros_para_atualizar.append({
                             'bling_id': bling_id,
+                            'empresa_id': self.empresa_id, 
                             'dados_json': novo_json,
                             'data_ingestao': datetime.now()
                         })
@@ -368,7 +386,7 @@ class NFeExtractor(BaseExtractor):
                 for registro in registros_para_atualizar:
                     stmt = insert(self.model_class.__table__).values(registro)
                     stmt = stmt.on_conflict_do_update(
-                        index_elements=['bling_id'],
+                        index_elements=['bling_id', 'empresa_id'],  # ← MODIFICAR
                         set_={
                             'dados_json': stmt.excluded.dados_json,
                             'data_ingestao': stmt.excluded.data_ingestao

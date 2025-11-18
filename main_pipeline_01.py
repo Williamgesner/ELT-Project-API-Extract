@@ -1,14 +1,29 @@
-# Responsável por: executar TODOS os extratores E transformadores em sequência
+# Responsável por: executar TODOS os extratores E transformadores em sequência em Empresa ID - 1
 # Este script mantém o DW sincronizado com a Bling - VERSÃO COMPLETA
 # Inclui: Parte COMERCIAL + Parte FINANCEIRA
 # Na fase de gerar os fluxos de trabalho (workflows), esse script será executado a cada 2 horas ou mais (Solicitação do cliente)
 
+"""
+========================================
+PIPELINE COMPLETO - EMPRESA 1
+========================================
+
+Responsável por: executar TODOS os extratores E transformadores em sequência
+VERSÃO MULTI-CNPJ: empresa_id=1
+
+Este script mantém o DW sincronizado com a Bling
+Inclui: Parte COMERCIAL + Parte FINANCEIRA
+Executar a cada 2 horas (Solicitação do cliente)
+"""
+
+import os
 from datetime import datetime
+from dotenv import load_dotenv
 from sqlalchemy import text
 from config.database import create_schema_raw, create_schema_processed, create_all_tables, Session
 
 # =====================================================
-# IMPORTAÇÕES - PARTE COMERCIAL (JÁ EXISTENTE)
+# IMPORTAÇÕES - PARTE COMERCIAL
 # =====================================================
 from extract.contacts import ContatosCompletoExtractor
 from extract.products import ProdutosExtractor
@@ -20,7 +35,7 @@ from transform.sales_dw import VendasTransformer
 from transform.items_dw import ItensTransformer 
 
 # =====================================================
-# IMPORTAÇÕES - PARTE FINANCEIRA (NOVAS)
+# IMPORTAÇÕES - PARTE FINANCEIRA
 # =====================================================
 from extract.payment_methods import FormasPagamentosExtractor
 from extract.accounts_payable_categories import CategoriasExtractor
@@ -38,89 +53,103 @@ from transform.accounts_receivable_dw import ContasReceberTransformer
 from transform.nfe_dw import NFeTransformer
 
 # =====================================================
+# CONFIGURAÇÃO GLOBAL
+# =====================================================
+
+# Carregar variáveis de ambiente
+load_dotenv()
+
+# API Key da empresa 1
+API_KEY_EMPRESA_1 = os.getenv('API_KEY_01')
+if not API_KEY_EMPRESA_1:
+    raise ValueError("❌ API_KEY_01 não encontrada no .env!")
+
+# Empresa ID
+EMPRESA_ID = 1
+
+# =====================================================
 # 1. EXECUÇÃO COMPLETA - EXTRAÇÃO
 # =====================================================
 
 def executar_extracao_completa():
     """
     Executa a extração de todos os endpoints em sequência
-    
-    FLUXO DE EXTRAÇÃO:
-    
-    📊 PARTE COMERCIAL:
-    1. Contatos (lista + detalhes individuais)
-    2. Produtos (lista completa)
-    3. Vendas (lista resumida)
-    4. Vendas Detalhes (itens de cada pedido)
-    
-    💰 PARTE FINANCEIRA:
-    5. Formas de Pagamento (tabela de apoio)
-    6. Categorias de Receitas/Despesas (tabela de apoio)
-    7. Natureza de Operação (tabela de apoio)
-    8. Contas a Pagar (lista)
-    9. Contas a Pagar Detalhes (enriquecer com categoria)
-    10. Contas a Receber (lista)
-    11. NFe - Entrada e Saída (lista)
-    12. NFe Detalhes (enriquecer com valorNota e valorFrete)
+    TODOS os extractors recebem empresa_id=1
     """
     print("\n🚀 FASE 1: EXTRAÇÃO COMPLETA DE TODOS OS ENDPOINTS")
     print("=" * 70)
+    print(f"📌 Empresa ID: {EMPRESA_ID}")
     print("📊 PARTE COMERCIAL + 💰 PARTE FINANCEIRA")
     print("=" * 70)
     
     inicio_extracao = datetime.now()
     
-    # Lista dos extratores para executar (NA ORDEM CORRETA DE DEPENDÊNCIAS)
+    # Lista dos extratores (COM EMPRESA_ID!)
     extratores = [
         # === PARTE COMERCIAL ===
-        ("📊 👥 CONTATOS", ContatosCompletoExtractor, {}),
-        ("📊 🏭 PRODUTOS", ProdutosExtractor, {}), 
-        ("📊 💰 VENDAS (Lista)", VendasExtractor, {}),
-        ("📊 🛒 VENDAS (Detalhes + Itens)", VendasDetalhesExtractor, {
-            'delay_entre_requests': 0.4,
-            'batch_size': 100
-        }),
+        ("📊 👥 CONTATOS", ContatosCompletoExtractor, 
+         {'api_key': API_KEY_EMPRESA_1, 'empresa_id': EMPRESA_ID}, {}),
+        
+        ("📊 🏭 PRODUTOS", ProdutosExtractor,
+         {'api_key': API_KEY_EMPRESA_1, 'empresa_id': EMPRESA_ID}, {}),
+        
+        ("📊 💰 VENDAS (Lista)", VendasExtractor,
+         {'api_key': API_KEY_EMPRESA_1, 'empresa_id': EMPRESA_ID}, {}),
+        
+        ("📊 🛒 VENDAS (Detalhes + Itens)", VendasDetalhesExtractor,
+         {'api_key': API_KEY_EMPRESA_1, 'empresa_id': EMPRESA_ID},
+         {'delay_entre_requests': 0.4, 'batch_size': 100}),
         
         # === PARTE FINANCEIRA - TABELAS DE APOIO ===
-        ("💰 💳 FORMAS DE PAGAMENTO", FormasPagamentosExtractor, {}),
-        ("💰 📂 CATEGORIAS (Receitas/Despesas)", CategoriasExtractor, {}),
-        ("💰 🌿 NATUREZA DE OPERAÇÃO", NaturezaOperacaoExtractor, {}),
+        ("💰 💳 FORMAS DE PAGAMENTO", FormasPagamentosExtractor,
+         {'api_key': API_KEY_EMPRESA_1, 'empresa_id': EMPRESA_ID}, {}),
+        
+        ("💰 📂 CATEGORIAS (Receitas/Despesas)", CategoriasExtractor,
+         {'api_key': API_KEY_EMPRESA_1, 'empresa_id': EMPRESA_ID}, {}),
+        
+        ("💰 🌿 NATUREZA DE OPERAÇÃO", NaturezaOperacaoExtractor,
+         {'api_key': API_KEY_EMPRESA_1, 'empresa_id': EMPRESA_ID}, {}),
         
         # === PARTE FINANCEIRA - DADOS PRINCIPAIS ===
-        ("💰 💵 CONTAS A PAGAR (Lista)", ContasPagarExtractor, {}),
-        ("💰 🔍 CONTAS A PAGAR (Detalhes + Categoria)", ContasPagarDetalhesExtractor, {
-            'delay_entre_requests': 0.35,
-            'batch_size': 100
-        }),
-        ("💰 💸 CONTAS A RECEBER (Lista)", ContasReceberExtractor, {}),
-        ("💰 📄 NFe (Entrada + Saída)", NFeExtractor, {}),
-        ("💰 🔍 NFe (Detalhes + Enriquecimento)", NFeDetalhesExtractor, {
-            'delay_entre_requests': 0.35,
-            'batch_size': 100
-        })
+        ("💰 💵 CONTAS A PAGAR (Lista)", ContasPagarExtractor,
+         {'api_key': API_KEY_EMPRESA_1, 'empresa_id': EMPRESA_ID}, {}),
+        
+        ("💰 🔍 CONTAS A PAGAR (Detalhes + Categoria)", ContasPagarDetalhesExtractor,
+         {'api_key': API_KEY_EMPRESA_1, 'empresa_id': EMPRESA_ID},
+         {'delay_entre_requests': 0.35, 'batch_size': 100}),
+        
+        ("💰 💸 CONTAS A RECEBER (Lista)", ContasReceberExtractor,
+         {'api_key': API_KEY_EMPRESA_1, 'empresa_id': EMPRESA_ID}, {}),
+        
+        ("💰 📄 NFe (Entrada + Saída)", NFeExtractor,
+         {'api_key': API_KEY_EMPRESA_1, 'empresa_id': EMPRESA_ID}, {}),
+        
+        ("💰 🔍 NFe (Detalhes + Enriquecimento)", NFeDetalhesExtractor,
+         {'api_key': API_KEY_EMPRESA_1, 'empresa_id': EMPRESA_ID},
+         {'delay_entre_requests': 0.35, 'batch_size': 100})
     ]
     
     resultados_extracao = []
     
-    for nome_endpoint, ExtractorClass, params in extratores:
+    for nome_endpoint, ExtractorClass, init_params, exec_params in extratores:
         try:
             print(f"\n{nome_endpoint}")
             print("-" * 70)
             
             inicio_endpoint = datetime.now()
             
-            # Criar e executar o extrator
-            extrator = ExtractorClass()
+            # Criar extrator COM empresa_id
+            extrator = ExtractorClass(**init_params)
             
             # Verificar se precisa de parâmetros especiais
-            if params:
+            if exec_params:
                 # Extrair com parâmetros personalizados
                 if ExtractorClass == VendasDetalhesExtractor:
-                    extrator.executar_extracao_detalhes(**params)
+                    extrator.executar_extracao_detalhes(**exec_params)
                 elif ExtractorClass == ContasPagarDetalhesExtractor:
-                    extrator.executar_extracao_detalhes(**params)
+                    extrator.executar_extracao_detalhes(**exec_params)
                 elif ExtractorClass == NFeDetalhesExtractor:
-                    extrator.executar_enriquecimento_completo(**params)
+                    extrator.executar_enriquecimento_completo(**exec_params)
                 else:
                     extrator.executar_extracao_completa()
             else:
@@ -161,17 +190,14 @@ def executar_extracao_completa():
     print(f"⏱️ Tempo total: {tempo_extracao}")
     print("\n📊 RESUMO DOS RESULTADOS:")
     
-    sucessos = 0
-    erros = 0
+    sucessos = sum(1 for r in resultados_extracao if r['status'] == 'SUCCESS')
+    erros = sum(1 for r in resultados_extracao if r['status'] == 'ERROR')
     
     for resultado in resultados_extracao:
         status_emoji = "✅" if resultado['status'] == 'SUCCESS' else "❌"
         print(f"{status_emoji} {resultado['endpoint']}: {resultado['tempo']}")
         
-        if resultado['status'] == 'SUCCESS':
-            sucessos += 1
-        else:
-            erros += 1
+        if resultado['status'] == 'ERROR':
             print(f"   └── Erro: {resultado.get('erro', 'N/A')}")
     
     print(f"\n🎯 ESTATÍSTICAS FINAIS DA EXTRAÇÃO:")
@@ -187,30 +213,12 @@ def executar_extracao_completa():
 def executar_transformacao_completa():
     """
     Executa a transformação de todos os dados RAW para DW
-    
-    FLUXO DE TRANSFORMAÇÃO:
-    
-    📊 PARTE COMERCIAL:
-    1. Contatos → dim_contatos
-    2. Produtos → dim_produtos
-    
-    💰 PARTE FINANCEIRA - DIMENSÕES DE APOIO (PRIMEIRO!):
-    3. Formas de Pagamento → dim_formas_pagamento
-    4. Categorias → dim_categorias_contas_pagar
-    5. Natureza de Operação → dim_natureza_operacao
-    
-    📊 PARTE COMERCIAL - FATOS:
-    6. Vendas → fato_pedidos
-    7. Itens → fato_itens_pedidos
-    
-    💰 PARTE FINANCEIRA - FATOS:
-    8. Contas a Pagar → fato_contas_pagar
-    9. Contas a Receber → fato_contas_receber
-    10. NFe → fato_nfe
+    TODOS os transformers recebem empresa_id=1
     """
     print(f"\n{'='*70}")
     print("🔄 FASE 2: TRANSFORMAÇÃO DOS DADOS")
     print(f"{'='*70}")
+    print(f"📌 Empresa ID: {EMPRESA_ID}")
     print("📊 PARTE COMERCIAL + 💰 PARTE FINANCEIRA")
     print(f"{'='*70}")
     
@@ -222,46 +230,46 @@ def executar_transformacao_completa():
     session = Session()
     try:
         # Verificar quantos registros pendentes existem
-        print("\n📊 VERIFICANDO REGISTROS PENDENTES...")
+        print("\n📊 VERIFICANDO REGISTROS PENDENTES (EMPRESA 1)...")
         print("-" * 70)
         
         # Parte Comercial
         contatos_pendentes = session.execute(text(
-            "SELECT COUNT(*) FROM raw.contatos_raw WHERE status_processamento = 'pendente'"
-        )).scalar()
+            "SELECT COUNT(*) FROM raw.contatos_raw WHERE status_processamento = 'pendente' AND empresa_id = :emp_id"
+        ), {'emp_id': EMPRESA_ID}).scalar()
         
         produtos_pendentes = session.execute(text(
-            "SELECT COUNT(*) FROM raw.produtos_raw WHERE status_processamento = 'pendente'"
-        )).scalar()
+            "SELECT COUNT(*) FROM raw.produtos_raw WHERE status_processamento = 'pendente' AND empresa_id = :emp_id"
+        ), {'emp_id': EMPRESA_ID}).scalar()
         
         vendas_pendentes = session.execute(text(
-            "SELECT COUNT(*) FROM raw.vendas_raw WHERE status_processamento = 'pendente'"
-        )).scalar()
+            "SELECT COUNT(*) FROM raw.vendas_raw WHERE status_processamento = 'pendente' AND empresa_id = :emp_id"
+        ), {'emp_id': EMPRESA_ID}).scalar()
         
         # Parte Financeira
         formas_pagamento_pendentes = session.execute(text(
-            "SELECT COUNT(*) FROM raw.formas_pagamentos_raw"
-        )).scalar() or 0
+            "SELECT COUNT(*) FROM raw.formas_pagamentos_raw WHERE empresa_id = :emp_id"
+        ), {'emp_id': EMPRESA_ID}).scalar() or 0
         
         categorias_pendentes = session.execute(text(
-            "SELECT COUNT(*) FROM raw.categorias_contas_pagar_raw"
-        )).scalar() or 0
+            "SELECT COUNT(*) FROM raw.categorias_contas_pagar_raw WHERE empresa_id = :emp_id"
+        ), {'emp_id': EMPRESA_ID}).scalar() or 0
         
         natureza_pendentes = session.execute(text(
-            "SELECT COUNT(*) FROM raw.natureza_operacao_raw"
-        )).scalar() or 0
+            "SELECT COUNT(*) FROM raw.natureza_operacao_raw WHERE empresa_id = :emp_id"
+        ), {'emp_id': EMPRESA_ID}).scalar() or 0
         
         contas_pagar_pendentes = session.execute(text(
-            "SELECT COUNT(*) FROM raw.contas_pagar_raw WHERE status_processamento = 'pendente'"
-        )).scalar() or 0
+            "SELECT COUNT(*) FROM raw.contas_pagar_raw WHERE status_processamento = 'pendente' AND empresa_id = :emp_id"
+        ), {'emp_id': EMPRESA_ID}).scalar() or 0
         
         contas_receber_pendentes = session.execute(text(
-            "SELECT COUNT(*) FROM raw.contas_receber_raw WHERE status_processamento = 'pendente'"
-        )).scalar() or 0
+            "SELECT COUNT(*) FROM raw.contas_receber_raw WHERE status_processamento = 'pendente' AND empresa_id = :emp_id"
+        ), {'emp_id': EMPRESA_ID}).scalar() or 0
         
         nfe_pendentes = session.execute(text(
-            "SELECT COUNT(*) FROM raw.nfe_raw"
-        )).scalar() or 0
+            "SELECT COUNT(*) FROM raw.nfe_raw WHERE empresa_id = :emp_id"
+        ), {'emp_id': EMPRESA_ID}).scalar() or 0
         
         print(f"📊 PARTE COMERCIAL:")
         print(f"   • Contatos pendentes: {contatos_pendentes}")
@@ -288,38 +296,38 @@ def executar_transformacao_completa():
     finally:
         session.close()
     
-    # Executar transformações
-    # IMPORTANTE: A ordem importa! Dimensões ANTES de Fatos, e Fatos com dependências no final
+    # Executar transformações (COM EMPRESA_ID!)
     transformadores = [
         # === PARTE COMERCIAL - DIMENSÕES ===
-        ("📊 👥 CONTATOS", ContatosTransformer),
-        ("📊 🏭 PRODUTOS", ProdutosTransformer),
+        ("📊 👥 CONTATOS", ContatosTransformer, {'empresa_id': EMPRESA_ID}),
+        ("📊 🏭 PRODUTOS", ProdutosTransformer, {'empresa_id': EMPRESA_ID}),
         
-        # === PARTE FINANCEIRA - DIMENSÕES DE APOIO (ANTES DOS FATOS!) ===
-        ("💰 💳 FORMAS DE PAGAMENTO", FormasPagamentoTransformer),
-        ("💰 📂 CATEGORIAS", CategoriasContasPagarTransformer),
-        ("💰 🌿 NATUREZA DE OPERAÇÃO", NaturezaOperacaoTransformer),
+        # === PARTE FINANCEIRA - DIMENSÕES DE APOIO ===
+        ("💰 💳 FORMAS DE PAGAMENTO", FormasPagamentoTransformer, {'empresa_id': EMPRESA_ID}),
+        ("💰 📂 CATEGORIAS", CategoriasContasPagarTransformer, {'empresa_id': EMPRESA_ID}),
+        ("💰 🌿 NATUREZA DE OPERAÇÃO", NaturezaOperacaoTransformer, {'empresa_id': EMPRESA_ID}),
         
         # === PARTE COMERCIAL - FATOS ===
-        ("📊 💰 VENDAS", VendasTransformer),
-        ("📊 🛒 ITENS", ItensTransformer),
+        ("📊 💰 VENDAS", VendasTransformer, {'empresa_id': EMPRESA_ID}),
+        ("📊 🛒 ITENS", ItensTransformer, {'empresa_id': EMPRESA_ID}),
         
         # === PARTE FINANCEIRA - FATOS ===
-        ("💰 💵 CONTAS A PAGAR", ContasPagarTransformer),
-        ("💰 💸 CONTAS A RECEBER", ContasReceberTransformer),
-        ("💰 📄 NFe", NFeTransformer)
+        ("💰 💵 CONTAS A PAGAR", ContasPagarTransformer, {'empresa_id': EMPRESA_ID}),
+        ("💰 💸 CONTAS A RECEBER", ContasReceberTransformer, {'empresa_id': EMPRESA_ID}),
+        ("💰 📄 NFe", NFeTransformer, {'empresa_id': EMPRESA_ID})
     ]
     
     resultados_transformacao = []
     
-    for nome, Transformer in transformadores:
+    for nome, TransformerClass, init_params in transformadores:
         try:
             print(f"\n{nome}")
             print("-" * 70)
             
             inicio_transform = datetime.now()
             
-            transformer = Transformer()
+            # Criar transformer COM empresa_id
+            transformer = TransformerClass(**init_params)
             transformer.executar_transformacao_completa()
             
             fim_transform = datetime.now()
@@ -345,10 +353,7 @@ def executar_transformacao_completa():
             })
             
             print(f"❌ ERRO ao transformar {nome}: {e}")
-            
-            # Se falhar em ITENS ou NFe, avisar mas continuar
-            if "ITENS" in nome or "NFe" in nome:
-                print("⚠️  Falha não interrompe o pipeline - continuando...")
+            print("⚠️  Continuando com próximo transformer...")
     
     # Relatório transformação
     fim_transformacao = datetime.now()
@@ -359,17 +364,14 @@ def executar_transformacao_completa():
     print(f"⏱️ Tempo total: {tempo_transformacao}")
     print("\n📊 RESUMO DOS RESULTADOS:")
     
-    sucessos = 0
-    erros = 0
+    sucessos = sum(1 for r in resultados_transformacao if r['status'] == 'SUCCESS')
+    erros = sum(1 for r in resultados_transformacao if r['status'] == 'ERROR')
     
     for resultado in resultados_transformacao:
         status_emoji = "✅" if resultado['status'] == 'SUCCESS' else "❌"
         print(f"{status_emoji} {resultado['transformador']}: {resultado['tempo']}")
         
-        if resultado['status'] == 'SUCCESS':
-            sucessos += 1
-        else:
-            erros += 1
+        if resultado['status'] == 'ERROR':
             print(f"   └── Erro: {resultado.get('erro', 'N/A')}")
     
     print(f"\n🎯 ESTATÍSTICAS FINAIS DA TRANSFORMAÇÃO:")
@@ -385,16 +387,15 @@ def executar_transformacao_completa():
 def executar_pipeline_completo():
     """
     Executa o pipeline completo: Extração + Transformação
-    Este é o script principal para manter o DW atualizado
-    VERSÃO COMPLETA: Parte Comercial + Parte Financeira
+    VERSÃO MULTI-CNPJ para EMPRESA 1
     """
     print("\n" + "=" * 70)
-    print("🔄 PIPELINE COMPLETO: EXTRAÇÃO + TRANSFORMAÇÃO")
+    print("🔄 PIPELINE COMPLETO: EMPRESA 1")
     print("=" * 70)
-    print("Mantém o Data Warehouse sincronizado com a Bling")
+    print(f"📌 Empresa ID: {EMPRESA_ID}")
     print("📊 PARTE COMERCIAL: Contatos, Produtos, Vendas, Itens")
     print("💰 PARTE FINANCEIRA: Contas a Pagar, Receber, NFe")
-    print("Recomendado: Executar a cada 2 horas - Solicitação do cliente")
+    print("Executar a cada 2 horas")
     print("=" * 70)
     
     inicio_pipeline = datetime.now()
@@ -425,115 +426,25 @@ def executar_pipeline_completo():
     print(f"   • Extração: {sucesso_extracao}/{total_extracao} sucessos")
     print(f"   • Transformação: {sucesso_transformacao}/{total_transformacao} sucessos")
     
-    # Estatísticas detalhadas do DW
-    print(f"\n📈 ESTATÍSTICAS DO DATA WAREHOUSE:")
+    # Estatísticas do DW (apenas empresa 1)
+    print(f"\n📈 ESTATÍSTICAS DO DATA WAREHOUSE (EMPRESA 1):")
     print("-" * 70)
     session = Session()
     try:
-        # === DIMENSÕES ===
-        print("\n🔷 DIMENSÕES:")
-        
         # Contatos
-        query = text("SELECT COUNT(*) FROM processed.dim_contatos")
-        total_contatos = session.execute(query).scalar()
+        query = text("SELECT COUNT(*) FROM processed.dim_contatos WHERE empresa_id = :emp_id")
+        total_contatos = session.execute(query, {'emp_id': EMPRESA_ID}).scalar()
         print(f"   • dim_contatos: {total_contatos:,} registros")
         
         # Produtos
-        query = text("SELECT COUNT(*) FROM processed.dim_produtos")
-        total_produtos = session.execute(query).scalar()
+        query = text("SELECT COUNT(*) FROM processed.dim_produtos WHERE empresa_id = :emp_id")
+        total_produtos = session.execute(query, {'emp_id': EMPRESA_ID}).scalar()
         print(f"   • dim_produtos: {total_produtos:,} registros")
         
-        # Formas de Pagamento
-        query = text("SELECT COUNT(*) FROM processed.dim_formas_pagamento")
-        total_formas = session.execute(query).scalar() or 0
-        print(f"   • dim_formas_pagamento: {total_formas:,} registros")
-        
-        # Categorias
-        query = text("SELECT COUNT(*) FROM processed.dim_categorias_contas_pagar")
-        total_categorias = session.execute(query).scalar() or 0
-        print(f"   • dim_categorias_contas_pagar: {total_categorias:,} registros")
-        
-        # Natureza de Operação
-        query = text("SELECT COUNT(*) FROM processed.dim_natureza_operacao")
-        total_natureza = session.execute(query).scalar() or 0
-        print(f"   • dim_natureza_operacao: {total_natureza:,} registros")
-        
-        # === FATOS - COMERCIAL ===
-        print("\n📊 FATOS - PARTE COMERCIAL:")
-        
         # Pedidos
-        query = text("SELECT COUNT(*) FROM processed.fato_pedidos")
-        total_pedidos = session.execute(query).scalar()
+        query = text("SELECT COUNT(*) FROM processed.fato_pedidos WHERE empresa_id = :emp_id")
+        total_pedidos = session.execute(query, {'emp_id': EMPRESA_ID}).scalar()
         print(f"   • fato_pedidos: {total_pedidos:,} registros")
-        
-        # Itens
-        query = text("""
-            SELECT 
-                COUNT(*) as total,
-                COUNT(produto_id) as com_produto,
-                ROUND(100.0 * COUNT(produto_id) / NULLIF(COUNT(*), 0), 1) as taxa
-            FROM processed.fato_itens_pedidos
-        """)
-        resultado = session.execute(query).fetchone()
-        if resultado and resultado.total > 0:
-            print(f"   • fato_itens_pedidos: {resultado.total:,} registros")
-            print(f"     └─ Mapeamento: {resultado.taxa}% com produto_id")
-            
-            # Alerta se taxa baixa
-            if resultado.taxa < 95:
-                print(f"\n   🚨 ALERTA: Taxa de mapeamento de produtos abaixo de 95%!")
-                print(f"   💡 Considere executar: python main_product.py")
-        
-        # === FATOS - FINANCEIRO ===
-        print("\n💰 FATOS - PARTE FINANCEIRA:")
-        
-        # Contas a Pagar
-        query = text("""
-            SELECT 
-                COUNT(*) as total,
-                SUM(valor) as valor_total,
-                SUM(CASE WHEN situacao IN ('Em aberto', 'Atrasada', 'Vencendo hoje') THEN valor ELSE 0 END) as valor_aberto
-            FROM processed.fato_contas_pagar
-        """)
-        resultado = session.execute(query).fetchone()
-        if resultado and resultado.total > 0:
-            print(f"   • fato_contas_pagar: {resultado.total:,} registros")
-            print(f"     └─ Valor total: R$ {resultado.valor_total:,.2f}")
-            print(f"     └─ Valor em aberto: R$ {resultado.valor_aberto:,.2f}")
-        else:
-            print(f"   • fato_contas_pagar: 0 registros")
-        
-        # Contas a Receber
-        query = text("""
-            SELECT 
-                COUNT(*) as total,
-                SUM(valor) as valor_total,
-                SUM(CASE WHEN situacao IN ('Em aberto', 'Atrasada', 'Vencendo hoje') THEN valor ELSE 0 END) as valor_aberto
-            FROM processed.fato_contas_receber
-        """)
-        resultado = session.execute(query).fetchone()
-        if resultado and resultado.total > 0:
-            print(f"   • fato_contas_receber: {resultado.total:,} registros")
-            print(f"     └─ Valor total: R$ {resultado.valor_total:,.2f}")
-            print(f"     └─ Valor a receber: R$ {resultado.valor_aberto:,.2f}")
-        else:
-            print(f"   • fato_contas_receber: 0 registros")
-        
-        # NFe
-        query = text("""
-            SELECT 
-                COUNT(*) as total,
-                COUNT(CASE WHEN tipo = 'Entrada' THEN 1 END) as entradas,
-                COUNT(CASE WHEN tipo = 'Saída' THEN 1 END) as saidas
-            FROM processed.fato_nfe
-        """)
-        resultado = session.execute(query).fetchone()
-        if resultado and resultado.total > 0:
-            print(f"   • fato_nfe: {resultado.total:,} registros")
-            print(f"     └─ Entradas: {resultado.entradas:,}")
-            print(f"     └─ Saídas: {resultado.saidas:,}")
-        else:
-            print(f"   • fato_nfe: 0 registros")
         
     except Exception as e:
         print(f"   ⚠️  Erro ao coletar estatísticas: {e}")
@@ -543,14 +454,15 @@ def executar_pipeline_completo():
     if sucesso_extracao == total_extracao and sucesso_transformacao == total_transformacao:
         print(f"\n🎉 TODOS OS PROCESSOS EXECUTADOS COM SUCESSO!")
         print(f"\n💡 PRÓXIMOS PASSOS:")
-        print(f"   1. Dados estão sincronizados com a Bling")
+        print(f"   1. DW sincronizado com a Bling (Empresa 1)")
         print(f"   2. Power BI pode ser atualizado")
-        print(f"   3. Execute novamente em 2 horas para manter atualizado")
-        print(f"\n📊 DASHBOARDS DISPONÍVEIS:")
-        print(f"   • Dashboard Comercial: Vendas, Produtos, Clientes")
-        print(f"   • Dashboard Financeiro: Contas a Pagar/Receber, NFe")
+        print(f"   3. Para adicionar outras empresas, crie main_pipeline_2.py, etc.")
     else:
         print(f"\n⚠️  Alguns processos falharam. Verifique os logs acima.")
+
+# =====================================================
+# MAIN
+# =====================================================
 
 if __name__ == "__main__":
     try:
@@ -567,8 +479,8 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n⚠️ Execução interrompida pelo usuário")
         print("💾 Dados processados até este ponto foram preservados")
-        print("Você pode continuar executando novamente este script")
     except Exception as e:
         print(f"\n❌ ERRO CRÍTICO durante execução: {e}")
-        print("Script interrompido para análise do erro")
+        import traceback
+        traceback.print_exc()
         raise

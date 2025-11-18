@@ -1,5 +1,5 @@
 # =====================================================
-# TRANSFORMADOR DE CONTATOS
+# TRANSFORMADOR DE CONTATOS - MULTI-CNPJ
 # =====================================================
 # CORREÇÃO: Implementa comparação inteligente (igual sales_dw.py)
 # - Compara antes de salvar
@@ -24,7 +24,8 @@ class ContatosTransformer:
     Transformador de contatos com COMPARAÇÃO INTELIGENTE
     """
 
-    def __init__(self):
+    def __init__(self, empresa_id):
+        self.empresa_id = empresa_id
         self.engine = engine
 
     # =====================================================
@@ -33,9 +34,9 @@ class ContatosTransformer:
 
     def extrair_dados_raw(self):
         """Extrai dados da tabela raw.contatos_raw"""
-        print("\n1️⃣ EXTRAINDO DADOS DE RAW.CONTATOS_RAW...")
+        print(f"\n1️⃣ EXTRAINDO DADOS DE RAW.CONTATOS_RAW (empresa_id={self.empresa_id})...")
 
-        query = """
+        query = text("""
             SELECT 
                 id,
                 bling_id,
@@ -43,10 +44,11 @@ class ContatosTransformer:
                 data_ingestao
             FROM raw.contatos_raw
             WHERE status_processamento = 'pendente'
+              AND empresa_id = :empresa_id
             ORDER BY bling_id
-        """
+        """)
 
-        df_raw = pd.read_sql(query, self.engine)
+        df_raw = pd.read_sql(query, self.engine, params={"empresa_id": self.empresa_id})
         print(f"✅ {len(df_raw)} registros extraídos (status = 'pendente')")
 
         return df_raw
@@ -150,10 +152,14 @@ class ContatosTransformer:
             }
         )
 
+        # === ADICIONAR EMPRESA_ID ===
+        print(f"   • Adicionando empresa_id={self.empresa_id}...")
+        df["empresa_id"] = self.empresa_id
+
         # === LIMPAR STRINGS VAZIAS ===
         print("   • Convertendo strings vazias para NaN...")
         for coluna in df.select_dtypes(include=["object"]).columns:
-            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True)
+            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True).infer_objects(copy=False)
             df[coluna] = df[coluna].replace("", np.nan)
             df[coluna] = df[coluna].replace(" ", np.nan)
 
@@ -280,6 +286,7 @@ class ContatosTransformer:
         colunas_finais = [
             "cliente_id",
             "bling_cliente_id",
+            "empresa_id",
             "nome",
             "cpf_cnpj",
             "tipo_pessoa",
@@ -318,11 +325,11 @@ class ContatosTransformer:
         print(f"      • Com telefone: {com_telefone} ({com_telefone/total*100:.1f}%)")
 
         # Verificar duplicatas
-        duplicatas = df.duplicated(subset=["bling_cliente_id"]).sum()
+        duplicatas = df.duplicated(subset=["bling_cliente_id", "empresa_id"]).sum()
         if duplicatas > 0:
             print(f"\n   ⚠️  {duplicatas} registros duplicados encontrados!")
             print("      Removendo duplicatas...")
-            df = df.drop_duplicates(subset=["bling_cliente_id"], keep="first")
+            df = df.drop_duplicates(subset=["bling_cliente_id", "empresa_id"], keep="first")
         else:
             print(f"\n   ✅ Nenhuma duplicata encontrada")
 
@@ -343,7 +350,7 @@ class ContatosTransformer:
         4. UPDATE apenas diferentes
         5. SKIP idênticos
         """
-        print("\n6️⃣ EXPORTANDO PARA PROCESSED.DIM_CONTATOS...")
+        print(f"\n6️⃣ EXPORTANDO PARA PROCESSED.DIM_CONTATOS (empresa_id={self.empresa_id})...")
 
         if len(df) == 0:
             print("⚠️  Nenhum registro para exportar")
@@ -356,21 +363,21 @@ class ContatosTransformer:
             print("🔍 Buscando registros existentes para comparação...")
             inicio_busca = datetime.now()
 
-            query = text(
-                """
+            query = text("""
                 SELECT 
                     cliente_id,
                     bling_cliente_id,
+                    empresa_id,
                     nome,
                     cpf_cnpj,
                     telefone,
                     cidade,
                     cep
                 FROM processed.dim_contatos
-            """
-            )
+                WHERE empresa_id = :empresa_id
+            """)
 
-            df_existentes = pd.read_sql(query, self.engine)
+            df_existentes = pd.read_sql(query, self.engine, params={"empresa_id": self.empresa_id})
             fim_busca = datetime.now()
 
             print(
@@ -381,23 +388,25 @@ class ContatosTransformer:
             print("🔍 Comparando registros...")
             inicio_comparacao = datetime.now()
 
-            existentes_dict = df_existentes.set_index("bling_cliente_id").to_dict(
-                "index"
-            )
+            # Criar dicionário com chave composta
+            existentes_dict = {}
+            for _, row in df_existentes.iterrows():
+                chave = (row['bling_cliente_id'], row['empresa_id'])
+                existentes_dict[chave] = row.to_dict()
 
             registros_novos = []
             registros_atualizar = []
             registros_identicos = 0
 
             for idx, row in df.iterrows():
-                bling_id = row["bling_cliente_id"]
+                chave = (row['bling_cliente_id'], row['empresa_id'])
 
-                if bling_id not in existentes_dict:
+                if chave not in existentes_dict:
                     # NOVO → INSERT
                     registros_novos.append(row)
                 else:
                     # EXISTE → Comparar campos relevantes
-                    existente = existentes_dict[bling_id]
+                    existente = existentes_dict[chave]
 
                     # Função auxiliar para comparar com segurança (None-safe)
                     def comparar_campo(novo, existente):
@@ -468,11 +477,11 @@ class ContatosTransformer:
                 )
 
                 for i, row in enumerate(registros_atualizar):
-                    stmt = text(
-                        """
+                    stmt = text("""
                         UPDATE processed.dim_contatos
                         SET 
                             bling_cliente_id = :bling_cliente_id,
+                            empresa_id = :empresa_id,
                             nome = :nome,
                             cpf_cnpj = :cpf_cnpj,
                             tipo_pessoa = :tipo_pessoa,
@@ -482,14 +491,14 @@ class ContatosTransformer:
                             cep = :cep,
                             data_processamento = :data_processamento
                         WHERE cliente_id = :cliente_id
-                    """
-                    )
+                    """)
 
                     session.execute(
                         stmt,
                         {
                             "cliente_id": int(row["cliente_id"]),
                             "bling_cliente_id": int(row["bling_cliente_id"]),
+                            "empresa_id": int(row["empresa_id"]),
                             "nome": str(row["nome"]) if pd.notna(row["nome"]) else None,
                             "cpf_cnpj": (
                                 str(row["cpf_cnpj"])
@@ -530,11 +539,11 @@ class ContatosTransformer:
                 print(f"\n✨ Nenhum registro novo ou alterado! DW já está atualizado.")
 
             # === VERIFICAR TOTAL ===
-            query = text("SELECT COUNT(*) FROM processed.dim_contatos")
-            total = session.execute(query).scalar()
+            query = text("SELECT COUNT(*) FROM processed.dim_contatos WHERE empresa_id = :empresa_id")
+            total = session.execute(query, {"empresa_id": self.empresa_id}).scalar()
 
             print(f"\n🎉 EXPORTAÇÃO CONCLUÍDA!")
-            print(f"   • Total na tabela: {total}")
+            print(f"   • Total na tabela (empresa {self.empresa_id}): {total}")
             print(
                 f"   • Economia: {registros_identicos} atualizações desnecessárias evitadas!"
             )
@@ -561,15 +570,17 @@ class ContatosTransformer:
         try:
             ids_processados = df["cliente_id"].tolist()
 
-            query = text(
-                """
+            query = text("""
                 UPDATE raw.contatos_raw
                 SET status_processamento = 'processado'
                 WHERE id = ANY(:ids)
-            """
-            )
+                  AND empresa_id = :empresa_id
+            """)
 
-            resultado = session.execute(query, {"ids": ids_processados})
+            resultado = session.execute(query, {
+                "ids": ids_processados,
+                "empresa_id": self.empresa_id
+            })
             session.commit()
 
             print(f"✅ {resultado.rowcount} registros marcados como 'processado'")
