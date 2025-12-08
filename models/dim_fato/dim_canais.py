@@ -11,22 +11,27 @@ from config.database import Base
 class DimCanais(Base):
     __tablename__ = "dim_canais"
     __table_args__ = (
-        UniqueConstraint('bling_canal_id', 'empresa_id', name='uq_dim_canais_bling_empresa'),
+        # Agora garante que bling_canal_id seja único por empresa
+        UniqueConstraint(
+            'bling_canal_id',
+            'empresa_id',
+            name='uq_dim_canais_bling_empresa'
+        ),
         {"schema": "processed"}
     )
-    
+
     # Chave primária
     canal_id = Column(Integer, primary_key=True, autoincrement=True)
-    
-    # Chave de negócio
+
+    # Chave de negócio (referenciada pelo fato)
     bling_canal_id = Column(Integer, nullable=False, index=True)
-    
+
     # Chave da empresa
     empresa_id = Column(Integer, ForeignKey('processed.dim_empresas.empresa_id'), nullable=False, index=True)
-    
+
     # Atributos descritivos
     nome_canal = Column(String(200), nullable=False)
-    
+
     # Metadados
     data_ingestao = Column(DateTime)
     data_processamento = Column(DateTime, default=datetime.now, nullable=False)

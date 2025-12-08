@@ -1,4 +1,6 @@
 # Responsável por: Orquestrar a transformação de canais de raw.canais_raw para processed.dim_canais
+# Obs. Não esta nos mais_pipeline, pois isso muda raramente, uma vez que todos os canais já estão inseridos.
+# Em caso de qualquer alteração (inclução de um novo canal, atualizar o Scrip de extração de canais e esse aqui)
 
 import time
 from datetime import datetime

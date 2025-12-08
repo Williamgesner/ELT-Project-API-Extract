@@ -94,14 +94,12 @@ class CanaisTransformer:
         print("   • Renomeando colunas...")
         df = df.rename(
             columns={
-                "bling_canal_id": "canal_id",
                 "descricao": "nome_canal"
             }
         )
 
-        # Se houver coluna 'tipo', renomear também
-        if "tipo" in df.columns:
-            df = df.rename(columns={"tipo": "tipo_canal"})
+        # === PADRONIZANDO NOMES ===
+        df["nome_canal"] = df["nome_canal"].str.upper()
 
         # === ADICIONAR METADADOS ===
         print("   • Adicionando metadados...")
@@ -120,8 +118,9 @@ class CanaisTransformer:
         """
         print("\n3️⃣ PREPARANDO DADOS PARA EXPORTAÇÃO...")
 
+        # ✅ Colunas que correspondem ao modelo DimCanais
         colunas_finais = [
-            "canal_id",
+            "bling_canal_id", 
             "empresa_id",
             "nome_canal",
             "data_ingestao",
@@ -152,10 +151,10 @@ class CanaisTransformer:
         print(f"      • Com nome: {com_nome} ({com_nome/total*100:.1f}%)")
 
         # Verificar duplicatas
-        duplicatas = df.duplicated(subset=["canal_id", "empresa_id"]).sum()
+        duplicatas = df.duplicated(subset=["bling_canal_id", "empresa_id"]).sum()
         if duplicatas > 0:
             print(f"\n   ⚠️  {duplicatas} registros duplicados encontrados!")
-            df = df.drop_duplicates(subset=["canal_id", "empresa_id"], keep="first")
+            df = df.drop_duplicates(subset=["bling_canal_id", "empresa_id"], keep="first")
         else:
             print(f"\n   ✅ Nenhuma duplicata encontrada")
 
@@ -192,15 +191,17 @@ class CanaisTransformer:
             registros_iguais = 0
 
             for registro in registros:
-                # Buscar registro existente
                 resultado = session.execute(
                     text("""
-                        SELECT canal_id, empresa_id, nome_canal, data_ingestao, data_processamento
+                        SELECT bling_canal_id, empresa_id, nome_canal, data_ingestao, data_processamento
                         FROM processed.dim_canais
-                        WHERE canal_id = :id
+                        WHERE bling_canal_id = :bling_canal_id
                         AND empresa_id = :empresa_id
                     """),
-                    {"id": registro["canal_id"], "empresa_id": self.empresa_id},
+                    {
+                        "bling_canal_id": registro["bling_canal_id"], 
+                        "empresa_id": self.empresa_id
+                    },
                 ).fetchone()
 
                 if resultado is None:
@@ -246,10 +247,10 @@ class CanaisTransformer:
             print(f"   🔄 Processando registros...")
 
             for registro in registros:
-                # INSERIR com on_conflict_do_update
+                # ✅ INSERIR com on_conflict_do_update usando bling_canal_id
                 stmt = insert(DimCanais).values(**registro)
                 stmt = stmt.on_conflict_do_update(
-                    index_elements=['canal_id', 'empresa_id'],
+                    index_elements=['bling_canal_id', 'empresa_id'], 
                     set_={
                         'nome_canal': stmt.excluded.nome_canal,
                         'data_ingestao': stmt.excluded.data_ingestao,

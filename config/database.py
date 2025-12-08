@@ -112,6 +112,7 @@ def create_all_tables():
     from models.dim_fato.dim_contatos import DimContatos
     from models.dim_fato.dim_tempo import DimTempo
     from models.dim_fato.dim_produtos import DimProdutos
+    from models.dim_fato.dim_canais import DimCanais
     from models.dim_fato.dim_categorias_contas_pagar import DimCategoriasContasPagar
     from models.dim_fato.dim_formas_pagamento import DimFormasPagamento
     from models.dim_fato.dim_natureza_operacao import DimNaturezaOperacao
@@ -169,6 +170,7 @@ def create_all_tables():
     print("   • processed.dim_contatos")
     print("   • processed.dim_tempo") 
     print("   • processed.dim_produtos")
+    print("   • processed.dim_canais")
     print("   • processed.dim_categorias_contas_pagar")
     print("   • processed.dim_formas_pagamento")
     print("   • processed.dim_natureza_operacao")
@@ -187,52 +189,23 @@ def create_all_tables():
 
 
 # =====================================================
-# 4. FUNÇÃO AUXILIAR - Verificar estrutura do banco
+# 4. FUNÇÃO PRINCIPAL
 # =====================================================
 
-def verificar_estrutura_banco():
+if __name__ == "__main__":
     """
-    Verifica e exibe a estrutura atual do banco de dados
-    Útil para debug e validação
+    Executa a criação de schemas e tabelas
     """
-    print("\n🔍 VERIFICANDO ESTRUTURA DO BANCO")
-    print("=" * 60)
+    print("\n" + "="*70)
+    print("🗄️ INICIALIZANDO BANCO DE DADOS")
+    print("="*70)
     
-    with engine.connect() as conn:
-        # Verificar schemas
-        print("\n📂 SCHEMAS EXISTENTES:")
-        result = conn.execute(text("""
-            SELECT schema_name 
-            FROM information_schema.schemata 
-            WHERE schema_name IN ('raw', 'processed')
-            ORDER BY schema_name
-        """))
-        
-        schemas = [row[0] for row in result]
-        for schema in schemas:
-            print(f"   ✓ {schema}")
-        
-        if not schemas:
-            print("   ⚠️  Nenhum schema encontrado")
-        
-        # Verificar tabelas por schema
-        for schema in schemas:
-            print(f"\n📋 TABELAS NO SCHEMA '{schema}':")
-            result = conn.execute(text(f"""
-                SELECT table_name, 
-                       pg_size_pretty(pg_total_relation_size(quote_ident(table_schema)||'.'||quote_ident(table_name))) as size
-                FROM information_schema.tables 
-                WHERE table_schema = '{schema}'
-                ORDER BY table_name
-            """))
-            
-            tabelas = result.fetchall()
-            if tabelas:
-                for tabela, tamanho in tabelas:
-                    print(f"   • {tabela} ({tamanho})")
-            else:
-                print(f"   ⚠️  Nenhuma tabela encontrada")
+    # Criar schemas
+    create_all_schemas()
     
-    print("\n" + "=" * 60)
-    print("✅ Verificação concluída!")
-    print("=" * 60 + "\n")
+    # Criar tabelas
+    create_all_tables()
+    
+    print("\n" + "="*70)
+    print("✅ BANCO DE DADOS INICIALIZADO COM SUCESSO!")
+    print("="*70)

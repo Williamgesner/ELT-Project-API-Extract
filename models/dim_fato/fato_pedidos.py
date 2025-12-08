@@ -1,7 +1,7 @@
 # Responsável por: definir a estrutura da tabela fato_pedidos no schema processed
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, BigInteger, Date, Numeric, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, BigInteger, Date, Numeric, DateTime, ForeignKey, UniqueConstraint, ForeignKeyConstraint
 from config.database import Base
 
 # =====================================================
@@ -12,6 +12,11 @@ class FatoPedidos(Base):
     __tablename__ = "fato_pedidos"
     __table_args__ = (
         UniqueConstraint('bling_pedido_id', 'empresa_id', name='uq_fato_pedidos_bling_empresa'),
+        ForeignKeyConstraint(
+            ['bling_canal_id', 'empresa_id'],
+            ['processed.dim_canais.bling_canal_id', 'processed.dim_canais.empresa_id'],
+            name='fk_pedidos_canal'
+        ),
         {"schema": "processed"}
     )
 
@@ -39,10 +44,15 @@ class FatoPedidos(Base):
     
     # FK para dim_tempo (usando data como FK)
     data_pedido = Column(Date, ForeignKey('processed.dim_tempo.data_completa'), nullable=False, index=True)
-    # FK para dim_contatos
+    
     cliente_id = Column(Integer, ForeignKey('processed.dim_contatos.cliente_id'), index=True)
-    # Canal de venda (por enquanto só o ID, depois vira FK)
-    canal_id = Column(Integer, index=True)
+    
+    bling_canal_id = Column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment='Canal de venda - FK composta com empresa_id para dim_canais'
+    )
     
     # ============================
     # MÉTRICAS FINANCEIRAS

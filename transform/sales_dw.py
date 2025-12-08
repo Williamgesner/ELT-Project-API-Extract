@@ -148,8 +148,8 @@ class VendasTransformer:
                 "bling_id": "bling_pedido_id",
                 "total": "valor_total",
                 "data": "data_pedido",
-                "numeroLoja": "numero_pedido_lv", # Numero do pedido Loja Virtual (lv)
-                "loja.id": "canal_id",
+                "numeroLoja": "numero_pedido_lv",
+                "loja.id": "bling_canal_id",  # ✅ ID do Bling (FK para dim_canais)
                 "contato.id": "bling_cliente_id",
                 "transporte.frete": "valor_frete",
             }
@@ -168,6 +168,12 @@ class VendasTransformer:
         if datas_invalidas > 0:
             print(f"   ⚠️  {datas_invalidas} datas inválidas (serão ignoradas)")
 
+        # ✅ Tratar bling_canal_id = 0 → NULL
+        pedidos_sem_canal = (df["bling_canal_id"] == 0).sum()
+        if pedidos_sem_canal > 0:
+            print(f"   🔧 {pedidos_sem_canal} pedidos com canal=0 convertidos para NULL")
+        df.loc[df["bling_canal_id"] == 0, "bling_canal_id"] = None
+
         # === EXTRAIR MÉTRICAS DE ITENS ===
         print("   • Extraindo métricas de itens...")
 
@@ -175,8 +181,8 @@ class VendasTransformer:
             if itens_json is None or not isinstance(itens_json, list):
                 return {"qtd_itens": 0, "qtd_produtos": 0}
 
-            qtd_itens = len(itens_json)
-            qtd_produtos = sum(item.get("quantidade", 0) for item in itens_json)
+            qtd_itens = len(itens_json)  # # ← quantidade_itens_total (Capacete + pneu = 2 itens)
+            qtd_produtos = sum(item.get("quantidade", 0) for item in itens_json) # # ← quantidade_produtos_total (2 Capacete + 2 pneus = 4 produtos)
 
             return {"qtd_itens": qtd_itens, "qtd_produtos": qtd_produtos}
 
@@ -196,7 +202,7 @@ class VendasTransformer:
         # === MAPEAR SITUAÇÕES ===
         print("   • Mapeando situações (ID → nome)...")
         try:
-            mapa_situacoes = obter_mapeamento_situacoes()
+            mapa_situacoes = obter_mapeamento_situacoes(self.empresa_id)
             if mapa_situacoes:
                 df["situacao.id"] = df["situacao.id"].map(mapa_situacoes)
                 print(f"   ✅ Situações mapeadas")
@@ -280,7 +286,7 @@ class VendasTransformer:
             "numero_pedido_bling",
             "data_pedido",
             "cliente_id",
-            "canal_id",
+            "bling_canal_id", 
             "valor_total",
             "valor_frete",
             "quantidade_itens_total",
@@ -317,12 +323,14 @@ class VendasTransformer:
         # Validações
         com_numero = df["numero_pedido_bling"].notna().sum()
         com_cliente = df["cliente_id"].notna().sum()
+        com_canal = df["bling_canal_id"].notna().sum()
         com_situacao = df["situacao"].notna().sum()
 
         print(f"\n   📊 ESTATÍSTICAS DE QUALIDADE:")
         print(f"      • Total após filtros: {len(df)}")
         print(f"      • Com número pedido: {com_numero} ({com_numero/len(df)*100:.1f}%)")
         print(f"      • Com cliente: {com_cliente} ({com_cliente/len(df)*100:.1f}%)")
+        print(f"      • Com canal: {com_canal} ({com_canal/len(df)*100:.1f}%)")
         print(f"      • Com situação: {com_situacao} ({com_situacao/len(df)*100:.1f}%)")
 
         # Verificar duplicatas
@@ -457,7 +465,7 @@ class VendasTransformer:
                             numero_pedido_bling = :numero_pedido_bling,
                             data_pedido = :data_pedido,
                             cliente_id = :cliente_id,
-                            canal_id = :canal_id,
+                            bling_canal_id = :bling_canal_id,
                             valor_total = :valor_total,
                             valor_frete = :valor_frete,
                             quantidade_itens_total = :quantidade_itens_total,
@@ -475,7 +483,7 @@ class VendasTransformer:
                         'numero_pedido_bling': str(row['numero_pedido_bling']) if pd.notna(row['numero_pedido_bling']) else None,
                         'data_pedido': row['data_pedido'].date() if pd.notna(row['data_pedido']) else None,
                         'cliente_id': int(row['cliente_id']) if pd.notna(row['cliente_id']) else None,
-                        'canal_id': int(row['canal_id']) if pd.notna(row['canal_id']) else None,
+                        'bling_canal_id': int(row['bling_canal_id']) if pd.notna(row['bling_canal_id']) else None,
                         'valor_total': float(row['valor_total']),
                         'valor_frete': float(row['valor_frete']) if pd.notna(row['valor_frete']) else 0,
                         'quantidade_itens_total': int(row['quantidade_itens_total']),

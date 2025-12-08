@@ -2,14 +2,15 @@
 SCRIPT DE CRIAÇÃO E CARGA DA TABELA DIM_EMPRESAS
 ================================================================================
 Responsável por: criar a tabela dim_empresas e popular com os dados do CSV
-Este script deve ser executado UMA ÚNICA VEZ no início do projeto multi-CNPJ
+VERSÃO CORRIGIDA: Insere apenas empresas que NÃO existem no banco
 
 Fluxo:
 1. Importar o modelo DimEmpresas
 2. Criar a tabela no banco (se não existir)
 3. Ler o arquivo empresas.csv
-4. Inserir os dados na tabela
-5. Validar os dados inseridos
+4. Verificar quais empresas já existem
+5. Inserir APENAS as empresas novas
+6. Validar os dados inseridos
 
 """
 
@@ -47,10 +48,13 @@ def criar_tabela_empresas():
 def importar_empresas_do_csv():
     """
     Lê o arquivo empresas.csv e insere os dados no banco
+    Insere apenas empresas que ainda não existem
     """
     print("\n" + "="*70)
     print("📂 IMPORTANDO DADOS DO CSV")
     print("="*70)
+    
+    session = Session()
     
     try:
         # Ler CSV
@@ -58,7 +62,7 @@ def importar_empresas_do_csv():
         df = pd.read_csv('empresas.csv')
         
         print(f"✅ Arquivo lido com sucesso!")
-        print(f"   • Total de empresas: {len(df)}")
+        print(f"   • Total de empresas no CSV: {len(df)}")
         
         # Validar estrutura
         colunas_esperadas = ['empresa_id', 'cnpj', 'razao_social']
@@ -69,31 +73,47 @@ def importar_empresas_do_csv():
         
         print("✅ Estrutura do CSV validada!")
         
-        # Exibir preview
-        print("\n📊 PREVIEW DOS DADOS:")
+        # Buscar empresas que já existem no banco
+        print("\n2️⃣ Verificando empresas existentes no banco...")
+        empresas_existentes = session.query(DimEmpresas.empresa_id).all()
+        ids_existentes = [emp.empresa_id for emp in empresas_existentes]
+        
+        print(f"   • Empresas já cadastradas: {len(ids_existentes)}")
+        if ids_existentes:
+            print(f"   • IDs existentes: {sorted(ids_existentes)}")
+        
+        # Filtrar apenas empresas novas
+        df_novas = df[~df['empresa_id'].isin(ids_existentes)].copy()
+        
+        if len(df_novas) == 0:
+            print("\n⚠️  Nenhuma empresa nova para inserir!")
+            print("   Todas as empresas do CSV já estão cadastradas.")
+            return 0
+        
+        print(f"\n📊 EMPRESAS NOVAS PARA INSERIR:")
         print("-"*70)
-        for _, row in df.iterrows():
+        for _, row in df_novas.iterrows():
             print(f"   • ID {row['empresa_id']}: {row['cnpj']} - {row['razao_social']}")
         print("-"*70)
         
         # Adicionar metadados
-        df['data_ingestao'] = datetime.now()
-        df['data_processamento'] = datetime.now()
+        df_novas['data_ingestao'] = datetime.now()
+        df_novas['data_processamento'] = datetime.now()
         
-        # Inserir no banco
-        print("\n2️⃣ Inserindo dados no banco...")
+        # Inserir apenas as novas
+        print(f"\n3️⃣ Inserindo {len(df_novas)} empresa(s) nova(s)...")
         
-        df.to_sql(
+        df_novas.to_sql(
             name='dim_empresas',
             con=engine,
             schema='processed',
-            if_exists='append',  # append para não recriar a tabela
+            if_exists='append',
             index=False
         )
         
-        print(f"✅ {len(df)} empresas inseridas com sucesso!")
+        print(f"✅ {len(df_novas)} empresa(s) inserida(s) com sucesso!")
         
-        return len(df)
+        return len(df_novas)
         
     except FileNotFoundError:
         print("\n❌ ERRO: Arquivo 'empresas.csv' não encontrado!")
@@ -103,6 +123,8 @@ def importar_empresas_do_csv():
     except Exception as e:
         print(f"\n❌ ERRO ao importar dados: {e}")
         raise
+    finally:
+        session.close()
 
 # =====================================================
 # 3. VALIDAR DADOS INSERIDOS
@@ -179,7 +201,8 @@ def executar_criacao_dim_empresas():
     print("Este script irá:")
     print("   1. Criar a tabela dim_empresas")
     print("   2. Importar dados do arquivo empresas.csv")
-    print("   3. Validar os dados inseridos")
+    print("   3. Inserir APENAS empresas que não existem")
+    print("   4. Validar os dados inseridos")
     print("="*70)
     
     try:
@@ -197,8 +220,8 @@ def executar_criacao_dim_empresas():
         print("🎉 PROCESSO CONCLUÍDO COM SUCESSO!")
         print("="*70)
         print(f"\n📊 RESUMO:")
-        print(f"   • Empresas importadas: {total_importado}")
-        print(f"   • Empresas na tabela: {total_validado}")
+        print(f"   • Empresas novas inseridas: {total_importado}")
+        print(f"   • Total de empresas no banco: {total_validado}")
         print("="*70 + "\n")
         
     except Exception as e:
