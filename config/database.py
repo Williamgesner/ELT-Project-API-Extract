@@ -116,12 +116,14 @@ def create_all_tables():
     from models.dim_fato.dim_categorias_contas_pagar import DimCategoriasContasPagar
     from models.dim_fato.dim_formas_pagamento import DimFormasPagamento
     from models.dim_fato.dim_natureza_operacao import DimNaturezaOperacao
+    from models.dim_fato.dim_situacao import DimSituacao
 
     
     print("   ✓ DimEmpresas")
     print("   ✓ DimContatos")
     print("   ✓ DimTempo")
     print("   ✓ DimProdutos")
+    print("   ✓ DimSituacao")
     print("   ✓ DimCanais")
     print("   ✓ DimCategoriasContasPagar")
     print("   ✓ DimFormasPagamento")
@@ -171,6 +173,7 @@ def create_all_tables():
     print("   • processed.dim_tempo") 
     print("   • processed.dim_produtos")
     print("   • processed.dim_canais")
+    print("   • processed.dim_situacao") 
     print("   • processed.dim_categorias_contas_pagar")
     print("   • processed.dim_formas_pagamento")
     print("   • processed.dim_natureza_operacao")

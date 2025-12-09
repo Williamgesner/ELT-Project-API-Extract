@@ -11,7 +11,7 @@ from datetime import datetime
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 from config.database import Session, engine
-from extract.situation import obter_mapeamento_situacoes
+# ✅ REMOVIDO: from extract.situation import obter_mapeamento_situacoes
 
 # =====================================================
 # 1. CLASSE TRANSFORMADORA
@@ -152,6 +152,7 @@ class VendasTransformer:
                 "loja.id": "bling_canal_id",  # ✅ ID do Bling (FK para dim_canais)
                 "contato.id": "bling_cliente_id",
                 "transporte.frete": "valor_frete",
+                "situacao.id": "situacao", 
             }
         )
 
@@ -199,19 +200,15 @@ class VendasTransformer:
             df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True).infer_objects(copy=False)
             df[coluna] = df[coluna].replace(["", " "], np.nan)
 
-        # === MAPEAR SITUAÇÕES ===
-        print("   • Mapeando situações (ID → nome)...")
-        try:
-            mapa_situacoes = obter_mapeamento_situacoes(self.empresa_id)
-            if mapa_situacoes:
-                df["situacao.id"] = df["situacao.id"].map(mapa_situacoes)
-                print(f"   ✅ Situações mapeadas")
-            else:
-                print("   ⚠️  Nenhuma situação encontrada. Execute: python main_situacoes.py")
-        except Exception as e:
-            print(f"   ⚠️  Erro ao mapear situações: {e}")
-
-        df = df.rename(columns={"situacao.id": "situacao"})
+        print("   • Convertendo situacao para Integer...")
+        # Tratar situacao = 0 → NULL
+        pedidos_sem_situacao = (df["situacao"] == 0).sum()
+        if pedidos_sem_situacao > 0:
+            print(f"   🔧 {pedidos_sem_situacao} pedidos com situacao=0 convertidos para NULL")
+        df.loc[df["situacao"] == 0, "situacao"] = None
+        
+        # Garantir que situacao é Integer
+        df["situacao"] = pd.to_numeric(df["situacao"], errors="coerce").astype("Int64")
 
         # === BUSCAR CLIENTE_ID ===
         print("   • Buscando cliente_id na dim_contatos...")
@@ -411,9 +408,8 @@ class VendasTransformer:
                     # EXISTE → Comparar campos relevantes
                     existente = existentes_dict[chave]
                     
-                    # Comparar valores (arredondar floats)
                     valor_mudou = round(float(row['valor_total']), 2) != round(float(existente['valor_total']), 2)
-                    situacao_mudou = str(row['situacao']) != str(existente['situacao'])
+                    situacao_mudou = (int(row['situacao']) if pd.notna(row['situacao']) else None) != existente['situacao']
                     qtd_mudou = (
                         int(row['quantidade_itens_total']) != int(existente['quantidade_itens_total']) or
                         int(row['quantidade_produtos_total']) != int(existente['quantidade_produtos_total'])
@@ -488,7 +484,7 @@ class VendasTransformer:
                         'valor_frete': float(row['valor_frete']) if pd.notna(row['valor_frete']) else 0,
                         'quantidade_itens_total': int(row['quantidade_itens_total']),
                         'quantidade_produtos_total': int(row['quantidade_produtos_total']),
-                        'situacao': str(row['situacao']) if pd.notna(row['situacao']) else None,
+                        'situacao': int(row['situacao']) if pd.notna(row['situacao']) else None,  
                         'data_processamento': row['data_processamento']
                     })
                     

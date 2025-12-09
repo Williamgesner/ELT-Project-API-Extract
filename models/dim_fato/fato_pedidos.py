@@ -17,6 +17,11 @@ class FatoPedidos(Base):
             ['processed.dim_canais.bling_canal_id', 'processed.dim_canais.empresa_id'],
             name='fk_pedidos_canal'
         ),
+        ForeignKeyConstraint(
+            ['situacao', 'empresa_id'],
+            ['processed.dim_situacao.bling_situacao_id', 'processed.dim_situacao.empresa_id'],
+            name='fk_pedidos_situacao'
+        ),
         {"schema": "processed"}
     )
 
@@ -74,8 +79,7 @@ class FatoPedidos(Base):
     # ATRIBUTOS DESCRITIVOS
     # ============================
     
-    # Situação do pedido (texto: "Verificado", "Em aberto", etc.)
-    situacao = Column(String(50), index=True)
+    situacao = Column(Integer, nullable=True, index=True, comment='Código da situação (FK composta com empresa_id para dim_situacao)')
     
     # ============================
     # METADADOS
