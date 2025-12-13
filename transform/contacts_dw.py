@@ -180,6 +180,29 @@ class ContatosTransformer:
         print("   • Padronizando telefone...")
         df["telefone"] = df["telefone"].apply(self._padronizar_telefone)
 
+        # === PADRONIZAR ESTADOS === 
+        print("   • Padronizando estado...")
+
+        # Lista de estados válidos do Brasil
+        estados_validos = [
+            'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 
+            'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 
+            'RS', 'RO', 'RR', 'SC', 'SP', 'TO'
+        ]
+
+        # Converter para maiúsculo primeiro
+        df["estado"] = df["estado"].str.upper()
+
+        # Identificar estados inválidos antes de limpar
+        estados_invalidos = df[df["estado"].notna() & ~df["estado"].isin(estados_validos)]["estado"].unique()
+        qtd_invalidos = len(df[df["estado"].notna() & ~df["estado"].isin(estados_validos)])
+
+        # Se houver estados inválidos, mostrar e limpar
+        if len(estados_invalidos) > 0:
+            print(f"      ⚠️  {qtd_invalidos} registros foram encontrados como não estado: {', '.join(estados_invalidos)}")
+            # Transformar estados inválidos em NaN
+            df.loc[~df["estado"].isin(estados_validos), "estado"] = np.nan
+
         # === ADICIONAR METADADOS ===
         print("   • Adicionando metadados de processamento...")
         df["data_processamento"] = datetime.now()
