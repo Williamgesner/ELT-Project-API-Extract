@@ -11,7 +11,6 @@ from datetime import datetime
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 from config.database import Session, engine
-# ✅ REMOVIDO: from extract.situation import obter_mapeamento_situacoes
 
 # =====================================================
 # 1. CLASSE TRANSFORMADORA
@@ -175,6 +174,18 @@ class VendasTransformer:
             print(f"   🔧 {pedidos_sem_canal} pedidos com canal=0 convertidos para NULL")
         df.loc[df["bling_canal_id"] == 0, "bling_canal_id"] = None
 
+        # 🆕 NOVO: Mapear NULL → OUTROS
+        pedidos_null = df["bling_canal_id"].isna().sum()
+        if pedidos_null > 0:
+            print(f"   🔧 {pedidos_null} pedidos SEM canal → mapeando para 'OUTROS'")
+            canal_outros_id = self._garantir_canal_outros()
+            
+            if canal_outros_id:
+                df.loc[df["bling_canal_id"].isna(), "bling_canal_id"] = canal_outros_id
+                print(f"   ✅ Pedidos mapeados para canal OUTROS (ID: {canal_outros_id})")
+            else:
+                print(f"   ⚠️ Não foi possível mapear para OUTROS - registros ficarão NULL")
+
         # === EXTRAIR MÉTRICAS DE ITENS ===
         print("   • Extraindo métricas de itens...")
 
@@ -222,7 +233,63 @@ class VendasTransformer:
         return df
 
     # =====================================================
-    # 5. MAPEAR CLIENTE_ID
+    # 5. GARANTIR CANAL "OUTROS"
+    # =====================================================
+
+    def _garantir_canal_outros(self):
+        """
+        Garante que existe um registro 'OUTROS' na dim_canais
+        CADA EMPRESA tem seu próprio canal OUTROS com ID único
+        
+        Empresa 1 = -1000001
+        Empresa 2 = -1000002
+        Empresa 3 = -1000003
+        """
+        session = Session()
+        
+        try:
+            # Verificar se já existe
+            query = text("""
+                SELECT bling_canal_id 
+                FROM processed.dim_canais 
+                WHERE nome_canal = 'OUTROS' 
+                  AND empresa_id = :empresa_id
+            """)
+            
+            resultado = session.execute(query, {"empresa_id": self.empresa_id}).fetchone()
+            
+            if resultado:
+                return resultado[0]
+            else:
+                # 🆕 ID ÚNICO baseado na empresa
+                canal_outros_id = -(1000000 + self.empresa_id)
+                
+                query_insert = text("""
+                    INSERT INTO processed.dim_canais 
+                    (bling_canal_id, empresa_id, nome_canal, data_ingestao, data_processamento)
+                    VALUES 
+                    (:bling_canal_id, :empresa_id, 'OUTROS', NOW(), NOW())
+                    ON CONFLICT (bling_canal_id, empresa_id) DO NOTHING
+                    RETURNING bling_canal_id
+                """)
+                
+                resultado = session.execute(query_insert, {
+                    "bling_canal_id": canal_outros_id,
+                    "empresa_id": self.empresa_id
+                })
+                session.commit()
+                
+                return canal_outros_id
+            
+        except Exception as e:
+            session.rollback()
+            print(f"   ⚠️ Erro ao garantir canal OUTROS: {e}")
+            return None
+        finally:
+            session.close()
+
+    # =====================================================
+    # 6. MAPEAR CLIENTE_ID
     # =====================================================
 
     def _mapear_cliente_id(self, df):
@@ -266,7 +333,7 @@ class VendasTransformer:
         return df
 
     # =====================================================
-    # 6. PREPARAR PARA EXPORTAÇÃO
+    # 7. PREPARAR PARA EXPORTAÇÃO
     # =====================================================
 
     def preparar_para_exportacao(self, df):
@@ -299,7 +366,7 @@ class VendasTransformer:
         return df
 
     # =====================================================
-    # 7. VALIDAR DADOS
+    # 8. VALIDAR DADOS
     # =====================================================
 
     def validar_dados(self, df):
@@ -341,7 +408,7 @@ class VendasTransformer:
         return df
 
     # =====================================================
-    # 8. EXPORTAR COM COMPARAÇÃO INTELIGENTE
+    # 9. EXPORTAR COM COMPARAÇÃO INTELIGENTE
     # =====================================================
 
     def exportar_para_processed(self, df):
@@ -516,7 +583,7 @@ class VendasTransformer:
             session.close()
 
     # =====================================================
-    # 9. ATUALIZAR STATUS RAW
+    # 10. ATUALIZAR STATUS RAW
     # =====================================================
 
     def atualizar_status_raw(self, df):
@@ -552,7 +619,7 @@ class VendasTransformer:
             session.close()
 
     # =====================================================
-    # 10. EXECUTAR TRANSFORMAÇÃO COMPLETA
+    # 11. EXECUTAR TRANSFORMAÇÃO COMPLETA
     # =====================================================
 
     def executar_transformacao_completa(self):

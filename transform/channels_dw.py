@@ -286,7 +286,63 @@ class CanaisTransformer:
             session.close()
 
     # =====================================================
-    # 7. EXECUTAR TRANSFORMAÇÃO COMPLETA
+    # 7. GARANTIR CANAL "OUTROS"
+    # =====================================================
+
+    def _garantir_canal_outros(self):
+        """
+        Garante que existe um canal 'OUTROS' para esta empresa
+        Usado para pedidos sem canal definido (vendas manuais, terceiros, etc)
+        
+        Empresa 1 = -1000001
+        Empresa 2 = -1000002
+        Empresa 3 = -1000003
+        """
+        print("\n6️⃣ GARANTINDO CANAL 'OUTROS'...")
+        
+        session = Session()
+        
+        try:
+            # Verificar se já existe
+            query = text("""
+                SELECT bling_canal_id 
+                FROM processed.dim_canais 
+                WHERE nome_canal = 'OUTROS' 
+                  AND empresa_id = :empresa_id
+            """)
+            
+            resultado = session.execute(query, {"empresa_id": self.empresa_id}).fetchone()
+            
+            if resultado:
+                print(f"   ✅ Canal 'OUTROS' já existe (ID: {resultado[0]})")
+            else:
+                # Criar novo registro com ID único por empresa
+                canal_outros_id = -(1000000 + self.empresa_id) # Criei negativo propositalmente, para garantir que cada empresa tenha seu próprio OUTROS sem conflitar com IDs reais do Bling
+                
+                query_insert = text("""
+                    INSERT INTO processed.dim_canais 
+                    (bling_canal_id, empresa_id, nome_canal, data_ingestao, data_processamento)
+                    VALUES 
+                    (:bling_canal_id, :empresa_id, 'OUTROS', NOW(), NOW())
+                    ON CONFLICT (bling_canal_id, empresa_id) DO NOTHING
+                """)
+                
+                session.execute(query_insert, {
+                    "bling_canal_id": canal_outros_id,
+                    "empresa_id": self.empresa_id
+                })
+                session.commit()
+                
+                print(f"   ✅ Canal 'OUTROS' criado com sucesso (ID: {canal_outros_id})")
+            
+        except Exception as e:
+            session.rollback()
+            print(f"   ⚠️ Erro ao garantir canal OUTROS: {e}")
+        finally:
+            session.close()
+
+    # =====================================================
+    # 8. EXECUTAR TRANSFORMAÇÃO COMPLETA
     # =====================================================
 
     def executar_transformacao_completa(self):
@@ -299,6 +355,8 @@ class CanaisTransformer:
 
             if len(df_raw) == 0:
                 print(f"\n⚠️  Nenhum canal encontrado em raw.canais_raw para empresa_id = {self.empresa_id}")
+                # Mesmo sem canais do Bling, garante que existe canal OUTROS
+                self._garantir_canal_outros()
                 return
 
             # 2. Aplicar transformações
@@ -313,6 +371,9 @@ class CanaisTransformer:
             # 5. Exportar
             total_exportado = self.exportar_para_processed(df)
 
+            # 6. Garantir canal OUTROS
+            self._garantir_canal_outros()
+
             # Relatório final
             print(f"\n{'='*70}")
             print(f"🎉 TRANSFORMAÇÃO CONCLUÍDA!")
@@ -320,6 +381,7 @@ class CanaisTransformer:
             print(f"\n   📊 RESUMO:")
             print(f"      • Registros processados: {len(df)}")
             print(f"      • Registros exportados: {total_exportado}")
+            print(f"      • Canal 'OUTROS' garantido ✅")
 
         except Exception as e:
             print(f"\n❌ ERRO na transformação: {e}")
