@@ -56,6 +56,12 @@ class ContasPagarTransformer:
     def extrair_dados_raw(self):
         """
         Extrai dados da tabela raw.contas_pagar_raw
+        
+        CORREÇÃO: Além de buscar pendentes, também busca registros já processados 
+        com situacao.id = 1 (Em aberto) para reavaliar diariamente.
+        
+        MOTIVO: A API Bling mantém situacao=1 mesmo para contas atrasadas.
+        Precisamos reavaliar baseado na data_vencimento vs data atual.
         """
         print("\n1️⃣ EXTRAINDO DADOS DE RAW.CONTAS_PAGAR_RAW...")
 
@@ -67,8 +73,15 @@ class ContasPagarTransformer:
                 dados_json,
                 data_ingestao
             FROM raw.contas_pagar_raw
-            WHERE status_processamento = 'pendente'
-            AND empresa_id = :empresa_id
+            WHERE empresa_id = :empresa_id
+            AND (
+                status_processamento = 'pendente'
+                OR
+                (
+                    status_processamento = 'processado'
+                    AND (dados_json->>'situacao')::int = 1
+                )
+            )
             ORDER BY bling_id
         """)
 
