@@ -55,6 +55,96 @@ class CanaisTransformer:
         return df_raw
 
     # =====================================================
+    # 2.1 REGRAS DE CANAIS VÁLIDOS POR EMPRESA
+    # =====================================================
+
+    def _obter_canais_validos_por_empresa(self):
+        """
+        Define quais canais são válidos (reais) para cada empresa.
+        Canais fora dessa lista são marcados como REPLICADO.
+        
+        MANUTENÇÃO: Adicione ou remova canais aqui conforme necessário
+        """
+        regras_canais = {
+            1: [  # EMPRESA 1 - INGA
+                "MAGALU INGA",
+                "INGABIKE",
+                "SITE",
+                "MERCADO LIVRE INGA",
+                "AMAZON INGÁ BIKE",
+                "TIKTOK INGA",
+                "SHOPEE INGA",
+                "FBA AMAZON",
+                "OUTROS"
+            ],
+            2: [  # EMPRESA 2 - G2
+                "SHOPEE G2",
+                "MAGAZINE LUIZA G2",
+                "OUTROS"
+            ],
+
+            3: [  # EMPRESA 3 - G3
+                "AMAZON G3",
+                "SHOPEE G3",
+                "OUTROS"
+            ],
+
+            4: [  # EMPRESA 4 - G4
+                "AMAZON - SAMUEL",
+                "AMAZON FBA ONSITE G4",
+                "AMAZON G4",
+                "MERCADO LIVRE - SAMUEL",
+                "MERCADO LIVRE G4",
+                "MERCADO LIVRE SFARIAS",
+                "SHOPEE - SAMUEL",
+                "SHOPEE - SAMUEL2",
+                "SHOPEE G4",
+                "SHOPEE S. FARIAS",
+                "VIA VAREJO",
+                "OUTROS"
+            ],
+
+            5: [  # EMPRESA 5 - G5
+                "MAGALU G5",
+                "SHOPEE G5",
+                "NETSHOES G5",
+                "MERCADO LIVRE G5",
+                "OUTROS"
+            ],
+
+            6: [  # EMPRESA 6 - DIAS
+                "MAGALU KOG",
+                "VIA VAREJO KOG",
+                "NETSHOES KOG",
+                "OUTROS"
+            ],
+        }
+        
+        return regras_canais.get(self.empresa_id, None)
+
+    # =====================================================
+    # 2.2 CLASSIFICAR CANAL COMO REAL OU REPLICADO
+    # =====================================================
+
+    def _classificar_canal(self, nome_canal):
+        """
+        Classifica um canal como REAL ou REPLICADO
+        baseado nas regras da empresa
+        """
+        canais_validos = self._obter_canais_validos_por_empresa()
+        
+        # Se não há regra específica para esta empresa,
+        # considera todos os canais como REAL
+        if canais_validos is None:
+            return "REAL"
+        
+        # Verifica se o canal está na lista de válidos
+        if nome_canal in canais_validos:
+            return "REAL"
+        else:
+            return "REPLICADO"
+
+    # =====================================================
     # 3. EXPANDIR JSON E APLICAR TRANSFORMAÇÕES
     # =====================================================
 
@@ -101,6 +191,15 @@ class CanaisTransformer:
         # === PADRONIZANDO NOMES ===
         df["nome_canal"] = df["nome_canal"].str.upper()
 
+        # === CLASSIFICAR CANAIS ===
+        print("   • Classificando canais como REAL ou REPLICADO...")
+        df["canal_valido"] = df["nome_canal"].apply(self._classificar_canal)
+        
+        canais_reais = (df["canal_valido"] == "REAL").sum()
+        canais_replicados = (df["canal_valido"] == "REPLICADO").sum()
+        print(f"      ✅ {canais_reais} canais REAIS")
+        print(f"      ⚠️  {canais_replicados} canais REPLICADOS")
+
         # === ADICIONAR METADADOS ===
         print("   • Adicionando metadados...")
         df["data_processamento"] = datetime.now()
@@ -123,6 +222,7 @@ class CanaisTransformer:
             "bling_canal_id", 
             "empresa_id",
             "nome_canal",
+            "canal_valido",  # ADICIONADO
             "data_ingestao",
             "data_processamento",
         ]
@@ -193,7 +293,7 @@ class CanaisTransformer:
             for registro in registros:
                 resultado = session.execute(
                     text("""
-                        SELECT bling_canal_id, empresa_id, nome_canal, data_ingestao, data_processamento
+                        SELECT bling_canal_id, empresa_id, nome_canal, canal_valido, data_ingestao, data_processamento
                         FROM processed.dim_canais
                         WHERE bling_canal_id = :bling_canal_id
                         AND empresa_id = :empresa_id
@@ -208,7 +308,7 @@ class CanaisTransformer:
                     registros_novos += 1
                 else:
                     # Comparar se mudou algo
-                    campos_comparar = ["nome_canal", "data_ingestao"]
+                    campos_comparar = ["nome_canal", "canal_valido", "data_ingestao"]  
 
                     mudou = False
                     for campo in campos_comparar:
@@ -253,6 +353,7 @@ class CanaisTransformer:
                     index_elements=['bling_canal_id', 'empresa_id'], 
                     set_={
                         'nome_canal': stmt.excluded.nome_canal,
+                        'canal_valido': stmt.excluded.canal_valido, 
                         'data_ingestao': stmt.excluded.data_ingestao,
                         'data_processamento': stmt.excluded.data_processamento
                     }
@@ -321,9 +422,9 @@ class CanaisTransformer:
                 
                 query_insert = text("""
                     INSERT INTO processed.dim_canais 
-                    (bling_canal_id, empresa_id, nome_canal, data_ingestao, data_processamento)
+                    (bling_canal_id, empresa_id, nome_canal, canal_valido, data_ingestao, data_processamento)
                     VALUES 
-                    (:bling_canal_id, :empresa_id, 'OUTROS', NOW(), NOW())
+                    (:bling_canal_id, :empresa_id, 'OUTROS', 'REAL', NOW(), NOW())
                     ON CONFLICT (bling_canal_id, empresa_id) DO NOTHING
                 """)
                 

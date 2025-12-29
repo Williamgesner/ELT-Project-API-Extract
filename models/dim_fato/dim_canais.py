@@ -31,6 +31,7 @@ class DimCanais(Base):
 
     # Atributos descritivos
     nome_canal = Column(String(200), nullable=False)
+    canal_valido = Column(String(20), nullable=False, default='REAL')
 
     # Metadados
     data_ingestao = Column(DateTime)

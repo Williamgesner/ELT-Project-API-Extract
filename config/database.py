@@ -165,7 +165,7 @@ def create_all_tables():
     print("   ✓ raw.formas_pagamentos_raw")
     print("   ✓ raw.contas_receber_raw")
     print("   ✓ raw.nfe_raw")
-    print("   ✓ NaturezaOperacaoRaw")
+    print("   ✓ raw.natureza_operacao_raw")
     
     print("\nTabelas PROCESSED que serão criadas:")
     print("   • processed.dim_empresas")
