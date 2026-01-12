@@ -491,7 +491,7 @@ class NFeTransformer:
             
             # Colunas para comparação (EXCLUINDO metadados que sempre mudam!)
             colunas_comparacao = [col for col in df_novo.columns 
-                                 if col not in ['data_processamento', 'nfe_id']]
+                                 if col not in ['data_processamento','data_ingestao', 'nfe_id']]
             
             # Criar dicionário: bling_nfe_id -> registro completo
             registros_existentes = {}

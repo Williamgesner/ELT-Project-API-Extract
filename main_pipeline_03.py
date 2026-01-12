@@ -14,6 +14,11 @@ VERSÃO MULTI-CNPJ: empresa_id=3
 Este script mantém o DW sincronizado com a Bling
 Inclui: Parte COMERCIAL + Parte FINANCEIRA
 Executar a cada 2 horas (Solicitação do cliente)
+
+🛡️ PROTEÇÃO IMPLEMENTADA:
+   • Se extração falhar → transformação NÃO roda
+   • Evita deleção de dados se API Key expirar
+   • Garante integridade dos dados
 """
 
 import os
@@ -381,13 +386,18 @@ def executar_transformacao_completa():
     return resultados_transformacao
 
 # =====================================================
-# 3. PIPELINE COMPLETO
+# 3. PIPELINE COMPLETO - COM PROTEÇÃO CONTRA FALHAS
 # =====================================================
 
 def executar_pipeline_completo():
     """
     Executa o pipeline completo: Extração + Transformação
     VERSÃO MULTI-CNPJ para EMPRESA 3
+
+    🛡️ PROTEÇÃO IMPLEMENTADA:
+       • Verifica se extração foi bem-sucedida
+       • Se houver erros críticos, ABORTA transformação
+       • Evita perda de dados por API Key expirada ou erros de conexão
     """
     print("\n" + "=" * 70)
     print("🔄 PIPELINE COMPLETO: EMPRESA 3")
@@ -395,18 +405,68 @@ def executar_pipeline_completo():
     print(f"📌 Empresa ID: {EMPRESA_ID}")
     print("📊 PARTE COMERCIAL: Contatos, Produtos, Vendas, Itens")
     print("💰 PARTE FINANCEIRA: Contas a Pagar, Receber, NFe")
+    print("🛡️ PROTEÇÃO: Aborta transformação se extração falhar")
     print("Executar a cada 2 horas")
     print("=" * 70)
     
     inicio_pipeline = datetime.now()
-    
-    # FASE 1: Extração
+
+    # =====================================================
+    # FASE 1: EXTRAÇÃO
+    # =====================================================
+
     resultados_extracao = executar_extracao_completa()
     
-    # FASE 2: Transformação
+    # =====================================================
+    # 🛡️ PROTEÇÃO CRÍTICA - VERIFICAR SE EXTRAÇÃO FOI BEM-SUCEDIDA
+    # =====================================================
+    erros_criticos = sum(1 for r in resultados_extracao if r['status'] == 'ERROR')
+    
+    if erros_criticos > 0:
+        print(f"\n{'='*70}")
+        print(f"🚨 ATENÇÃO: {erros_criticos} EXTRAÇÃO(ÕES) FALHARAM!")
+        print(f"{'='*70}")
+        print(f"🛡️ ABORTANDO TRANSFORMAÇÃO para evitar perda de dados")
+        print(f"\n📋 ERROS DETECTADOS:")
+        
+        for resultado in resultados_extracao:
+            if resultado['status'] == 'ERROR':
+                print(f"   ❌ {resultado['endpoint']}")
+                print(f"      └── {resultado.get('erro', 'Erro desconhecido')}")
+        
+        print(f"\n🔧 AÇÕES NECESSÁRIAS:")
+        print(f"   1. Verifique se a API Key está válida (não expirou)")
+        print(f"   2. Verifique a conexão com a API do Bling")
+        print(f"   3. Corrija os erros listados acima")
+        print(f"   4. Execute o pipeline novamente")
+        
+        print(f"\n💾 DADOS PRESERVADOS:")
+        print(f"   • Nenhum dado foi deletado da PROCESSED")
+        print(f"   • O DW permanece com os dados anteriores")
+        print(f"   • Sistema protegeu contra perda de dados")
+        
+        print(f"\n{'='*70}")
+        print(f"⚠️ PIPELINE INTERROMPIDO COM SEGURANÇA")
+        print(f"{'='*70}")
+        
+        # Retornar sem executar transformação
+        return
+    
+    # =====================================================
+    # FASE 2: TRANSFORMAÇÃO (SÓ RODA SE EXTRAÇÃO OK)
+    # =====================================================
+    
+    print(f"\n{'='*70}")
+    print(f"✅ EXTRAÇÃO CONCLUÍDA SEM ERROS")
+    print(f"{'='*70}")
+    print(f"🔄 Prosseguindo com transformação...")
+
     resultados_transformacao = executar_transformacao_completa()
     
-    # Relatório final consolidado
+    # =====================================================
+    # RELATÓRIO FINAL CONSOLIDADO
+    # =====================================================
+    
     fim_pipeline = datetime.now()
     tempo_total = fim_pipeline - inicio_pipeline
     

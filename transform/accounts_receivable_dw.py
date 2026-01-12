@@ -50,6 +50,93 @@ class ContasReceberTransformer:
         self.engine = engine
 
     # =====================================================
+    # NOVO: MÉTODO SINCRONIZAR_DELECOES
+    # =====================================================
+    
+    def sincronizar_delecoes(self):
+        """
+        Remove da processed registros que foram DELETADOS no Bling.
+        
+        LÓGICA:
+        1. Busca todos os IDs na RAW (que vieram da última extração)
+        2. Busca todos os IDs na PROCESSED
+        3. Remove da PROCESSED os IDs que NÃO estão na RAW
+        """
+        print("\n🗑️  SINCRONIZANDO DELEÇÕES...")
+        
+        session = Session()
+        try:
+            # 1. Buscar todos os IDs na PROCESSED
+            query_processed = text("""
+                SELECT bling_contas_receber_id
+                FROM processed.fato_contas_receber
+                WHERE empresa_id = :empresa_id
+            """)
+            ids_processed = session.execute(
+                query_processed, 
+                {"empresa_id": self.empresa_id}
+            ).fetchall()
+            ids_processed = {int(row[0]) for row in ids_processed}
+            
+            # 2. Buscar todos os IDs na RAW
+            query_raw = text("""
+                SELECT bling_id
+                FROM raw.contas_receber_raw
+                WHERE empresa_id = :empresa_id
+            """)
+            ids_raw = session.execute(
+                query_raw, 
+                {"empresa_id": self.empresa_id}
+            ).fetchall()
+            ids_raw = {int(row[0]) for row in ids_raw}
+            
+            # 🛡️ PROTEÇÃO CRÍTICA:
+            if len(ids_raw) == 0 and len(ids_processed) > 0:
+                print(f"   🚨 RAW VAZIA - API PODE TER FALHADO!")
+                print(f"   🛡️ ABORTANDO sincronização (proteção ativa)")
+                print(f"   ✅ {len(ids_processed)} registros preservados")
+                return
+            
+            # 3. Identificar IDs que estão na PROCESSED mas NÃO na RAW
+            ids_deletados = ids_processed - ids_raw
+            
+            if len(ids_deletados) == 0:
+                print(f"   ✅ Nenhum registro deletado (banco sincronizado)")
+                print(f"   📊 RAW: {len(ids_raw)} registros | PROCESSED: {len(ids_processed)} registros")
+                return
+            
+            print(f"   ⚠️  {len(ids_deletados)} registro(s) encontrado(s) na PROCESSED mas NÃO na RAW")
+            print(f"   🗑️  Estes registros foram DELETADOS no Bling e serão removidos da PROCESSED")
+            
+            # 4. Deletar da PROCESSED
+            query_delete = text("""
+                DELETE FROM processed.fato_contas_receber
+                WHERE empresa_id = :empresa_id
+                AND bling_contas_receber_id = ANY(:ids)
+            """)
+            
+            resultado = session.execute(query_delete, {
+                "empresa_id": self.empresa_id,
+                "ids": list(ids_deletados)
+            })
+            session.commit()
+            
+            print(f"   ✅ {resultado.rowcount} registro(s) removido(s) da PROCESSED")
+            
+            # 5. Mostrar quais foram removidos (auditoria)
+            if len(ids_deletados) <= 10:
+                print(f"   📋 IDs removidos: {sorted(list(ids_deletados))}")
+            else:
+                print(f"   📋 Primeiros 10 IDs removidos: {sorted(list(ids_deletados))[:10]}")
+                
+        except Exception as e:
+            session.rollback()
+            print(f"   ⚠️  Erro ao sincronizar deleções: {e}")
+            raise
+        finally:
+            session.close()
+
+    # =====================================================
     # 2. EXTRAIR DADOS RAW
     # =====================================================
 
@@ -723,10 +810,22 @@ class ContasReceberTransformer:
     def executar_transformacao_completa(self):
         """Pipeline completo"""
         try:
+            print(f"\n{'='*70}")
+            print(f"🚀 INICIANDO TRANSFORMAÇÃO COMPLETA")
+            print(f"   Empresa ID: {self.empresa_id}")
+            print(f"{'='*70}")
+            
+            # ETAPA 1: Sincronizar deleções (PRIMEIRO!)
+            self.sincronizar_delecoes()
+            
+            # ETAPA 2: Extrair dados pendentes
             df_raw = self.extrair_dados_raw()
 
             if len(df_raw) == 0:
                 print(f"\n✅ Nenhum registro pendente para empresa_id = {self.empresa_id}")
+                print(f"\n{'='*70}")
+                print(f"🎉 TRANSFORMAÇÃO CONCLUÍDA (NADA A FAZER)")
+                print(f"{'='*70}")
                 return
 
             df = self.expandir_json(df_raw)
@@ -739,15 +838,24 @@ class ContasReceberTransformer:
             # Verificar se ainda há registros após validação
             if len(df) == 0:
                 print("\n⚠️ Nenhum registro válido após validação de Foreign Keys!")
+                print(f"\n{'='*70}")
+                print(f"⚠️ TRANSFORMAÇÃO CONCLUÍDA (SEM DADOS VÁLIDOS)")
+                print(f"{'='*70}")
                 return
             
             self.exportar_para_processed(df)
             self.atualizar_status_raw(df)
 
             print(f"\n{'='*70}")
-            print(f"🎉 TRANSFORMAÇÃO CONCLUÍDA!")
+            print(f"🎉 TRANSFORMAÇÃO CONCLUÍDA COM SUCESSO!")
+            print(f"   • Empresa ID: {self.empresa_id}")
+            print(f"   • Registros processados: {len(df)}")
             print(f"{'='*70}")
 
         except Exception as e:
-            print(f"\n❌ ERRO: {e}")
+            print(f"\n{'='*70}")
+            print(f"❌ ERRO NA TRANSFORMAÇÃO!")
+            print(f"{'='*70}")
+            print(f"Erro: {e}")
+            print(f"{'='*70}")
             raise

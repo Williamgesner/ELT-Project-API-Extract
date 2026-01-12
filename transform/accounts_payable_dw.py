@@ -1,32 +1,17 @@
 # =====================================================
-# TRANSFORMADOR DE CONTAS A PAGAR - VERSÃO MULTI-CNPJ
+# TRANSFORMADOR DE CONTAS A PAGAR - VERSÃO CORRIGIDA
 # =====================================================
-# Responsável por: Limpar e transformar dados de contas_pagar_raw para fato_contas_pagar no schema processed
-# ESTRATÉGIA: Comparar antes de salvar (igual outros transformers)
 
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, date
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 from config.database import Session, engine
 from models.dim_fato.fato_contas_pagar import FatoContasPagar
 
-# =====================================================
-# MAPEAMENTO DE SITUAÇÕES - CONTAS A PAGAR
-# =====================================================
-
 def obter_mapeamento_situacoes_contas_pagar():
-    """
-    Retorna o dicionário de mapeamento de situações para contas a pagar
-    
-    Mapeamento conforme regra de negócio:
-    1 → Em aberto
-    2 → Pago
-    3 → Parcialmente recebido
-    4 → Devolvido
-    5 → Cancelado
-    """
+    """Mapeamento de situações"""
     return {
         1: "Em aberto",
         2: "Pago",
@@ -35,34 +20,170 @@ def obter_mapeamento_situacoes_contas_pagar():
         5: "Cancelado"
     }
 
-# =====================================================
-# 1. CLASSE TRANSFORMADORA
-# =====================================================
-
 class ContasPagarTransformer:
-    """
-    Transformador específico para contas a pagar
-    Aplica todas as limpezas e padronizações necessárias
-    """
-
+    
     def __init__(self, empresa_id):
-        self.empresa_id = empresa_id    # Armazena empresa_id
+        self.empresa_id = empresa_id
         self.engine = engine
 
     # =====================================================
-    # 2. EXTRAIR DADOS RAW
+    # CORREÇÃO 1: sincronizar_delecoes() - VERSÃO CORRETA
     # =====================================================
+    
+    def sincronizar_delecoes(self):
+        """
+        Remove da processed registros que foram DELETADOS no Bling.
+        
+        LÓGICA CORRIGIDA:
+        1. Busca todos os IDs na RAW (que vieram da última extração)
+        2. Busca todos os IDs na PROCESSED
+        3. Remove da PROCESSED os IDs que NÃO estão na RAW
+        
+        IMPORTANTE: Deve rodar APÓS a extração completa (para garantir que
+        a RAW tem todos os registros atuais do Bling)
+        """
+        print("\n🗑️  SINCRONIZANDO DELEÇÕES...")
+        
+        session = Session()
+        try:
+            # 1. Buscar todos os IDs na PROCESSED
+            query_processed = text("""
+                SELECT bling_contas_pagar_id
+                FROM processed.fato_contas_pagar
+                WHERE empresa_id = :empresa_id
+            """)
+            ids_processed = session.execute(
+                query_processed, 
+                {"empresa_id": self.empresa_id}
+            ).fetchall()
+            ids_processed = {int(row[0]) for row in ids_processed}
+            
+            # 2. Buscar todos os IDs na RAW
+            query_raw = text("""
+                SELECT bling_id
+                FROM raw.contas_pagar_raw
+                WHERE empresa_id = :empresa_id
+            """)
+            ids_raw = session.execute(
+                query_raw, 
+                {"empresa_id": self.empresa_id}
+            ).fetchall()
+            ids_raw = {int(row[0]) for row in ids_raw}
 
+            # 🛡️ PROTEÇÃO CRÍTICA - ADICIONAR APÓS LINHA 67:
+            if len(ids_raw) == 0 and len(ids_processed) > 0:
+                print(f"   🚨 RAW VAZIA - API PODE TER FALHADO!")
+                print(f"   🛡️ ABORTANDO sincronização (proteção ativa)")
+                print(f"   ✅ {len(ids_processed)} registros preservados")
+                return  # ← PARA AQUI, NÃO DELETA NADA!
+            
+            # 3. Identificar IDs que estão na PROCESSED mas NÃO na RAW
+            ids_deletados = ids_processed - ids_raw
+            
+            if len(ids_deletados) == 0:
+                print(f"   ✅ Nenhum registro deletado (banco sincronizado)")
+                print(f"   📊 RAW: {len(ids_raw)} registros | PROCESSED: {len(ids_processed)} registros")
+                return
+            
+            print(f"   ⚠️  {len(ids_deletados)} registro(s) encontrado(s) na PROCESSED mas NÃO na RAW")
+            print(f"   🗑️  Estes registros foram DELETADOS no Bling e serão removidos da PROCESSED")
+            
+            # 4. Deletar da PROCESSED
+            query_delete = text("""
+                DELETE FROM processed.fato_contas_pagar
+                WHERE empresa_id = :empresa_id
+                AND bling_contas_pagar_id = ANY(:ids)
+            """)
+            
+            resultado = session.execute(query_delete, {
+                "empresa_id": self.empresa_id,
+                "ids": list(ids_deletados)
+            })
+            session.commit()
+            
+            print(f"   ✅ {resultado.rowcount} registro(s) removido(s) da PROCESSED")
+            
+            # 5. Mostrar quais foram removidos (auditoria)
+            if len(ids_deletados) <= 10:
+                print(f"   📋 IDs removidos: {sorted(list(ids_deletados))}")
+            else:
+                print(f"   📋 Primeiros 10 IDs removidos: {sorted(list(ids_deletados))[:10]}")
+            
+            # 6. OPCIONAL mas RECOMENDADO: Remover da RAW também
+            print(f"\n   🧹 Limpando registros órfãos da RAW...")
+            query_delete_raw = text("""
+                DELETE FROM raw.contas_pagar_raw
+                WHERE empresa_id = :empresa_id
+                AND bling_id = ANY(:ids)
+            """)
+            resultado_raw = session.execute(query_delete_raw, {
+                "empresa_id": self.empresa_id,
+                "ids": list(ids_deletados)
+            })
+            session.commit()
+            print(f"   ✅ {resultado_raw.rowcount} registro(s) removido(s) da RAW")
+                
+        except Exception as e:
+            session.rollback()
+            print(f"   ⚠️  Erro ao sincronizar deleções: {e}")
+            raise
+        finally:
+            session.close()
+
+    # =====================================================
+    # CORREÇÃO 2: preparar_registros_para_processamento()
+    # Agora só marca baseado em regras de negócio
+    # =====================================================
+    
+    def preparar_registros_para_processamento(self):
+        """
+        Marca como 'pendente' registros que precisam ser reavaliados.
+        
+        LÓGICA:
+        - Contas "Em aberto" (situacao=1) onde vencimento mudou de status
+        - Força reprocessamento baseado em passagem do tempo
+        
+        NÃO mexe com deleções (isso é feito em sincronizar_delecoes)
+        """
+        print("\n🔄 PREPARANDO REGISTROS PARA REAVALIAÇÃO...")
+        
+        session = Session()
+        try:
+            # Marcar como pendente contas que mudaram de situação por causa da data
+            query = text("""
+                UPDATE raw.contas_pagar_raw
+                SET status_processamento = 'pendente'
+                WHERE empresa_id = :empresa_id
+                AND status_processamento = 'processado'
+                AND (dados_json->>'situacao')::int = 1
+                AND (
+                    (dados_json->>'vencimento')::date < CURRENT_DATE
+                    OR
+                    (dados_json->>'vencimento')::date = CURRENT_DATE
+                )
+            """)
+            
+            resultado = session.execute(query, {"empresa_id": self.empresa_id})
+            session.commit()
+            
+            if resultado.rowcount > 0:
+                print(f"   ⚡ {resultado.rowcount} contas marcadas para reavaliação (mudança de situação)")
+            else:
+                print(f"   ✅ Nenhuma conta precisa de reavaliação")
+                
+        except Exception as e:
+            session.rollback()
+            print(f"   ⚠️  Erro ao preparar registros: {e}")
+            raise
+        finally:
+            session.close()
+
+    # =====================================================
+    # RESTO DO CÓDIGO PERMANECE IGUAL
+    # =====================================================
+    
     def extrair_dados_raw(self):
-        """
-        Extrai dados da tabela raw.contas_pagar_raw
-        
-        CORREÇÃO: Além de buscar pendentes, também busca registros já processados 
-        com situacao.id = 1 (Em aberto) para reavaliar diariamente.
-        
-        MOTIVO: A API Bling mantém situacao=1 mesmo para contas atrasadas.
-        Precisamos reavaliar baseado na data_vencimento vs data atual.
-        """
+        """Extrai dados da tabela raw.contas_pagar_raw"""
         print("\n1️⃣ EXTRAINDO DADOS DE RAW.CONTAS_PAGAR_RAW...")
 
         query = text("""
@@ -74,40 +195,24 @@ class ContasPagarTransformer:
                 data_ingestao
             FROM raw.contas_pagar_raw
             WHERE empresa_id = :empresa_id
-            AND (
-                status_processamento = 'pendente'
-                OR
-                (
-                    status_processamento = 'processado'
-                    AND (dados_json->>'situacao')::int = 1
-                )
-            )
+            AND status_processamento = 'pendente'
             ORDER BY bling_id
         """)
 
         df_raw = pd.read_sql(query, self.engine, params={"empresa_id": self.empresa_id})
-        print(f"✅ {len(df_raw)} registros extraídos (empresa_id = {self.empresa_id})")
+        print(f"✅ {len(df_raw)} registros pendentes extraídos (empresa_id = {self.empresa_id})")   
 
         return df_raw
 
-    # =====================================================
-    # 3. EXPANDIR JSON
-    # =====================================================
-
     def expandir_json(self, df_raw):
-        """
-        Expande o JSON em colunas
-        """
+        """Expande o JSON em colunas"""
         print("\n2️⃣ EXPANDINDO JSON EM COLUNAS...")
 
-        # Normalizar o JSON principal
         df_json = pd.json_normalize(df_raw["dados_json"])
 
-        # Renomear 'id' do JSON para 'id_bling'
         if "id" in df_json.columns:
             df_json = df_json.rename(columns={"id": "id_bling"})
 
-        # Combinar com colunas originais
         df = pd.concat(
             [
                 df_raw[["id", "bling_id", "empresa_id", "data_ingestao"]],
@@ -119,22 +224,16 @@ class ContasPagarTransformer:
         print(f"✅ JSON expandido! {len(df.columns)} colunas disponíveis")
         return df
 
-    # =====================================================
-    # 4. APLICAR TRANSFORMAÇÕES
-    # =====================================================
-
     def aplicar_transformacoes(self, df):
-        """
-        Aplica TODAS as transformações necessárias
-        """
+        """Aplica TODAS as transformações necessárias"""
         print("\n3️⃣ APLICANDO TRANSFORMAÇÕES...")
 
-        # === REMOVENDO COLUNAS DESNECESSÁRIAS ===
+        # Removendo colunas desnecessárias
         print("   • Removendo colunas desnecessárias...")
         colunas_remover = ["id_bling"]
         df = df.drop(columns=[col for col in colunas_remover if col in df.columns])
 
-        # === RENOMEAR COLUNAS ===
+        # Renomear colunas
         print("   • Renomeando colunas...")
         df = df.rename(
             columns={
@@ -147,116 +246,97 @@ class ContasPagarTransformer:
             }
         )
 
-        # === CONVERTENDO DATA DE VENCIMENTO PARA DATE ===
+        # Convertendo data de vencimento
         print("   • Convertendo data de vencimento...")
-        df["data_vencimento"] = pd.to_datetime(df["data_vencimento"], errors="coerce")
+        df["data_vencimento"] = pd.to_datetime(df["data_vencimento"], errors="coerce").dt.date
 
-        # === CONVERTENDO E PADRONIZANDO STRINGS VAZIAS ===
+        # Convertendo strings vazias
         print("   • Convertendo strings vazias para NaN...")
         for coluna in df.select_dtypes(include=["object"]).columns:
-            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True).infer_objects(copy=False)
+            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True)
             df[coluna] = df[coluna].replace("", np.nan)
             df[coluna] = df[coluna].replace(" ", np.nan)
 
-        # === PADRONIZAÇÃO DO CAMPO "SITUAÇÃO" (ID → STRING) ===
+        # Mapeando situação
         print("   • Mapeando situação...")
         try:
             mapa_situacoes = obter_mapeamento_situacoes_contas_pagar()
             if "situacao.id" in df.columns:
-                # Guardar o ID original antes de mapear
                 df["situacao_id_original"] = pd.to_numeric(df["situacao.id"], errors="coerce")
                 df["situacao"] = df["situacao_id_original"].map(mapa_situacoes)
                 print("      ✅ Situações mapeadas com sucesso")
             elif "situacao" in df.columns:
-                # Guardar o ID original antes de mapear
                 df["situacao_id_original"] = pd.to_numeric(df["situacao"], errors="coerce")
                 df["situacao"] = df["situacao_id_original"].map(mapa_situacoes)
                 print("      ✅ Situações mapeadas com sucesso")
         except Exception as e:
             print(f"      ⚠️  Erro ao mapear situações: {e}")
 
-        # === APLICAR LÓGICA CONDICIONAL PARA "EM ABERTO" (SITUAÇÃO = 1) ===
+        # Aplicar regra de negócio para "Em aberto"
         print("   • Aplicando regra de negócio para contas 'Em aberto'...")
         try:
             if "situacao_id_original" in df.columns and "data_vencimento" in df.columns:
-                hoje = pd.Timestamp.now().normalize()  # Data de hoje sem hora
+                hoje = pd.Timestamp.now().normalize().date()
                 
-                # Criar máscara para situacao = 1 (Em aberto)
                 mascara_em_aberto = df["situacao_id_original"] == 1
-                
-                # Contar quantas são "Em aberto"
                 total_em_aberto = mascara_em_aberto.sum()
                 
                 if total_em_aberto > 0:
-                    # Aplicar regras condicionais
-                    # 1. Atrasada: vencimento < hoje
+                    # Atrasada: vencimento < hoje
                     mascara_atrasada = mascara_em_aberto & (df["data_vencimento"] < hoje)
                     df.loc[mascara_atrasada, "situacao"] = "Atrasada"
                     qtd_atrasadas = mascara_atrasada.sum()
                     
-                    # 2. Vencendo hoje: vencimento = hoje
+                    # Vencendo hoje
                     mascara_vencendo_hoje = mascara_em_aberto & (df["data_vencimento"] == hoje)
                     df.loc[mascara_vencendo_hoje, "situacao"] = "Vencendo hoje"
                     qtd_vencendo_hoje = mascara_vencendo_hoje.sum()
                     
-                    # 3. Em aberto: vencimento > hoje (mantém "Em aberto")
+                    # Em aberto (futuro)
                     mascara_futuro = mascara_em_aberto & (df["data_vencimento"] > hoje)
                     qtd_futuro = mascara_futuro.sum()
                     
                     print(f"      ✅ Regra aplicada para {total_em_aberto} contas 'Em aberto':")
-                    print(f"         • {qtd_atrasadas} → Atrasada (vencimento < hoje)")
-                    print(f"         • {qtd_vencendo_hoje} → Vencendo hoje (vencimento = hoje)")
-                    print(f"         • {qtd_futuro} → Em aberto (vencimento > hoje)")
+                    print(f"         • {qtd_atrasadas} → Atrasada")
+                    print(f"         • {qtd_vencendo_hoje} → Vencendo hoje")
+                    print(f"         • {qtd_futuro} → Em aberto")
                 else:
                     print(f"      ℹ️  Nenhuma conta com situação 'Em aberto' encontrada")
                 
-                # Remover coluna auxiliar
                 df = df.drop(columns=["situacao_id_original"])
         except Exception as e:
             print(f"      ⚠️  Erro ao aplicar regra condicional: {e}")
-            # Se der erro, remove a coluna auxiliar se existir
             if "situacao_id_original" in df.columns:
                 df = df.drop(columns=["situacao_id_original"])
 
-        # === TRATAR FORMA DE PAGAMENTO INVÁLIDA ===
+        # Tratar forma de pagamento inválida
         print("   • Tratando forma_pagamento_id inválidos...")
         if "forma_pagamento_id" in df.columns:
-            # Converter para numérico primeiro
             df["forma_pagamento_id"] = pd.to_numeric(df["forma_pagamento_id"], errors="coerce")
-            # Converter 0 para NULL (pois 0 não existe na dim_formas_pagamento)
             df["forma_pagamento_id"] = df["forma_pagamento_id"].replace(0, np.nan)
-            # Contar nulos
             nulos_forma = df["forma_pagamento_id"].isna().sum()
             if nulos_forma > 0:
-                print(f"      ⚠️  {nulos_forma} contas sem forma de pagamento definida (será NULL)")
+                print(f"      ⚠️  {nulos_forma} contas sem forma de pagamento definida")
 
-        # === TRATAR CATEGORIA INVÁLIDA ===
+        # Tratar categoria inválida
         print("   • Tratando bling_categoria_id inválidos...")
         if "bling_categoria_id" in df.columns:
-            # Converter para Int64 (permite NULL)
             df["bling_categoria_id"] = pd.to_numeric(df["bling_categoria_id"], errors="coerce").astype('Int64')
             nulos_categoria = df["bling_categoria_id"].isna().sum()
             if nulos_categoria > 0:
-                print(f"      ⚠️  {nulos_categoria} contas sem categoria definida (será NULL)")
+                print(f"      ⚠️  {nulos_categoria} contas sem categoria definida")
 
-        # === ADICIONAR METADADOS ===
+        # Adicionar metadados
         print("   • Adicionando metadados de processamento...")
         df["data_processamento"] = datetime.now()
 
         print("✅ Todas as transformações aplicadas com sucesso!")
         return df
 
-    # =====================================================
-    # 5. PREPARAR PARA EXPORTAÇÃO
-    # =====================================================
-
     def preparar_para_exportacao(self, df):
-        """
-        Seleciona apenas as colunas que vão para processed.fato_contas_pagar
-        """
+        """Seleciona apenas as colunas finais"""
         print("\n4️⃣ PREPARANDO DADOS PARA EXPORTAÇÃO...")
 
-        # Colunas finais
         colunas_finais = [
             "contas_pagar_id",
             "bling_contas_pagar_id",
@@ -271,7 +351,6 @@ class ContasPagarTransformer:
             "data_processamento",
         ]
 
-        # Verificar se todas as colunas existem
         colunas_disponiveis = [col for col in colunas_finais if col in df.columns]
         colunas_faltando = [col for col in colunas_finais if col not in df.columns]
 
@@ -280,8 +359,8 @@ class ContasPagarTransformer:
 
         df_final = df[colunas_disponiveis].copy()
 
-        # === CONVERTER NaN/NA PARA None (CRÍTICO PARA POSTGRESQL) ===
-        print("   • Convertendo NaN/NA para None (compatibilidade PostgreSQL)...")
+        # Converter NaN/NA para None
+        print("   • Convertendo NaN/NA para None...")
         
         if "forma_pagamento_id" in df_final.columns:
             df_final["forma_pagamento_id"] = df_final["forma_pagamento_id"].replace({np.nan: None})
@@ -296,24 +375,16 @@ class ContasPagarTransformer:
             df_final["bling_categoria_id"] = df_final["bling_categoria_id"].astype(object)
 
         print(f"✅ {len(df_final)} registros prontos para exportação")
-        print(f"   Colunas selecionadas: {list(df_final.columns)}")
-
         return df_final
 
-    # =====================================================
-    # 6. VALIDAR DADOS
-    # =====================================================
-
     def validar_dados(self, df):
-        """
-        Valida os dados antes de exportar
-        """
+        """Valida os dados antes de exportar"""
         print("\n5️⃣ VALIDANDO DADOS...")
 
-        # Verificar chaves de negócio duplicadas
+        # Verificar duplicados
         duplicados = df[df.duplicated(subset=["bling_contas_pagar_id", "empresa_id"])][["bling_contas_pagar_id", "empresa_id"]]
         if len(duplicados) > 0:
-            print(f"⚠️  ATENÇÃO: {len(duplicados)} bling_contas_pagar_ids duplicados para mesma empresa!")
+            print(f"⚠️  {len(duplicados)} bling_contas_pagar_ids duplicados!")
 
         # Verificar valores obrigatórios
         nulos_bling = df["bling_contas_pagar_id"].isna().sum()
@@ -330,29 +401,20 @@ class ContasPagarTransformer:
             print(f"⚠️  {nulos_data} registros sem data de vencimento")
 
         print(f"✅ Validação concluída! {len(df)} registros válidos")
-
         return df
 
-    # =====================================================
-    # 6.5. VALIDAR FOREIGN KEYS
-    # =====================================================
-
     def validar_foreign_keys(self, df):
-        """
-        Valida se as FKs existem nas tabelas de dimensão
-        Remove/trata registros com FKs inválidas
-        """
+        """Valida se as FKs existem nas tabelas de dimensão"""
         print("\n🔍 VALIDANDO FOREIGN KEYS...")
         
         session = Session()
         total_original = len(df)
         
         try:
-            # === 1. VALIDAR BLING_CATEGORIA_ID ===
+            # Validar bling_categoria_id
             if "bling_categoria_id" in df.columns:
                 print("   • Validando bling_categoria_id...")
                 
-                # Buscar todas as categorias válidas PARA ESTA EMPRESA
                 categorias_validas = session.execute(
                     text("""
                         SELECT bling_categoria_id 
@@ -363,7 +425,6 @@ class ContasPagarTransformer:
                 ).fetchall()
                 categorias_validas = {cat[0] for cat in categorias_validas}
                 
-                # Contar registros com categoria inválida
                 df_com_categoria = df[df["bling_categoria_id"].notna()]
                 
                 if len(df_com_categoria) > 0:
@@ -373,20 +434,17 @@ class ContasPagarTransformer:
                     
                     if len(categorias_invalidas) > 0:
                         print(f"      ⚠️  {len(categorias_invalidas)} registros com bling_categoria_id INVÁLIDA!")
-                        print(f"      🔧 Convertendo bling_categoria_id inválida para NULL...")
-                        
-                        # Converter categorias inválidas para NULL
+                        print(f"      🔧 Convertendo para NULL...")
                         df.loc[~df["bling_categoria_id"].isin(categorias_validas), "bling_categoria_id"] = None
                     else:
                         print(f"      ✅ Todas as {len(df_com_categoria)} categorias são válidas")
                 else:
                     print(f"      ℹ️  Nenhum registro com categoria definida")
             
-            # === 2. VALIDAR FORMA_PAGAMENTO_ID ===
+            # Validar forma_pagamento_id
             if "forma_pagamento_id" in df.columns:
                 print("   • Validando forma_pagamento_id...")
                 
-                # Buscar todas as formas de pagamento válidas PARA ESTA EMPRESA
                 formas_validas = session.execute(
                     text("""
                         SELECT forma_pagamento_id 
@@ -397,7 +455,6 @@ class ContasPagarTransformer:
                 ).fetchall()
                 formas_validas = {forma[0] for forma in formas_validas}
                 
-                # Contar registros com forma inválida
                 df_com_forma = df[df["forma_pagamento_id"].notna()]
                 
                 if len(df_com_forma) > 0:
@@ -407,36 +464,31 @@ class ContasPagarTransformer:
                     
                     if len(formas_invalidas) > 0:
                         print(f"      ⚠️  {len(formas_invalidas)} registros com forma_pagamento_id INVÁLIDA!")
-                        print(f"      🔧 Convertendo forma_pagamento_id inválida para NULL...")
-                        
-                        # Converter formas inválidas para NULL
+                        print(f"      🔧 Convertendo para NULL...")
                         df.loc[~df["forma_pagamento_id"].isin(formas_validas), "forma_pagamento_id"] = None
                     else:
                         print(f"      ✅ Todas as {len(df_com_forma)} formas de pagamento são válidas")
                 else:
                     print(f"      ℹ️  Nenhum registro com forma de pagamento definida")
             
-            # === 3. VALIDAR DATA_VENCIMENTO (dim_tempo) ===
+            # Validar data_vencimento
             if "data_vencimento" in df.columns:
                 print("   • Validando data_vencimento...")
                 
-                # Buscar todas as datas válidas na dim_tempo
                 datas_validas = session.execute(
                     text("SELECT data_completa FROM processed.dim_tempo")
                 ).fetchall()
                 datas_validas = {data[0] for data in datas_validas}
                 
-                # Converter para date se necessário
-                df["data_vencimento"] = pd.to_datetime(df["data_vencimento"]).dt.date
+                if len(df) > 0 and not isinstance(df["data_vencimento"].iloc[0], date):
+                    print("      ⚠️  Convertendo data_vencimento para tipo date...")
+                    df["data_vencimento"] = pd.to_datetime(df["data_vencimento"]).dt.date
                 
-                # Contar datas inválidas
                 datas_invalidas = df[~df["data_vencimento"].isin(datas_validas)]
                 
                 if len(datas_invalidas) > 0:
-                    print(f"      ⚠️  {len(datas_invalidas)} registros com data_vencimento NÃO CADASTRADA na dim_tempo!")
-                    print(f"      ❌ REMOVENDO estes registros (data_vencimento é obrigatória)")
-                    
-                    # Remover registros com data inválida
+                    print(f"      ⚠️  {len(datas_invalidas)} registros com data_vencimento NÃO CADASTRADA!")
+                    print(f"      ❌ REMOVENDO estes registros")
                     df = df[df["data_vencimento"].isin(datas_validas)]
                 else:
                     print(f"      ✅ Todas as datas existem na dim_tempo")
@@ -456,50 +508,40 @@ class ContasPagarTransformer:
         finally:
             session.close()
 
-
-    # =====================================================
-    # 7. EXPORTAR PARA PROCESSED
-    # =====================================================
-
     def exportar_para_processed(self, df):
-        """
-        Exporta dados para processed.fato_contas_pagar
-        COM COMPARAÇÃO INTELIGENTE (igual outros transformers)
-        """
+        """Exporta dados para processed.fato_contas_pagar"""
         print("\n6️⃣ EXPORTANDO PARA PROCESSED.FATO_CONTAS_PAGAR...")
 
         session = Session()
 
         try:
-            # Converter para dicionários
             registros = df.to_dict("records")
-            
-            # === TRATAMENTO FINAL: GARANTIR QUE 0 E NaN VIRAM None ===
-            print("   🔧 Aplicando tratamento final de NaN e zeros...")
-            for registro in registros:
-                # Tratar forma_pagamento_id
-                if 'forma_pagamento_id' in registro:
-                    valor = registro['forma_pagamento_id']
-                    if pd.isna(valor) or valor == 0:
-                        registro['forma_pagamento_id'] = None
-                
-                # Tratar bling_categoria_id
-                if 'bling_categoria_id' in registro:
-                    valor = registro['bling_categoria_id']
-                    if pd.isna(valor):
-                        registro['bling_categoria_id'] = None
-                
-                # Tratar bling_cliente_id
-                if 'bling_cliente_id' in registro:
-                    valor = registro['bling_cliente_id']
-                    if pd.isna(valor):
-                        registro['bling_cliente_id'] = None
-            
             total_registros = len(registros)
             
             print(f"   📦 Total de registros a processar: {total_registros}")
 
-            # === PRÉ-ANÁLISE: VERIFICAR O QUE VAI SER FEITO ===
+            # Buscar registros existentes
+            print(f"   🔍 Buscando registros existentes no banco...")
+            
+            ids_processar = [r["contas_pagar_id"] for r in registros]
+            
+            query_existentes = text("""
+                SELECT contas_pagar_id, bling_contas_pagar_id, empresa_id, valor, situacao, 
+                       data_vencimento, bling_cliente_id, forma_pagamento_id, bling_categoria_id,
+                       data_ingestao, data_processamento
+                FROM processed.fato_contas_pagar
+                WHERE contas_pagar_id = ANY(:ids)
+                AND empresa_id = :empresa_id
+            """)
+            
+            resultados = session.execute(query_existentes, {
+                "ids": ids_processar,
+                "empresa_id": self.empresa_id
+            }).fetchall()
+            
+            registros_existentes = {r.contas_pagar_id: r for r in resultados}
+            
+            # Pré-análise
             print(f"\n   🔍 Analisando registros existentes...")
             
             registros_novos = 0
@@ -507,23 +549,13 @@ class ContasPagarTransformer:
             registros_iguais = 0
             
             for registro in registros:
-                # Buscar registro existente
-                resultado = session.execute(
-                    text("""
-                        SELECT contas_pagar_id, bling_contas_pagar_id, empresa_id, valor, situacao, 
-                               data_vencimento, bling_cliente_id, forma_pagamento_id, bling_categoria_id,
-                               data_ingestao, data_processamento
-                        FROM processed.fato_contas_pagar
-                        WHERE contas_pagar_id = :id
-                        AND empresa_id = :empresa_id
-                    """),
-                    {"id": registro["contas_pagar_id"], "empresa_id": self.empresa_id},
-                ).fetchone()
-
-                if resultado is None:
+                contas_pagar_id = registro["contas_pagar_id"]
+                
+                if contas_pagar_id not in registros_existentes:
                     registros_novos += 1
                 else:
-                    # Comparar se mudou algo
+                    resultado = registros_existentes[contas_pagar_id]
+                    
                     campos_comparar = [
                         "bling_contas_pagar_id",
                         "valor",
@@ -532,22 +564,31 @@ class ContasPagarTransformer:
                         "bling_cliente_id",
                         "forma_pagamento_id",
                         "bling_categoria_id",
-                        "data_ingestao",
                     ]
 
                     mudou = False
                     for campo in campos_comparar:
                         valor_novo = registro.get(campo)
                         valor_antigo = getattr(resultado, campo, None)
+                        
+                        # Tratamento especial para datas
+                        if campo == "data_vencimento":
+                            if valor_novo and isinstance(valor_novo, datetime):
+                                valor_novo = valor_novo.date()
+                            if valor_antigo and isinstance(valor_antigo, datetime):
+                                valor_antigo = valor_antigo.date()
+                        
+                        # Tratamento especial para valores decimais
+                        if campo == "valor":
+                            if valor_novo is not None and valor_antigo is not None:
+                                if abs(float(valor_novo) - float(valor_antigo)) < 0.01:
+                                    continue
 
-                        # Comparar None com None
                         if valor_novo is None and valor_antigo is None:
                             continue
-                        # Se um é None e outro não
                         if (valor_novo is None) != (valor_antigo is None):
                             mudou = True
                             break
-                        # Comparar valores normais
                         if valor_novo != valor_antigo:
                             mudou = True
                             break
@@ -557,7 +598,7 @@ class ContasPagarTransformer:
                     else:
                         registros_iguais += 1
 
-            # === MOSTRAR ESTATÍSTICAS ANTES DA EXPORTAÇÃO ===
+            # Mostrar estatísticas
             print(f"\n{'='*70}")
             print(f"📊 ESTATÍSTICAS:")
             print(f"   • Registros INSERIDOS:     {registros_novos:>6} (novos)")
@@ -574,38 +615,20 @@ class ContasPagarTransformer:
             
             print(f"{'='*70}\n")
 
-            # === PROCESSAR REGISTROS ===
-            registros_inseridos = 0
-            registros_atualizados = 0
-            registros_identicos = 0
-
-            # Barra de progresso simples
+            # Processar registros
             print(f"   🔄 Processando registros...")
-            intervalo_print = max(1, total_registros // 10)  # Printar a cada 10%
-            batch_size = 1000  # Commit a cada 1000 registros
+            intervalo_print = max(1, total_registros // 10)
+            batch_size = 1000
 
             for idx, registro in enumerate(registros, 1):
-                # Print de progresso
                 if idx % intervalo_print == 0 or idx == total_registros:
                     percentual = (idx / total_registros) * 100
                     print(f"      • Processados: {idx}/{total_registros} ({percentual:.0f}%)")
 
                 try:
-                    # Buscar registro existente
-                    resultado = session.execute(
-                        text("""
-                            SELECT contas_pagar_id, bling_contas_pagar_id, empresa_id, valor, situacao, 
-                                   data_vencimento, bling_cliente_id, forma_pagamento_id, bling_categoria_id,
-                                   data_ingestao, data_processamento
-                            FROM processed.fato_contas_pagar
-                            WHERE contas_pagar_id = :id
-                            AND empresa_id = :empresa_id
-                        """),
-                        {"id": registro["contas_pagar_id"], "empresa_id": self.empresa_id},
-                    ).fetchone()
-
-                    if resultado is None:
-                        # INSERIR novo registro
+                    contas_pagar_id = registro["contas_pagar_id"]
+                    
+                    if contas_pagar_id not in registros_existentes:
                         stmt = insert(FatoContasPagar).values(**registro)
                         stmt = stmt.on_conflict_do_update(
                             index_elements=['bling_contas_pagar_id', 'empresa_id'],
@@ -621,9 +644,9 @@ class ContasPagarTransformer:
                             }
                         )
                         session.execute(stmt)
-                        registros_inseridos += 1
                     else:
-                        # Comparar se mudou algo (exceto data_processamento)
+                        resultado = registros_existentes[contas_pagar_id]
+                        
                         campos_comparar = [
                             "bling_contas_pagar_id",
                             "valor",
@@ -632,28 +655,34 @@ class ContasPagarTransformer:
                             "bling_cliente_id",
                             "forma_pagamento_id",
                             "bling_categoria_id",
-                            "data_ingestao",
                         ]
 
                         mudou = False
                         for campo in campos_comparar:
                             valor_novo = registro.get(campo)
                             valor_antigo = getattr(resultado, campo, None)
+                            
+                            if campo == "data_vencimento":
+                                if valor_novo and isinstance(valor_novo, datetime):
+                                    valor_novo = valor_novo.date()
+                                if valor_antigo and isinstance(valor_antigo, datetime):
+                                    valor_antigo = valor_antigo.date()
+                            
+                            if campo == "valor":
+                                if valor_novo is not None and valor_antigo is not None:
+                                    if abs(float(valor_novo) - float(valor_antigo)) < 0.01:
+                                        continue
 
-                            # Comparar None com None
                             if valor_novo is None and valor_antigo is None:
                                 continue
-                            # Se um é None e outro não
                             if (valor_novo is None) != (valor_antigo is None):
                                 mudou = True
                                 break
-                            # Comparar valores normais
                             if valor_novo != valor_antigo:
                                 mudou = True
                                 break
 
                         if mudou:
-                            # ATUALIZAR registro
                             session.execute(
                                 text("""
                                     UPDATE processed.fato_contas_pagar
@@ -671,28 +700,21 @@ class ContasPagarTransformer:
                                 """),
                                 registro,
                             )
-                            registros_atualizados += 1
-                        else:
-                            registros_identicos += 1
 
-                    # COMMIT EM LOTES (a cada 1000 registros)
                     if idx % batch_size == 0:
                         session.commit()
                         print(f"      💾 Batch commit realizado ({idx} registros processados)")
 
                 except Exception as e:
-                    # Se der erro em UM registro, pula e continua
-                    print(f"\n      ⚠️  Erro no registro {idx} (ID: {registro.get('contas_pagar_id')}): {str(e)[:100]}")
+                    print(f"\n      ⚠️  Erro no registro {idx}: {str(e)[:100]}")
                     print(f"      ⏭️  Pulando e continuando...")
-                    session.rollback()  # Rollback apenas deste registro
+                    session.rollback()
                     continue
 
-            # Commit final (registros que sobraram)
             print(f"\n   💾 Salvando alterações finais no banco de dados...")
             session.commit()
             print(f"   ✅ Commit final realizado com sucesso!")
 
-            # === CONFIRMAÇÃO FINAL ===
             print(f"\n{'='*70}")
             print(f"✅ EXPORTAÇÃO CONCLUÍDA COM SUCESSO!")
             print(f"{'='*70}\n")
@@ -701,19 +723,11 @@ class ContasPagarTransformer:
 
         except Exception as e:
             session.rollback()
-            print(f"\n{'='*70}")
-            print(f"❌ ERRO AO EXPORTAR!")
-            print(f"{'='*70}")
-            print(f"Erro: {e}")
-            print(f"{'='*70}\n")
+            print(f"\n❌ ERRO AO EXPORTAR: {e}")
             raise
         finally:
             session.close()
-
-    # =====================================================
-    # 8. ATUALIZAR STATUS
-    # =====================================================
-
+    
     def atualizar_status_raw(self, df):
         """Atualiza status em raw.contas_pagar_raw"""
         print("\n7️⃣ ATUALIZANDO STATUS...")
@@ -738,41 +752,81 @@ class ContasPagarTransformer:
         except Exception as e:
             session.rollback()
             print(f"⚠️  Erro: {e}")
+            raise
         finally:
             session.close()
 
     # =====================================================
-    # 9. EXECUTAR TRANSFORMAÇÃO COMPLETA
+    # CORREÇÃO 3: executar_transformacao_completa()
+    # ORDEM CORRETA DE EXECUÇÃO
     # =====================================================
-
+    
     def executar_transformacao_completa(self):
-        """Pipeline completo"""
+        """
+        Pipeline completo COM ORDEM CORRETA
+        
+        ORDEM CORRIGIDA:
+        1. Sincronizar deleções (limpar o que foi deletado no Bling)
+        2. Preparar registros (marcar pendentes por regra de negócio)
+        3. Extrair e transformar os pendentes
+        4. Exportar para processed
+        5. Atualizar status
+        """
         try:
+            print(f"\n{'='*70}")
+            print(f"🚀 INICIANDO TRANSFORMAÇÃO COMPLETA")
+            print(f"   Empresa ID: {self.empresa_id}")
+            print(f"{'='*70}")
+            
+            # ETAPA 1: Sincronizar deleções (PRIMEIRO!)
+            # Remove da processed o que não existe mais no Bling
+            self.sincronizar_delecoes()
+            
+            # ETAPA 2: Preparar registros para reavaliação
+            # Marca como pendente baseado em regras de negócio
+            self.preparar_registros_para_processamento()
+            
+            # ETAPA 3: Extrair dados pendentes
             df_raw = self.extrair_dados_raw()
 
             if len(df_raw) == 0:
                 print(f"\n✅ Nenhum registro pendente para empresa_id = {self.empresa_id}")
+                print(f"\n{'='*70}")
+                print(f"🎉 TRANSFORMAÇÃO CONCLUÍDA (NADA A FAZER)")
+                print(f"{'='*70}")
                 return
 
+            # ETAPA 4-7: Pipeline de transformação
             df = self.expandir_json(df_raw)
             df = self.aplicar_transformacoes(df)
             df = self.preparar_para_exportacao(df)
             df = self.validar_dados(df)
-            
             df = self.validar_foreign_keys(df)
             
-            # Verificar se ainda há registros após validação
+            # Verificar se ainda há registros
             if len(df) == 0:
-                print("\n⚠️  Nenhum registro válido após validação de Foreign Keys!")
+                print("\n⚠️  Nenhum registro válido após validação!")
+                print(f"\n{'='*70}")
+                print(f"⚠️  TRANSFORMAÇÃO CONCLUÍDA (SEM DADOS VÁLIDOS)")
+                print(f"{'='*70}")
                 return
             
+            # ETAPA 8: Exportar
             self.exportar_para_processed(df)
+            
+            # ETAPA 9: Atualizar status
             self.atualizar_status_raw(df)
 
             print(f"\n{'='*70}")
-            print(f"🎉 TRANSFORMAÇÃO CONCLUÍDA!")
+            print(f"🎉 TRANSFORMAÇÃO CONCLUÍDA COM SUCESSO!")
+            print(f"   • Empresa ID: {self.empresa_id}")
+            print(f"   • Registros processados: {len(df)}")
             print(f"{'='*70}")
 
         except Exception as e:
-            print(f"\n❌ ERRO: {e}")
+            print(f"\n{'='*70}")
+            print(f"❌ ERRO NA TRANSFORMAÇÃO!")
+            print(f"{'='*70}")
+            print(f"Erro: {e}")
+            print(f"{'='*70}")
             raise

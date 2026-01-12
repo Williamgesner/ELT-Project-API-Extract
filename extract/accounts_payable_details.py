@@ -406,7 +406,12 @@ class ContasPagarDetalhesExtractor:
             print(f"   • Processadas sem categoria: {validacao.processadas_sem_categoria}")
             print(f"   • Ainda pendentes: {validacao.pendentes}")
             
-            if validacao.pendentes == 0:
+            # Calcular quantas contas ainda precisam de categoria
+            contas_sem_categoria = validacao.total - validacao.com_categoria
+
+            if contas_sem_categoria == 0:
+                print(f"\n🎉 SUCESSO TOTAL:")
+                print(f"   • TODAS as {validacao.total} contas têm categoria!")
                 print(f"\n💡 PRÓXIMOS PASSOS:")
                 print(f"   1. Processar categorias:")
                 print(f"      python main_transform_categories_payable.py")
@@ -414,7 +419,15 @@ class ContasPagarDetalhesExtractor:
                 print(f"      python main_transform_accounts_payable.py")
             else:
                 print(f"\n⚠️  ATENÇÃO:")
-                print(f"   Ainda há {validacao.pendentes} contas pendentes.")
+                print(f"   • {contas_sem_categoria} contas ainda SEM categoria")
+                print(f"   • {validacao.com_categoria} contas COM categoria ({validacao.com_categoria/validacao.total*100:.1f}%)")
+                print(f"\n💡 Execute novamente para tentar buscar as categorias faltantes")
+
+            # Informação adicional sobre status de processamento
+            if validacao.pendentes > 0:
+                print(f"\n📋 STATUS:")
+                print(f"   • {validacao.pendentes} contas com status='pendente' (aguardando transformação)")
+                print(f"   • Isto é NORMAL - execute a transformação para processar")
             
         except Exception as e:
             print(f"\n❌ Erro durante extração: {e}")
