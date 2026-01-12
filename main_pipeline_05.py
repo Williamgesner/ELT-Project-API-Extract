@@ -26,6 +26,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from sqlalchemy import text
 from config.database import create_schema_raw, create_schema_processed, create_all_tables, Session
+from config.auth_manager import obter_token_para_empresa #IMPORTAR O GERENCIADOR DE TOKENS
 
 # =====================================================
 # IMPORTAÇÕES - PARTE COMERCIAL
@@ -64,13 +65,13 @@ from transform.nfe_dw import NFeTransformer
 # Carregar variáveis de ambiente
 load_dotenv()
 
-# API Key da empresa 5
-API_KEY_EMPRESA_5 = os.getenv('API_KEY_05')
-if not API_KEY_EMPRESA_5:
-    raise ValueError("❌ API_KEY_05 não encontrada no .env!")
-
 # Empresa ID
 EMPRESA_ID = 5
+
+# OBTER TOKEN VÁLIDO AUTOMATICAMENTE (renova se necessário)
+print("\n🔑 Obtendo token válido para Empresa 05...")
+API_KEY_EMPRESA_5 = obter_token_para_empresa(EMPRESA_ID)
+print(f"✅ Token obtido e validado!\n")
 
 # =====================================================
 # 1. EXECUÇÃO COMPLETA - EXTRAÇÃO

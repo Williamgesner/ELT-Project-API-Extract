@@ -16,6 +16,10 @@ Executa os 6 pipelines em sequência:
 - Empresa 6 (main_pipeline_06)
 
 Inclui: Parte COMERCIAL + Parte FINANCEIRA de todas as empresas
+
+   • Gera API Keys automaticamente antes de executar
+   • Verifica credenciais OAuth (CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN)
+   • Mantém segurança: ABORTA se faltar credenciais
 """
 
 import os
@@ -24,6 +28,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from sqlalchemy import text
 from config.database import create_schema_raw, create_schema_processed, create_all_tables, Session
+from config.auth_manager import obter_token_para_empresa
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -46,36 +51,168 @@ PIPELINE_MODULES = {
 }
 
 # =====================================================
-# FUNÇÕES AUXILIARES
+# FUNÇÕES AUXILIARES - SEGURANÇA
 # =====================================================
 
-def verificar_api_keys():
-    """Verifica se todas as API Keys das empresas ativas estão configuradas"""
-    print("\n🔑 VERIFICANDO API KEYS...")
-    print("=" * 70)
+def verificar_credenciais_empresas():
+    """
+    🔐 VERIFICAÇÃO DE SEGURANÇA
     
-    keys_faltando = []
+    Verifica se TODAS as credenciais OAuth necessárias estão configuradas
+    para cada empresa ativa.
+    
+    CREDENCIAIS OBRIGATÓRIAS por empresa:
+    - CLIENT_ID_XX
+    - CLIENT_SECRET_XX
+    - REFRESH_TOKEN_XX
+    
+    NOTA: API_KEY_XX será gerada automaticamente pelo auth_manager
+    
+    Returns:
+        bool: True se todas as credenciais estão ok, False caso contrário
+    """
+    print("\n🔐 VERIFICANDO CREDENCIAIS DE AUTENTICAÇÃO...")
+    print("=" * 70)
+    print("📋 Verificando CLIENT_ID, CLIENT_SECRET e REFRESH_TOKEN")
+    print("-" * 70)
+    
+    credenciais_faltando = []
+    empresas_ok = []
     
     for empresa_id in EMPRESAS_ATIVAS:
-        key_name = f'API_KEY_{empresa_id:02d}'
-        api_key = os.getenv(key_name)
+        print(f"\n📌 Empresa {empresa_id:02d}:")
         
-        if not api_key:
-            keys_faltando.append(key_name)
-            print(f"❌ {key_name} não encontrada")
+        # Verificar as 3 credenciais obrigatórias
+        client_id = os.getenv(f'CLIENT_ID_{empresa_id:02d}')
+        client_secret = os.getenv(f'CLIENT_SECRET_{empresa_id:02d}')
+        refresh_token = os.getenv(f'REFRESH_TOKEN_{empresa_id:02d}')
+        
+        status_client_id = "✅" if client_id else "❌"
+        status_client_secret = "✅" if client_secret else "❌"
+        status_refresh_token = "✅" if refresh_token else "❌"
+        
+        print(f"   {status_client_id} CLIENT_ID_{empresa_id:02d}")
+        print(f"   {status_client_secret} CLIENT_SECRET_{empresa_id:02d}")
+        print(f"   {status_refresh_token} REFRESH_TOKEN_{empresa_id:02d}")
+        
+        # Se faltar alguma credencial, registrar
+        if not all([client_id, client_secret, refresh_token]):
+            if not client_id:
+                credenciais_faltando.append(f"CLIENT_ID_{empresa_id:02d}")
+            if not client_secret:
+                credenciais_faltando.append(f"CLIENT_SECRET_{empresa_id:02d}")
+            if not refresh_token:
+                credenciais_faltando.append(f"REFRESH_TOKEN_{empresa_id:02d}")
         else:
-            # Mostrar apenas primeiros e últimos caracteres por segurança
-            key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
-            print(f"✅ {key_name}: {key_preview}")
+            empresas_ok.append(empresa_id)
     
-    if keys_faltando:
-        print(f"\n❌ ERRO: {len(keys_faltando)} API Key(s) não encontrada(s) no .env:")
-        for key in keys_faltando:
-            print(f"   • {key}")
+    print("\n" + "=" * 70)
+    
+    # 🔴 VERIFICAÇÃO DE SEGURANÇA: Se faltar credenciais, ABORTAR!
+    if credenciais_faltando:
+        print(f"\n❌ ERRO CRÍTICO: {len(credenciais_faltando)} CREDENCIAL(IS) FALTANDO!")
+        print("=" * 70)
+        print("\n📋 Credenciais não encontradas no .env:")
+        for cred in credenciais_faltando:
+            print(f"   • {cred}")
+        
+        print("\n🔧 AÇÕES NECESSÁRIAS:")
+        print("   1. Abra o arquivo .env")
+        print("   2. Adicione as credenciais listadas acima")
+        print("   3. Obtenha as credenciais no Postman (Get New Access Token)")
+        print("   4. Execute o pipeline novamente")
+        
+        print("\n🛡️ SEGURANÇA: Execução ABORTADA para proteger dados")
+        print("=" * 70)
+        
         return False
     
-    print(f"\n✅ Todas as {len(EMPRESAS_ATIVAS)} API Keys estão configuradas!")
+    # ✅ TODAS as credenciais estão OK!
+    print(f"\n✅ VERIFICAÇÃO CONCLUÍDA COM SUCESSO!")
+    print(f"✅ Todas as {len(EMPRESAS_ATIVAS)} empresas têm credenciais completas!")
+    print(f"✅ API Keys serão geradas automaticamente")
+    print("=" * 70)
+    
     return True
+
+
+def obter_tokens_empresas():
+    """
+    🔑 GERAÇÃO AUTOMÁTICA DE TOKENS
+    
+    Obtém/renova tokens válidos para TODAS as empresas ativas
+    antes de executar os pipelines.
+    
+    Isso garante que:
+    - Todos os tokens estão válidos (não expirados)
+    - Arquivo .env está atualizado
+    - Pipelines não falharão por token inválido
+    
+    Returns:
+        dict: Dicionário com tokens de cada empresa {empresa_id: token}
+    """
+    print("\n" + "=" * 70)
+    print("🔑 OBTENDO TOKENS VÁLIDOS PARA TODAS AS EMPRESAS")
+    print("=" * 70)
+    print("⚙️  Esta etapa pode demorar alguns segundos...")
+    print("-" * 70)
+    
+    tokens = {}
+    erros = []
+    
+    for empresa_id in EMPRESAS_ATIVAS:
+        try:
+            print(f"\n📋 Empresa {empresa_id:02d}:")
+            
+            # Chamar o auth_manager para obter/renovar token
+            token = obter_token_para_empresa(empresa_id)
+            
+            if token:
+                tokens[empresa_id] = token
+                # Mostrar preview do token (primeiros e últimos caracteres)
+                token_preview = f"{token[:10]}...{token[-6:]}" if len(token) > 16 else "***"
+                print(f"✅ Token obtido: {token_preview}")
+            else:
+                erros.append(empresa_id)
+                print(f"❌ Falha ao obter token da Empresa {empresa_id:02d}")
+                
+        except Exception as e:
+            erros.append(empresa_id)
+            print(f"❌ Erro ao obter token da Empresa {empresa_id:02d}: {e}")
+    
+    print("\n" + "=" * 70)
+    
+    # 🔴 VERIFICAÇÃO DE SEGURANÇA: Se algum token falhou, ABORTAR!
+    if erros:
+        print(f"\n❌ ERRO CRÍTICO: Falha ao obter {len(erros)} token(s)!")
+        print("=" * 70)
+        print("\n📋 Empresas com erro:")
+        for emp_id in erros:
+            print(f"   • Empresa {emp_id:02d}")
+        
+        print("\n🔧 POSSÍVEIS CAUSAS:")
+        print("   • Refresh token expirado (renovar no Postman)")
+        print("   • Client ID ou Client Secret incorretos")
+        print("   • Problemas de conexão com API do Bling")
+        print("   • Credenciais inválidas ou revogadas")
+        
+        print("\n🛡️ SEGURANÇA: Execução ABORTADA para proteger dados")
+        print("=" * 70)
+        
+        return None
+    
+    # ✅ TODOS os tokens obtidos com sucesso!
+    print(f"\n✅ TODOS OS {len(tokens)} TOKENS OBTIDOS COM SUCESSO!")
+    print(f"✅ Arquivo .env atualizado com novos tokens")
+    print(f"✅ Sistema pronto para extrair dados")
+    print("=" * 70)
+    
+    return tokens
+
+
+# =====================================================
+# FUNÇÕES AUXILIARES - EXECUÇÃO
+# =====================================================
 
 def executar_pipeline_empresa(empresa_id):
     """
@@ -217,6 +354,11 @@ def coletar_estatisticas_finais():
 def executar_todos_pipelines():
     """
     Executa todos os pipelines em sequência
+    
+    🔐 SEGURANÇA:
+       • Verifica credenciais OAuth antes de começar
+       • Gera todos os tokens antes de executar
+       • ABORTA se faltar credenciais ou tokens falharem
     """
     print("\n" + "=" * 70)
     print("🌐 PIPELINE COMPLETO - TODAS AS EMPRESAS")
@@ -226,12 +368,27 @@ def executar_todos_pipelines():
     print(f"📋 IDs: {', '.join(str(e) for e in EMPRESAS_ATIVAS)}")
     print("=" * 70)
     
-    # Verificar API Keys
-    if not verificar_api_keys():
-        print("\n❌ Execução abortada por falta de API Keys")
+    # =====================================================
+    # 🔐 PASSO 1: VERIFICAR CREDENCIAIS (SEGURANÇA CRÍTICA!)
+    # =====================================================
+    if not verificar_credenciais_empresas():
+        print("\n🛡️ EXECUÇÃO ABORTADA: Credenciais incompletas")
+        print("💡 Adicione as credenciais no .env e tente novamente")
         return
     
-    # Criar schemas e tabelas (uma única vez)
+    # =====================================================
+    # 🔑 PASSO 2: OBTER/RENOVAR TOKENS (ANTES DE TUDO!)
+    # =====================================================
+    tokens = obter_tokens_empresas()
+    
+    if not tokens:
+        print("\n🛡️ EXECUÇÃO ABORTADA: Falha ao obter tokens")
+        print("💡 Verifique as credenciais e a conexão com API do Bling")
+        return
+    
+    # =====================================================
+    # 🔧 PASSO 3: PREPARAR BANCO DE DADOS
+    # =====================================================
     print("\n🔧 PREPARANDO BANCO DE DADOS...")
     try:
         create_schema_raw()
@@ -241,6 +398,10 @@ def executar_todos_pipelines():
     except Exception as e:
         print(f"❌ Erro ao preparar banco de dados: {e}")
         return
+    
+    # =====================================================
+    # 🚀 PASSO 4: EXECUTAR PIPELINES
+    # =====================================================
     
     # Registrar início geral
     inicio_geral = datetime.now()
@@ -262,11 +423,13 @@ def executar_todos_pipelines():
     fim_geral = datetime.now()
     tempo_total_geral = fim_geral - inicio_geral
     
-    # Coletar estatísticas finais
+    # =====================================================
+    # 📊 PASSO 5: COLETAR ESTATÍSTICAS
+    # =====================================================
     estatisticas = coletar_estatisticas_finais()
     
     # =====================================================
-    # RELATÓRIO FINAL CONSOLIDADO
+    # 📋 RELATÓRIO FINAL CONSOLIDADO
     # =====================================================
     
     print(f"\n{'='*70}")
@@ -318,11 +481,12 @@ def executar_todos_pipelines():
         print(f"   • {erros} empresa(s) com erro - Verifique os logs acima")
     else:
         print(f"\n❌ TODAS AS EMPRESAS FALHARAM")
-        print(f"   • Verifique conexões, API Keys e logs de erro")
+        print(f"   • Verifique conexões, credenciais e logs de erro")
     
     print(f"\n{'='*70}")
     print(f"📝 Log salvo automaticamente pelo Python")
     print(f"{'='*70}\n")
+
 
 # =====================================================
 # MAIN
@@ -339,6 +503,11 @@ if __name__ == "__main__":
         ║   • Empresa 1, 2, 3, 4, 5 e 6                                ║
         ║   • Parte Comercial + Financeira                             ║
         ║   • Extração + Transformação completas                       ║
+        ║                                                               ║
+        ║   🔐 SEGURANÇA:                                              ║
+        ║   • Verifica credenciais antes de começar                    ║
+        ║   • Gera tokens automaticamente                              ║
+        ║   • Aborta se faltar credenciais ou tokens                   ║
         ║                                                               ║
         ╚═══════════════════════════════════════════════════════════════╝
         """)

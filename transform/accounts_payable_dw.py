@@ -313,7 +313,7 @@ class ContasPagarTransformer:
         print("   • Tratando forma_pagamento_id inválidos...")
         if "forma_pagamento_id" in df.columns:
             df["forma_pagamento_id"] = pd.to_numeric(df["forma_pagamento_id"], errors="coerce")
-            df["forma_pagamento_id"] = df["forma_pagamento_id"].replace(0, np.nan)
+            df["forma_pagamento_id"] = df["forma_pagamento_id"].replace(0, np.nan).infer_objects(copy=False)
             nulos_forma = df["forma_pagamento_id"].isna().sum()
             if nulos_forma > 0:
                 print(f"      ⚠️  {nulos_forma} contas sem forma de pagamento definida")
