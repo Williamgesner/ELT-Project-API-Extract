@@ -27,7 +27,7 @@ class ContasPagarTransformer:
         self.engine = engine
 
     # =====================================================
-    # CORREÇÃO 1: sincronizar_delecoes() - VERSÃO CORRETA
+    # Sincronizar_delecoes
     # =====================================================
     
     def sincronizar_delecoes(self):
@@ -70,12 +70,12 @@ class ContasPagarTransformer:
             ).fetchall()
             ids_raw = {int(row[0]) for row in ids_raw}
 
-            # 🛡️ PROTEÇÃO CRÍTICA - ADICIONAR APÓS LINHA 67:
+            # 🛡️ PROTEÇÃO CRÍTICA
             if len(ids_raw) == 0 and len(ids_processed) > 0:
                 print(f"   🚨 RAW VAZIA - API PODE TER FALHADO!")
                 print(f"   🛡️ ABORTANDO sincronização (proteção ativa)")
                 print(f"   ✅ {len(ids_processed)} registros preservados")
-                return  # ← PARA AQUI, NÃO DELETA NADA!
+                return
             
             # 3. Identificar IDs que estão na PROCESSED mas NÃO na RAW
             ids_deletados = ids_processed - ids_raw
@@ -131,7 +131,7 @@ class ContasPagarTransformer:
             session.close()
 
     # =====================================================
-    # CORREÇÃO 2: preparar_registros_para_processamento()
+    # Peparar_registros_para_processamento
     # Agora só marca baseado em regras de negócio
     # =====================================================
     
@@ -178,10 +178,6 @@ class ContasPagarTransformer:
         finally:
             session.close()
 
-    # =====================================================
-    # RESTO DO CÓDIGO PERMANECE IGUAL
-    # =====================================================
-    
     def extrair_dados_raw(self):
         """Extrai dados da tabela raw.contas_pagar_raw"""
         print("\n1️⃣ EXTRAINDO DADOS DE RAW.CONTAS_PAGAR_RAW...")
@@ -253,9 +249,9 @@ class ContasPagarTransformer:
         # Convertendo strings vazias
         print("   • Convertendo strings vazias para NaN...")
         for coluna in df.select_dtypes(include=["object"]).columns:
-            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True)
-            df[coluna] = df[coluna].replace("", np.nan)
-            df[coluna] = df[coluna].replace(" ", np.nan)
+            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True).infer_objects(copy=False)
+            df[coluna] = df[coluna].replace("", np.nan).infer_objects(copy=False)
+            df[coluna] = df[coluna].replace(" ", np.nan).infer_objects(copy=False)
 
         # Mapeando situação
         print("   • Mapeando situação...")
@@ -359,19 +355,21 @@ class ContasPagarTransformer:
 
         df_final = df[colunas_disponiveis].copy()
 
-        # Converter NaN/NA para None
+        # ===================================================================================
+        # CORREÇÃO DO FUTUREWARNING - ADICIONAR .infer_objects() (Atualização do Pandas)
+        # ===================================================================================
         print("   • Convertendo NaN/NA para None...")
         
         if "forma_pagamento_id" in df_final.columns:
-            df_final["forma_pagamento_id"] = df_final["forma_pagamento_id"].replace({np.nan: None})
+            df_final["forma_pagamento_id"] = df_final["forma_pagamento_id"].replace({np.nan: None}).infer_objects(copy=False)
             df_final["forma_pagamento_id"] = df_final["forma_pagamento_id"].astype(object)
             
         if "bling_cliente_id" in df_final.columns:
-            df_final["bling_cliente_id"] = df_final["bling_cliente_id"].replace({np.nan: None})
+            df_final["bling_cliente_id"] = df_final["bling_cliente_id"].replace({np.nan: None}).infer_objects(copy=False)
             df_final["bling_cliente_id"] = df_final["bling_cliente_id"].astype(object)
         
         if "bling_categoria_id" in df_final.columns:
-            df_final["bling_categoria_id"] = df_final["bling_categoria_id"].replace({pd.NA: None, np.nan: None})
+            df_final["bling_categoria_id"] = df_final["bling_categoria_id"].replace({pd.NA: None, np.nan: None}).infer_objects(copy=False)
             df_final["bling_categoria_id"] = df_final["bling_categoria_id"].astype(object)
 
         print(f"✅ {len(df_final)} registros prontos para exportação")
@@ -757,7 +755,7 @@ class ContasPagarTransformer:
             session.close()
 
     # =====================================================
-    # CORREÇÃO 3: executar_transformacao_completa()
+    # Executar_transformacao_completa()
     # ORDEM CORRETA DE EXECUÇÃO
     # =====================================================
     

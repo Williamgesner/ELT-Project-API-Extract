@@ -497,17 +497,17 @@ if __name__ == "__main__":
         print("""
         ╔═══════════════════════════════════════════════════════════════╗
         ║                                                               ║
-        ║           🌐 ORQUESTRADOR PRINCIPAL - MULTI EMPRESA          ║
+        ║           🌐 ORQUESTRADOR PRINCIPAL - MULTI EMPRESA           ║
         ║                                                               ║
-        ║   Este script executa TODOS os pipelines em sequência:       ║
-        ║   • Empresa 1, 2, 3, 4, 5 e 6                                ║
-        ║   • Parte Comercial + Financeira                             ║
-        ║   • Extração + Transformação completas                       ║
+        ║   Este script executa TODOS os pipelines em sequência:        ║
+        ║   • Empresa 1, 2, 3, 4, 5 e 6                                 ║
+        ║   • Parte Comercial + Financeira                              ║
+        ║   • Extração + Transformação completas                        ║
         ║                                                               ║
-        ║   🔐 SEGURANÇA:                                              ║
-        ║   • Verifica credenciais antes de começar                    ║
-        ║   • Gera tokens automaticamente                              ║
-        ║   • Aborta se faltar credenciais ou tokens                   ║
+        ║   🔐 SEGURANÇA:                                               ║ 
+        ║   • Verifica credenciais antes de começar                     ║
+        ║   • Gera tokens automaticamente                               ║
+        ║   • Aborta se faltar credenciais ou tokens                    ║
         ║                                                               ║
         ╚═══════════════════════════════════════════════════════════════╝
         """)
