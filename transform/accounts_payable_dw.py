@@ -249,9 +249,13 @@ class ContasPagarTransformer:
         # Convertendo strings vazias
         print("   • Convertendo strings vazias para NaN...")
         for coluna in df.select_dtypes(include=["object"]).columns:
+            # Corrigir FutureWarning: adicionar infer_objects(copy=False) explicitamente
+            # conforme recomendação do pandas
             df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True).infer_objects(copy=False)
             df[coluna] = df[coluna].replace("", np.nan).infer_objects(copy=False)
             df[coluna] = df[coluna].replace(" ", np.nan).infer_objects(copy=False)
+            # Converter explicitamente para object mantendo NaN
+            df[coluna] = df[coluna].astype(object)
 
         # Mapeando situação
         print("   • Mapeando situação...")
@@ -305,22 +309,43 @@ class ContasPagarTransformer:
             if "situacao_id_original" in df.columns:
                 df = df.drop(columns=["situacao_id_original"])
 
-        # Tratar forma de pagamento inválida
-        print("   • Tratando forma_pagamento_id inválidos...")
-        if "forma_pagamento_id" in df.columns:
-            df["forma_pagamento_id"] = pd.to_numeric(df["forma_pagamento_id"], errors="coerce")
-            df["forma_pagamento_id"] = df["forma_pagamento_id"].replace(0, np.nan).infer_objects(copy=False)
-            nulos_forma = df["forma_pagamento_id"].isna().sum()
-            if nulos_forma > 0:
-                print(f"      ⚠️  {nulos_forma} contas sem forma de pagamento definida")
-
-        # Tratar categoria inválida
-        print("   • Tratando bling_categoria_id inválidos...")
-        if "bling_categoria_id" in df.columns:
-            df["bling_categoria_id"] = pd.to_numeric(df["bling_categoria_id"], errors="coerce").astype('Int64')
-            nulos_categoria = df["bling_categoria_id"].isna().sum()
-            if nulos_categoria > 0:
-                print(f"      ⚠️  {nulos_categoria} contas sem categoria definida")
+        # ========================================================================
+        # 🔧 ÚNICA ALTERAÇÃO: Validar BIGINT em TODOS os IDs (linhas 326-360)
+        # ========================================================================
+        print("   • Validando e convertendo IDs BIGINT...")
+        
+        BIGINT_MAX = 9223372036854775807
+        BIGINT_MIN = -9223372036854775808
+        
+        campos_bigint = {
+            "bling_contas_pagar_id": "ID Bling Contas Pagar",
+            "bling_cliente_id": "ID Cliente",
+            "forma_pagamento_id": "ID Forma Pagamento",
+            "bling_categoria_id": "ID Categoria"
+        }
+        
+        for campo, descricao in campos_bigint.items():
+            if campo in df.columns:
+                df[campo] = pd.to_numeric(df[campo], errors="coerce")
+                
+                mask_invalidos = (df[campo] > BIGINT_MAX) | (df[campo] < BIGINT_MIN)
+                qtd_invalidos = mask_invalidos.sum()
+                
+                if qtd_invalidos > 0:
+                    print(f"      ⚠️  {descricao}: {qtd_invalidos} valores fora do range BIGINT! Convertendo para NULL...")
+                    df.loc[mask_invalidos, campo] = None
+                
+                if campo == "forma_pagamento_id":
+                    df[campo] = df[campo].replace(0, np.nan)
+                
+                df[campo] = df[campo].astype('Int64')
+                
+                nulos = df[campo].isna().sum()
+                if nulos > 0 and qtd_invalidos == 0:
+                    print(f"      ℹ️  {descricao}: {nulos} valores NULL")
+        # ========================================================================
+        # FIM DA ÚNICA ALTERAÇÃO
+        # ========================================================================
 
         # Adicionar metadados
         print("   • Adicionando metadados de processamento...")
@@ -360,16 +385,28 @@ class ContasPagarTransformer:
         # ===================================================================================
         print("   • Convertendo NaN/NA para None...")
         
+        # Converter IDs BigInteger para int64 para evitar erro "bigint out of range"
+        print("   • Convertendo IDs para tipos numéricos seguros...")
+        if "contas_pagar_id" in df_final.columns:
+            # Converter para int64 (não usar downcast para evitar perda de precisão)
+            df_final["contas_pagar_id"] = pd.to_numeric(df_final["contas_pagar_id"], errors="coerce")
+            # Usar Int64 (nullable integer) para manter compatibilidade com NaN
+            df_final["contas_pagar_id"] = df_final["contas_pagar_id"].astype("Int64")
+        
+        if "bling_contas_pagar_id" in df_final.columns:
+            df_final["bling_contas_pagar_id"] = pd.to_numeric(df_final["bling_contas_pagar_id"], errors="coerce")
+            df_final["bling_contas_pagar_id"] = df_final["bling_contas_pagar_id"].astype("Int64")
+        
         if "forma_pagamento_id" in df_final.columns:
-            df_final["forma_pagamento_id"] = df_final["forma_pagamento_id"].replace({np.nan: None}).infer_objects(copy=False)
+            df_final["forma_pagamento_id"] = df_final["forma_pagamento_id"].replace({np.nan: None, pd.NA: None})
             df_final["forma_pagamento_id"] = df_final["forma_pagamento_id"].astype(object)
             
         if "bling_cliente_id" in df_final.columns:
-            df_final["bling_cliente_id"] = df_final["bling_cliente_id"].replace({np.nan: None}).infer_objects(copy=False)
+            df_final["bling_cliente_id"] = df_final["bling_cliente_id"].replace({np.nan: None, pd.NA: None})
             df_final["bling_cliente_id"] = df_final["bling_cliente_id"].astype(object)
         
         if "bling_categoria_id" in df_final.columns:
-            df_final["bling_categoria_id"] = df_final["bling_categoria_id"].replace({pd.NA: None, np.nan: None}).infer_objects(copy=False)
+            df_final["bling_categoria_id"] = df_final["bling_categoria_id"].replace({pd.NA: None, np.nan: None})
             df_final["bling_categoria_id"] = df_final["bling_categoria_id"].astype(object)
 
         print(f"✅ {len(df_final)} registros prontos para exportação")
@@ -575,21 +612,73 @@ class ContasPagarTransformer:
                                 valor_novo = valor_novo.date()
                             if valor_antigo and isinstance(valor_antigo, datetime):
                                 valor_antigo = valor_antigo.date()
+                            # Comparar datas como strings para evitar problemas de tipo
+                            if valor_novo and valor_antigo:
+                                if str(valor_novo) == str(valor_antigo):
+                                    continue
+                            elif valor_novo is None and valor_antigo is None:
+                                continue
+                            else:
+                                mudou = True
+                                break
                         
                         # Tratamento especial para valores decimais
-                        if campo == "valor":
+                        elif campo == "valor":
                             if valor_novo is not None and valor_antigo is not None:
-                                if abs(float(valor_novo) - float(valor_antigo)) < 0.01:
+                                try:
+                                    diff = abs(float(valor_novo) - float(valor_antigo))
+                                    if diff < 0.01:  # Tolerância para diferenças de arredondamento
+                                        continue
+                                except (ValueError, TypeError):
+                                    pass
+                            elif valor_novo is None and valor_antigo is None:
+                                continue
+                            else:
+                                mudou = True
+                                break
+                        
+                        # Tratamento especial para IDs (BigInteger)
+                        elif campo in ["bling_contas_pagar_id", "bling_cliente_id", "forma_pagamento_id", "bling_categoria_id"]:
+                            # Converter para int para comparação segura
+                            try:
+                                novo_int = int(valor_novo) if valor_novo is not None else None
+                                antigo_int = int(valor_antigo) if valor_antigo is not None else None
+                                if novo_int == antigo_int:
                                     continue
-
-                        if valor_novo is None and valor_antigo is None:
-                            continue
-                        if (valor_novo is None) != (valor_antigo is None):
-                            mudou = True
-                            break
-                        if valor_novo != valor_antigo:
-                            mudou = True
-                            break
+                                else:
+                                    mudou = True
+                                    break
+                            except (ValueError, TypeError):
+                                # Se não conseguir converter, comparar como está
+                                if valor_novo == valor_antigo:
+                                    continue
+                                elif valor_novo is None and valor_antigo is None:
+                                    continue
+                                else:
+                                    mudou = True
+                                    break
+                        
+                        # Tratamento para strings (situacao)
+                        elif campo == "situacao":
+                            novo_str = str(valor_novo).strip() if valor_novo is not None else ""
+                            antigo_str = str(valor_antigo).strip() if valor_antigo is not None else ""
+                            if novo_str == antigo_str:
+                                continue
+                            else:
+                                mudou = True
+                                break
+                        
+                        # Comparação genérica
+                        else:
+                            if valor_novo is None and valor_antigo is None:
+                                continue
+                            if (valor_novo is None) != (valor_antigo is None):
+                                mudou = True
+                                break
+                            # Comparar convertendo para string para evitar problemas de tipo
+                            if str(valor_novo) != str(valor_antigo):
+                                mudou = True
+                                break
 
                     if mudou:
                         registros_modificados += 1
@@ -624,7 +713,28 @@ class ContasPagarTransformer:
                     print(f"      • Processados: {idx}/{total_registros} ({percentual:.0f}%)")
 
                 try:
-                    contas_pagar_id = registro["contas_pagar_id"]
+                    # Converter IDs para int64 antes de processar (evita bigint out of range)
+                    # Tratar valores None, NaN, pd.NA
+                    def safe_int_convert(value):
+                        """Converte valor para int de forma segura"""
+                        if value is None or pd.isna(value):
+                            return None
+                        try:
+                            return int(float(value))  # Converter via float primeiro para lidar com strings numéricas
+                        except (ValueError, TypeError, OverflowError):
+                            return None
+                    
+                    contas_pagar_id = safe_int_convert(registro.get("contas_pagar_id"))
+                    if contas_pagar_id is None:
+                        print(f"      ⚠️  Registro {idx}: contas_pagar_id inválido, pulando...")
+                        continue
+                    registro["contas_pagar_id"] = contas_pagar_id
+                    
+                    # Converter outros IDs BigInteger
+                    registro["bling_contas_pagar_id"] = safe_int_convert(registro.get("bling_contas_pagar_id"))
+                    registro["bling_cliente_id"] = safe_int_convert(registro.get("bling_cliente_id"))
+                    registro["forma_pagamento_id"] = safe_int_convert(registro.get("forma_pagamento_id"))
+                    registro["bling_categoria_id"] = safe_int_convert(registro.get("bling_categoria_id"))
                     
                     if contas_pagar_id not in registros_existentes:
                         stmt = insert(FatoContasPagar).values(**registro)
@@ -660,25 +770,79 @@ class ContasPagarTransformer:
                             valor_novo = registro.get(campo)
                             valor_antigo = getattr(resultado, campo, None)
                             
+                            # Tratamento especial para datas
                             if campo == "data_vencimento":
                                 if valor_novo and isinstance(valor_novo, datetime):
                                     valor_novo = valor_novo.date()
                                 if valor_antigo and isinstance(valor_antigo, datetime):
                                     valor_antigo = valor_antigo.date()
-                            
-                            if campo == "valor":
-                                if valor_novo is not None and valor_antigo is not None:
-                                    if abs(float(valor_novo) - float(valor_antigo)) < 0.01:
+                                # Comparar datas como strings para evitar problemas de tipo
+                                if valor_novo and valor_antigo:
+                                    if str(valor_novo) == str(valor_antigo):
                                         continue
-
-                            if valor_novo is None and valor_antigo is None:
-                                continue
-                            if (valor_novo is None) != (valor_antigo is None):
-                                mudou = True
-                                break
-                            if valor_novo != valor_antigo:
-                                mudou = True
-                                break
+                                elif valor_novo is None and valor_antigo is None:
+                                    continue
+                                else:
+                                    mudou = True
+                                    break
+                            
+                            # Tratamento especial para valores decimais
+                            elif campo == "valor":
+                                if valor_novo is not None and valor_antigo is not None:
+                                    try:
+                                        diff = abs(float(valor_novo) - float(valor_antigo))
+                                        if diff < 0.01:  # Tolerância para diferenças de arredondamento
+                                            continue
+                                    except (ValueError, TypeError):
+                                        pass
+                                elif valor_novo is None and valor_antigo is None:
+                                    continue
+                                else:
+                                    mudou = True
+                                    break
+                            
+                            # Tratamento especial para IDs (BigInteger)
+                            elif campo in ["bling_contas_pagar_id", "bling_cliente_id", "forma_pagamento_id", "bling_categoria_id"]:
+                                # Converter para int para comparação segura
+                                try:
+                                    novo_int = int(valor_novo) if valor_novo is not None else None
+                                    antigo_int = int(valor_antigo) if valor_antigo is not None else None
+                                    if novo_int == antigo_int:
+                                        continue
+                                    else:
+                                        mudou = True
+                                        break
+                                except (ValueError, TypeError):
+                                    # Se não conseguir converter, comparar como está
+                                    if valor_novo == valor_antigo:
+                                        continue
+                                    elif valor_novo is None and valor_antigo is None:
+                                        continue
+                                    else:
+                                        mudou = True
+                                        break
+                            
+                            # Tratamento para strings (situacao)
+                            elif campo == "situacao":
+                                novo_str = str(valor_novo).strip() if valor_novo is not None else ""
+                                antigo_str = str(valor_antigo).strip() if valor_antigo is not None else ""
+                                if novo_str == antigo_str:
+                                    continue
+                                else:
+                                    mudou = True
+                                    break
+                            
+                            # Comparação genérica
+                            else:
+                                if valor_novo is None and valor_antigo is None:
+                                    continue
+                                if (valor_novo is None) != (valor_antigo is None):
+                                    mudou = True
+                                    break
+                                # Comparar convertendo para string para evitar problemas de tipo
+                                if str(valor_novo) != str(valor_antigo):
+                                    mudou = True
+                                    break
 
                         if mudou:
                             session.execute(

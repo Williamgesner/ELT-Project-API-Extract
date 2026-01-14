@@ -20,7 +20,7 @@ class FatoContasPagar(Base):
     # ============================
     
     # Chave primária (mesmo ID da raw)
-    contas_pagar_id = Column(Integer, primary_key=True)
+    contas_pagar_id = Column(BigInteger, primary_key=True)
     
     # Chave de negócio (ID da API Bling)
     bling_contas_pagar_id = Column(BigInteger, nullable=False, index=True)
@@ -51,7 +51,7 @@ class FatoContasPagar(Base):
     bling_cliente_id = Column(BigInteger, index=True)  # Vai virar FK depois quando ligar com dim_contatos
     
     # FK para dim_formas_pagamento
-    forma_pagamento_id = Column(Integer, ForeignKey('processed.dim_formas_pagamento.forma_pagamento_id'), nullable=True, index=True)
+    forma_pagamento_id = Column(BigInteger, ForeignKey('processed.dim_formas_pagamento.forma_pagamento_id'), nullable=True, index=True)
     
     # FK agora aponta para bling_categoria_id (chave de negócio)
     # FK para dim_categorias_contas_pagar

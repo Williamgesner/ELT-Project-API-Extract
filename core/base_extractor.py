@@ -379,7 +379,7 @@ class BaseExtractor:
                 fim_update = datetime.now()
                 print(f"✅ Atualizações concluídas em {fim_update - inicio_update}")
 
-            # ⚠️ CORREÇÃO CRÍTICA: UPDATE apenas data_ingestao COM NOME DE TABELA DINÂMICO
+            # ✅ CORREÇÃO APLICADA: UPDATE apenas data_ingestao
             if registros_para_tocar_data:
                 print(f"\n🕐 Atualizando data_ingestao em {len(registros_para_tocar_data)} registros idênticos...")
                 print(f"   📋 Tabela alvo: {full_table_name}")
@@ -393,8 +393,7 @@ class BaseExtractor:
                         por_empresa[emp_id] = []
                     por_empresa[emp_id].append(r['bling_id'])
                 
-                # Update por empresa em lote - USANDO NOME DE TABELA DINÂMICO
-                # Update por empresa em lote - USANDO NOME DE TABELA DINÂMICO
+                # Update por empresa em lote
                 for empresa_id, bling_ids in por_empresa.items():
                     # Tabelas que NÃO têm status_processamento
                     tabelas_sem_status = [
@@ -404,7 +403,7 @@ class BaseExtractor:
                     ]
                     
                     if table_name in tabelas_sem_status:
-                        # SÓ atualizar data_ingestao
+                        # ✅ CORRETO: SÓ atualizar data_ingestao
                         query_update = f"""
                             UPDATE {full_table_name}
                             SET data_ingestao = CURRENT_TIMESTAMP
@@ -412,11 +411,10 @@ class BaseExtractor:
                             AND empresa_id = :empresa_id
                         """
                     else:
-                        # Atualizar data_ingestao + status_processamento
+                        # ✅ CORREÇÃO: SÓ atualizar data_ingestao (SEM status_processamento!)
                         query_update = f"""
                             UPDATE {full_table_name}
-                            SET data_ingestao = CURRENT_TIMESTAMP,
-                                status_processamento = 'pendente'
+                            SET data_ingestao = CURRENT_TIMESTAMP
                             WHERE bling_id = ANY(:bling_ids)
                             AND empresa_id = :empresa_id
                         """
@@ -428,7 +426,7 @@ class BaseExtractor:
                 
                 fim_touch = datetime.now()
                 print(f"✅ Datas atualizadas em {fim_touch - inicio_touch}")
-                print(f"   ✅ CORREÇÃO APLICADA: Nome de tabela dinâmico funcionando!")
+                print(f"   ✅ CORREÇÃO APLICADA: Registros idênticos NÃO são marcados como 'pendente'!")
 
             if not registros_novos and not registros_para_atualizar and not registros_para_tocar_data:
                 print(f"\n✨ Nenhum registro novo ou alterado! Banco já está atualizado.")

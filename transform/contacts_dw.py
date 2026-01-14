@@ -191,7 +191,7 @@ class ContatosTransformer:
         ]
 
         # Converter para maiúsculo primeiro
-        df["estado"] = df["estado"].str.upper()
+        df["estado"] = df["estado"].apply(lambda x: str(x).upper() if pd.notna(x) else np.nan)
 
         # Identificar estados inválidos antes de limpar
         estados_invalidos = df[df["estado"].notna() & ~df["estado"].isin(estados_validos)]["estado"].unique()
