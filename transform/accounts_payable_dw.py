@@ -140,8 +140,8 @@ class ContasPagarTransformer:
         Marca como 'pendente' registros que precisam ser reavaliados.
         
         LÓGICA:
-        - Contas "Em aberto" (situacao=1) onde vencimento mudou de status
-        - Força reprocessamento baseado em passagem do tempo
+        1. Contas "Em aberto" (situacao=1) onde vencimento mudou de status
+        2. Contas onde situacao na RAW != situacao na PROCESSED (detecta pagamentos, cancelamentos, etc)
         
         NÃO mexe com deleções (isso é feito em sincronizar_delecoes)
         """
@@ -149,8 +149,10 @@ class ContasPagarTransformer:
         
         session = Session()
         try:
-            # Marcar como pendente contas que mudaram de situação por causa da data
-            query = text("""
+            # =====================================================
+            # PARTE 1: Contas "Em aberto" que mudaram por causa da data
+            # =====================================================
+            query_em_aberto = text("""
                 UPDATE raw.contas_pagar_raw
                 SET status_processamento = 'pendente'
                 WHERE empresa_id = :empresa_id
@@ -163,11 +165,40 @@ class ContasPagarTransformer:
                 )
             """)
             
-            resultado = session.execute(query, {"empresa_id": self.empresa_id})
+            resultado_em_aberto = session.execute(query_em_aberto, {"empresa_id": self.empresa_id})
+            
+            # =====================================================
+            # PARTE 2: Contas que mudaram de situação (2,3,4,5)
+            # Detecta quando API mudou situacao mas banco ainda não reflete
+            # =====================================================
+            query_mudanca_situacao = text("""
+                UPDATE raw.contas_pagar_raw r
+                SET status_processamento = 'pendente'
+                FROM processed.fato_contas_pagar p
+                WHERE r.bling_id = p.bling_contas_pagar_id
+                AND r.empresa_id = :empresa_id
+                AND r.empresa_id = p.empresa_id
+                AND r.status_processamento = 'processado'
+                AND (
+                    -- Detectar mudanças de situação (apenas 2,3,4,5 pois 1 já é tratado acima)
+                    ((r.dados_json->>'situacao')::int = 2 AND p.situacao != 'Pago')
+                    OR ((r.dados_json->>'situacao')::int = 3 AND p.situacao != 'Parcialmente recebido')
+                    OR ((r.dados_json->>'situacao')::int = 4 AND p.situacao != 'Devolvido')
+                    OR ((r.dados_json->>'situacao')::int = 5 AND p.situacao != 'Cancelado')
+                )
+            """)
+            
+            resultado_mudanca = session.execute(query_mudanca_situacao, {"empresa_id": self.empresa_id})
             session.commit()
             
-            if resultado.rowcount > 0:
-                print(f"   ⚡ {resultado.rowcount} contas marcadas para reavaliação (mudança de situação)")
+            total_marcados = resultado_em_aberto.rowcount + resultado_mudanca.rowcount
+            
+            if total_marcados > 0:
+                print(f"   ⚡ {total_marcados} contas marcadas para reavaliação")
+                if resultado_em_aberto.rowcount > 0:
+                    print(f"      • {resultado_em_aberto.rowcount} por mudança de data")
+                if resultado_mudanca.rowcount > 0:
+                    print(f"      • {resultado_mudanca.rowcount} por mudança de situação")
             else:
                 print(f"   ✅ Nenhuma conta precisa de reavaliação")
                 

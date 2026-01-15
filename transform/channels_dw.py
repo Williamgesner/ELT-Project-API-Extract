@@ -101,6 +101,7 @@ class CanaisTransformer:
                 "SHOPEE G4",
                 "SHOPEE S. FARIAS",
                 "VIA VAREJO",
+                "SHOPEE_MURILO",
                 "OUTROS"
             ],
 
@@ -109,6 +110,8 @@ class CanaisTransformer:
                 "SHOPEE G5",
                 "NETSHOES G5",
                 "MERCADO LIVRE G5",
+                "SHOPEE - JOAO VITOR",
+                "KOG BIKE",
                 "OUTROS"
             ],
 

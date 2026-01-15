@@ -1,5 +1,6 @@
 # Responsável por: executar o enriquecimento de contas a pagar (adicionar categoria.id)
 
+import argparse # Para eu poder rodar somente da uma empresa específica 
 from datetime import datetime
 from extract.accounts_payable_details import ContasPagarDetalhesExtractor
 from config.settings import empresas
@@ -9,6 +10,30 @@ from config.settings import empresas
 # =====================================================
 
 if __name__ == "__main__":
+    # Configurar argumentos de linha de comando
+    parser = argparse.ArgumentParser(
+        description='Enriquecer contas a pagar com categoria.id',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Exemplos de uso:
+  # Processar todas as empresas
+  python3 -m main.main_enrich_accounts_payable
+  
+  # Processar apenas a empresa 01
+  python3 -m main.main_enrich_accounts_payable --empresa 1
+  
+  # Processar apenas a empresa 02
+  python3 -m main.main_enrich_accounts_payable --empresa 2
+        """
+    )
+    parser.add_argument(
+        '--empresa',
+        type=int,
+        help='ID da empresa para processar (ex: 1 para empresa 01). Se não informado, processa todas as empresas.'
+    )
+    
+    args = parser.parse_args()
+    
     try:
         print("\n" + "=" * 70)
         print("🔄 ENRIQUECIMENTO: CONTAS A PAGAR RAW → ADICIONAR CATEGORIA")
@@ -29,10 +54,27 @@ if __name__ == "__main__":
         
         inicio = datetime.now()
         
+        # Filtrar empresas se empresa_id foi especificado
+        empresas_para_processar = empresas
+        if args.empresa is not None:
+            empresas_para_processar = [
+                emp for emp in empresas 
+                if emp['empresa_id'] == args.empresa
+            ]
+            
+            if not empresas_para_processar:
+                print(f"\n❌ ERRO: Empresa ID {args.empresa} não encontrada!")
+                print(f"Empresas disponíveis:")
+                for emp in empresas:
+                    print(f"  • ID {emp['empresa_id']}: {emp['nome']}")
+                raise ValueError(f"Empresa ID {args.empresa} não encontrada")
+            
+            print(f"\n🎯 Modo de teste: Processando apenas empresa ID {args.empresa}")
+        
         # Processar cada empresa
         print("\n🚀 Iniciando enriquecimento...")
 
-        for empresa_config in empresas:
+        for empresa_config in empresas_para_processar:
             empresa_id = empresa_config['empresa_id']
             api_key = empresa_config['api_key']
             nome = empresa_config['nome']
@@ -49,7 +91,10 @@ if __name__ == "__main__":
         tempo_total = fim - inicio
         
         print(f"\n{'='*70}")
-        print(f"✅ ENRIQUECIMENTO CONCLUÍDO COM SUCESSO!")
+        if args.empresa is not None:
+            print(f"✅ ENRIQUECIMENTO DA EMPRESA {args.empresa} CONCLUÍDO COM SUCESSO!")
+        else:
+            print(f"✅ ENRIQUECIMENTO CONCLUÍDO COM SUCESSO!")
         print(f"⏱️  Tempo total: {tempo_total}")
         print(f"{'='*70}")
         
@@ -82,4 +127,4 @@ if __name__ == "__main__":
         print("Script interrompido para análise do erro")
         import traceback
         traceback.print_exc()
-        raise   
+        raise
