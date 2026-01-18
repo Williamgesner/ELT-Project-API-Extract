@@ -23,6 +23,7 @@ ENV/
 
 # Configurações locais
 *.env
+.env-homolog
 .env.*
 
 # ======================
