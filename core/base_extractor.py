@@ -103,7 +103,14 @@ class BaseExtractor:
 # 3. FUNÇÃO DE EXTRAÇÃO DOS DADOS (COM RETRY E PARADA)
 # =======================================================  
 
-    def extract_dados_bling_paginado(self, limite_por_pagina=100, delay_entre_requests=0.35, max_paginas=1000, max_tentativas=3):
+    def extract_dados_bling_paginado(
+            self, 
+            limite_por_pagina=100, 
+            delay_entre_requests=0.35,
+            max_paginas=1000, 
+            max_tentativas=3,
+            filtros_adicionais=None # Inserido para conseguir fazer filtros de data de extração
+        ):
         """
         Extrai todos os dados de qualquer endpoint da API Bling usando paginação
         PARA COMPLETAMENTE se não conseguir obter uma página após 3 tentativas
@@ -130,6 +137,9 @@ class BaseExtractor:
                 "limite": limite_por_pagina,
                 "pagina": pagina_atual
             }
+
+            if filtros_adicionais: # True (Se existe filtro)
+                params.update(filtros_adicionais) # Adiciona ao dicionário. Agora fica "limite": 100,"pagina": 1,"dataInicial": "2024-01-01". Se não existe, não faz nada
 
             print(f"Processando página {pagina_atual}{'/' + str(total_paginas) if total_paginas else ''}...")
         

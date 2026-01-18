@@ -1,6 +1,6 @@
 # Responsável por: extrair contatos completos - INSERIR APENAS NOVOS (SEM COMPARAÇÃO)
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import requests
 from core.base_extractor import BaseExtractor
@@ -49,13 +49,53 @@ class ContatosCompletoExtractor(BaseExtractor):
             # ETAPA 1: Extrair lista básica de contatos
             print("\n1️⃣ EXTRAINDO LISTA BÁSICA DE CONTATOS...")
             inicio_lista = datetime.now()
-            
-            lista_contatos = self.extract_dados_bling_paginado(
-                limite_por_pagina=100,
-                delay_entre_requests=0.35,
-                max_paginas=1000,
-                max_tentativas=3
-            )
+
+            # Filtro correto conforme OpenAPI do Bling (GET /contatos):
+            # - dataInclusaoInicial / dataInclusaoFinal (format: "YYYY-MM-DD HH:MM:SS")
+            #
+            # Observação: o Bling costuma limitar intervalo de datas; para evitar 400
+            # quando o período é grande (ex.: 2024 → hoje), fazemos em janelas.
+            data_inclusao_inicial = datetime(2024, 1, 1, 0, 0, 0)
+            data_inclusao_final = datetime.now()
+            janela_dias = 360  # margem de segurança (< 365) para evitar limite de 1 ano
+
+            lista_contatos = []
+            ids_vistos = set()
+
+            inicio_janela = data_inclusao_inicial
+            while inicio_janela <= data_inclusao_final:
+                fim_janela = min(
+                    inicio_janela + timedelta(days=janela_dias) - timedelta(seconds=1),
+                    data_inclusao_final,
+                )
+
+                filtros_adicionais = {
+                    "criterio": 1,  # "Todos" (mais seguro quando usando filtros de data)
+                    "dataInclusaoInicial": inicio_janela.strftime("%Y-%m-%d %H:%M:%S")
+                }
+
+                print(
+                    f"\n📅 Janela de inclusão: "
+                    f"{filtros_adicionais['dataInclusaoInicial']} → {filtros_adicionais['dataInclusaoFinal']}"
+                )
+
+                contatos_janela = self.extract_dados_bling_paginado(
+                    limite_por_pagina=100,
+                    delay_entre_requests=0.35,
+                    max_paginas=1000,
+                    max_tentativas=3,
+                    filtros_adicionais=filtros_adicionais,
+                )
+
+                for contato in contatos_janela:
+                    contato_id = contato.get("id")
+                    if contato_id is None or contato_id in ids_vistos:
+                        continue
+                    ids_vistos.add(contato_id)
+                    lista_contatos.append(contato)
+
+                # Próxima janela (evita sobreposição)
+                inicio_janela = fim_janela + timedelta(seconds=1)
             
             fim_lista = datetime.now()
             tempo_lista = fim_lista - inicio_lista
