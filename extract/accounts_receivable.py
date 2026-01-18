@@ -1,6 +1,6 @@
 # Responsável por: extrair contas a receber da API Bling
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from core.base_extractor import BaseExtractor
 from models.accounts_receivable_raw import ContasReceberRaw
 from config.settings import endpoints
@@ -46,12 +46,51 @@ class ContasReceberExtractor(BaseExtractor):
 
             # Extrai TODOS os dados da API usando paginação
             print("Extraindo todas as contas a receber da API...")
-            todas_contas = self.extract_dados_bling_paginado(
-                limite_por_pagina=100,       # Máximo permitido pela API
-                delay_entre_requests=0.35,   # Delay mínimo, com margem de segurança
-                max_paginas=1000,            # Limite de segurança
-                max_tentativas=3             # 3 tentativas antes de parar tudo
-            )
+            # Filtro correto conforme OpenAPI do Bling (GET /contas/receber):
+            # - tipoFiltroData (E=Emissão, V=Vencimento, R=Recebimento)
+            # - dataInicial / dataFinal (format: "YYYY-MM-DD")
+            #
+            # Observação: para evitar erro de intervalo (ex.: > 1 ano),
+            # extraímos em janelas de datas.
+            data_inicial = datetime(2024, 1, 1).date()
+            data_final = datetime.now().date()
+            janela_dias = 360  # margem de segurança (< 365)
+
+            todas_contas = []
+            ids_vistos = set()
+
+            inicio_janela = data_inicial
+            while inicio_janela <= data_final:
+                fim_janela = min(inicio_janela + timedelta(days=janela_dias), data_final)
+
+                filtros_adicionais = {
+                    "tipoFiltroData": "E",  # Data de emissão
+                    "dataInicial": inicio_janela.strftime("%Y-%m-%d"),
+                    "dataFinal": fim_janela.strftime("%Y-%m-%d"),
+                }
+
+                print(
+                    f"\n📅 Janela (contas a receber): "
+                    f"{filtros_adicionais['dataInicial']} → {filtros_adicionais['dataFinal']}"
+                )
+
+                contas_janela = self.extract_dados_bling_paginado(
+                    limite_por_pagina=100,       # Máximo permitido pela API
+                    delay_entre_requests=0.35,   # Delay mínimo, com margem de segurança
+                    max_paginas=1000,            # Limite de segurança
+                    max_tentativas=3,            # 3 tentativas antes de parar tudo
+                    filtros_adicionais=filtros_adicionais,
+                )
+
+                for conta in contas_janela:
+                    conta_id = conta.get("id")
+                    if conta_id is None or conta_id in ids_vistos:
+                        continue
+                    ids_vistos.add(conta_id)
+                    todas_contas.append(conta)
+
+                # Próxima janela (evita sobreposição)
+                inicio_janela = fim_janela + timedelta(days=1)
 
             fim_extracao = datetime.now()
             tempo_extracao = fim_extracao - inicio_extracao

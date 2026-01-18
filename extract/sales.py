@@ -1,6 +1,6 @@
 # Responsável por: orquestrar a extração de contatos especificamente
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from core.base_extractor import BaseExtractor
 from models.sales_raw import VendasRaw
 from config.settings import endpoints
@@ -44,12 +44,49 @@ class VendasExtractor(BaseExtractor):
             print(f"Extraindo todos as vendas da API (Empresa ID: {self.empresa_id})...")
             inicio_extracao = datetime.now()
 
-            todas_vendas = self.extract_dados_bling_paginado(
-                limite_por_pagina=100,       # Máximo permitido pela API
-                delay_entre_requests=0.35,   # Deley mínimo, com margem de segurança. Segundo documentação da API são 3 requisições por segundo
-                max_paginas=1000,            # Limite de segurança
-                max_tentativas=3             # 3 tentativas antes de parar tudo
-            )
+            # Filtro correto conforme OpenAPI do Bling (GET /pedidos/vendas):
+            # - dataInicial / dataFinal (format: "YYYY-MM-DD")
+            #
+            # Observação: para evitar erro de intervalo (ex.: > 1 ano),
+            # extraímos em janelas de datas.
+            data_inicial = datetime(2024, 1, 1).date()
+            data_final = datetime.now().date()
+            janela_dias = 360  # margem de segurança (< 365)
+
+            todas_vendas = []
+            ids_vistos = set()
+
+            inicio_janela = data_inicial
+            while inicio_janela <= data_final:
+                fim_janela = min(inicio_janela + timedelta(days=janela_dias), data_final)
+
+                filtros_adicionais = {
+                    "dataInicial": inicio_janela.strftime("%Y-%m-%d"),
+                    "dataFinal": fim_janela.strftime("%Y-%m-%d"),
+                }
+
+                print(
+                    f"\n📅 Janela de vendas: "
+                    f"{filtros_adicionais['dataInicial']} → {filtros_adicionais['dataFinal']}"
+                )
+
+                vendas_janela = self.extract_dados_bling_paginado(
+                    limite_por_pagina=100,       # Máximo permitido pela API
+                    delay_entre_requests=0.35,   # Deley mínimo, com margem de segurança. Segundo documentação da API são 3 requisições por segundo
+                    max_paginas=1000,            # Limite de segurança
+                    max_tentativas=3,            # 3 tentativas antes de parar tudo
+                    filtros_adicionais=filtros_adicionais,
+                )
+
+                for venda in vendas_janela:
+                    venda_id = venda.get("id")
+                    if venda_id is None or venda_id in ids_vistos:
+                        continue
+                    ids_vistos.add(venda_id)
+                    todas_vendas.append(venda)
+
+                # Próxima janela (evita sobreposição)
+                inicio_janela = fim_janela + timedelta(days=1)
 
             fim_extracao = datetime.now()
             tempo_extracao = fim_extracao - inicio_extracao

@@ -1,6 +1,6 @@
 # Responsável por: extrair NFe (entrada E saída) com comparação INTELIGENTE
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 import time
 from core.base_extractor import BaseExtractor
@@ -38,9 +38,16 @@ class NFeExtractor(BaseExtractor):
             "Accept": "application/json",
         }
     
-    def extract_dados_bling_paginado_com_tipo(self, tipo, limite_por_pagina=100, 
-                                               delay_entre_requests=0.35, max_paginas=1000, 
-                                               max_tentativas=3):
+    def extract_dados_bling_paginado_com_tipo(
+        self,
+        tipo,
+        limite_por_pagina=100,
+        delay_entre_requests=0.35,
+        max_paginas=1000,
+        max_tentativas=3,
+        data_emissao_inicial=None,
+        data_emissao_final=None,
+    ):
         """
         Extrai NFe de um tipo específico da API Bling
         """
@@ -58,6 +65,13 @@ class NFeExtractor(BaseExtractor):
                 "pagina": pagina_atual,
                 "tipo": tipo
             }
+
+            # Filtro correto conforme OpenAPI do Bling (GET /nfe):
+            # - dataEmissaoInicial / dataEmissaoFinal
+            if data_emissao_inicial:
+                params["dataEmissaoInicial"] = data_emissao_inicial
+            if data_emissao_final:
+                params["dataEmissaoFinal"] = data_emissao_final
 
             print(f"   Processando página {pagina_atual}{'/' + str(total_paginas) if total_paginas else ''}...")
             
@@ -161,24 +175,81 @@ class NFeExtractor(BaseExtractor):
             # ===== EXTRAIR NOTAS DE SAÍDA =====
             print("\n📤 EXTRAINDO NOTAS DE SAÍDA...")
             print("-" * 60)
-            nfe_saida = self.extract_dados_bling_paginado_com_tipo(
-                tipo=1,
-                limite_por_pagina=100,
-                delay_entre_requests=0.35,
-                max_paginas=1000,
-                max_tentativas=3
-            )
+            # Filtro 2024+ (em janelas para evitar intervalo grande)
+            data_emissao_inicial = datetime(2024, 1, 1, 0, 0, 0)
+            data_emissao_final = datetime.now()
+            janela_dias = 360  # margem de segurança (< 365)
+
+            nfe_saida = []
+            ids_saida = set()
+            inicio_janela = data_emissao_inicial
+
+            while inicio_janela <= data_emissao_final:
+                fim_janela = min(
+                    inicio_janela + timedelta(days=janela_dias) - timedelta(seconds=1),
+                    data_emissao_final,
+                )
+
+                filtro_ini = inicio_janela.strftime("%Y-%m-%d %H:%M:%S")
+                filtro_fim = fim_janela.strftime("%Y-%m-%d %H:%M:%S")
+
+                print(f"\n📅 Janela NFe SAÍDA: {filtro_ini} → {filtro_fim}")
+
+                nfe_janela = self.extract_dados_bling_paginado_com_tipo(
+                    tipo=1,
+                    limite_por_pagina=100,
+                    delay_entre_requests=0.35,
+                    max_paginas=1000,
+                    max_tentativas=3,
+                    data_emissao_inicial=filtro_ini,
+                    data_emissao_final=filtro_fim,
+                )
+
+                for nfe in nfe_janela:
+                    nfe_id = nfe.get("id")
+                    if nfe_id is None or nfe_id in ids_saida:
+                        continue
+                    ids_saida.add(nfe_id)
+                    nfe_saida.append(nfe)
+
+                inicio_janela = fim_janela + timedelta(seconds=1)
 
             # ===== EXTRAIR NOTAS DE ENTRADA =====
             print("\n📥 EXTRAINDO NOTAS DE ENTRADA...")
             print("-" * 60)
-            nfe_entrada = self.extract_dados_bling_paginado_com_tipo(
-                tipo=0,
-                limite_por_pagina=100,
-                delay_entre_requests=0.35,
-                max_paginas=1000,
-                max_tentativas=3
-            )
+            nfe_entrada = []
+            ids_entrada = set()
+            inicio_janela = data_emissao_inicial
+
+            while inicio_janela <= data_emissao_final:
+                fim_janela = min(
+                    inicio_janela + timedelta(days=janela_dias) - timedelta(seconds=1),
+                    data_emissao_final,
+                )
+
+                filtro_ini = inicio_janela.strftime("%Y-%m-%d %H:%M:%S")
+                filtro_fim = fim_janela.strftime("%Y-%m-%d %H:%M:%S")
+
+                print(f"\n📅 Janela NFe ENTRADA: {filtro_ini} → {filtro_fim}")
+
+                nfe_janela = self.extract_dados_bling_paginado_com_tipo(
+                    tipo=0,
+                    limite_por_pagina=100,
+                    delay_entre_requests=0.35,
+                    max_paginas=1000,
+                    max_tentativas=3,
+                    data_emissao_inicial=filtro_ini,
+                    data_emissao_final=filtro_fim,
+                )
+
+                for nfe in nfe_janela:
+                    nfe_id = nfe.get("id")
+                    if nfe_id is None or nfe_id in ids_entrada:
+                        continue
+                    ids_entrada.add(nfe_id)
+                    nfe_entrada.append(nfe)
+
+                inicio_janela = fim_janela + timedelta(seconds=1)
 
             # ===== COMBINAR =====
             todas_nfe = nfe_saida + nfe_entrada

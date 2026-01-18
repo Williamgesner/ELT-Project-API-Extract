@@ -1,6 +1,6 @@
 # Responsável por: orquestrar a extração de produtos especificamente
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from core.base_extractor import BaseExtractor
 from models.product_raw import ProdutoRaw
 from config.settings import endpoints
@@ -44,12 +44,53 @@ class ProdutosExtractor(BaseExtractor):
             print(f"Extraindo todos os produtos da API (Empresa ID: {self.empresa_id})...")
             inicio_extracao = datetime.now()
 
-            todos_produtos = self.extract_dados_bling_paginado(
-                limite_por_pagina=100,       # Máximo permitido pela API
-                delay_entre_requests=0.35,   # Delay mínimo, com margem de segurança
-                max_paginas=1000,            # Limite de segurança
-                max_tentativas=3             # 3 tentativas antes de parar tudo
-            )
+            # Filtro correto conforme OpenAPI do Bling (GET /produtos):
+            # - dataInclusaoInicial / dataInclusaoFinal (format: "YYYY-MM-DD HH:MM:SS")
+            #
+            # Observação: para evitar erro de intervalo (ex.: > 1 ano),
+            # extraímos em janelas de datas.
+            data_inclusao_inicial = datetime(2024, 1, 1, 0, 0, 0)
+            data_inclusao_final = datetime.now()
+            janela_dias = 360  # margem de segurança (< 365)
+
+            todos_produtos = []
+            ids_vistos = set()
+
+            inicio_janela = data_inclusao_inicial
+            while inicio_janela <= data_inclusao_final:
+                fim_janela = min(
+                    inicio_janela + timedelta(days=janela_dias) - timedelta(seconds=1),
+                    data_inclusao_final,
+                )
+
+                filtros_adicionais = {
+                    "criterio": 5,  # "Todos" (mais seguro quando usando filtros de data)
+                    "dataInclusaoInicial": inicio_janela.strftime("%Y-%m-%d %H:%M:%S"),
+                    "dataInclusaoFinal": fim_janela.strftime("%Y-%m-%d %H:%M:%S"),
+                }
+
+                print(
+                    f"\n📅 Janela de inclusão (produtos): "
+                    f"{filtros_adicionais['dataInclusaoInicial']} → {filtros_adicionais['dataInclusaoFinal']}"
+                )
+
+                produtos_janela = self.extract_dados_bling_paginado(
+                    limite_por_pagina=100,       # Máximo permitido pela API
+                    delay_entre_requests=0.35,   # Delay mínimo, com margem de segurança
+                    max_paginas=1000,            # Limite de segurança
+                    max_tentativas=3,            # 3 tentativas antes de parar tudo
+                    filtros_adicionais=filtros_adicionais,
+                )
+
+                for produto in produtos_janela:
+                    produto_id = produto.get("id")
+                    if produto_id is None or produto_id in ids_vistos:
+                        continue
+                    ids_vistos.add(produto_id)
+                    todos_produtos.append(produto)
+
+                # Próxima janela (evita sobreposição)
+                inicio_janela = fim_janela + timedelta(seconds=1)
 
             fim_extracao = datetime.now()
             tempo_extracao = fim_extracao - inicio_extracao

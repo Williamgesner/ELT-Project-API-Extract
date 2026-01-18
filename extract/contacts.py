@@ -71,7 +71,8 @@ class ContatosCompletoExtractor(BaseExtractor):
 
                 filtros_adicionais = {
                     "criterio": 1,  # "Todos" (mais seguro quando usando filtros de data)
-                    "dataInclusaoInicial": inicio_janela.strftime("%Y-%m-%d %H:%M:%S")
+                    "dataInclusaoInicial": inicio_janela.strftime("%Y-%m-%d %H:%M:%S"),
+                    "dataInclusaoFinal": fim_janela.strftime("%Y-%m-%d %H:%M:%S"),
                 }
 
                 print(
