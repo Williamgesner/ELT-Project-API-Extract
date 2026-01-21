@@ -156,10 +156,19 @@ class VendasDetalhesExtractor:
             vendas_sem_itens = []
             vendas_com_itens = 0
             
+            # ✅ CORREÇÃO: Verificação robusta de itens
             for venda in vendas:
-                if 'itens' not in venda.dados_json or not venda.dados_json.get('itens'):
+                # Pegar lista de itens do JSON (ou lista vazia se não existir)
+                itens = venda.dados_json.get('itens', [])
+                
+                # ✅ CORREÇÃO: Verificar se é lista E se tem conteúdo
+                # ANTES: not venda.dados_json.get('itens')  ← [] é FALSY, causava loop!
+                # DEPOIS: isinstance + len > 0
+                if not isinstance(itens, list) or len(itens) == 0:
+                    # NÃO tem itens (ou não é lista) → precisa atualizar
                     vendas_sem_itens.append(venda.bling_id)
                 else:
+                    # TEM itens → já processada
                     vendas_com_itens += 1
             
             print(f"✅ {vendas_com_itens} vendas já têm itens")
@@ -203,7 +212,8 @@ class VendasDetalhesExtractor:
                     # Verificar se tem itens
                     itens = detalhes.get('itens', [])
                     
-                    if itens:
+                    # ✅ CORREÇÃO: Usar len() ao invés de truthy check
+                    if isinstance(itens, list) and len(itens) > 0:
                         stats['com_itens'] += 1
                         if i % 50 == 0:
                             print(f"   ✅ Venda {venda_id}: {len(itens)} itens encontrados")

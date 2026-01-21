@@ -1,3 +1,4 @@
+# ESSE É O ÚNICO SCRIP MAIN COM LOG, PARA FINS DE TESTES! 
 # Responsável por: executar TODOS os extratores E transformadores em sequência em Empresa ID - 4
 # Este script mantém o DW sincronizado com a Bling - VERSÃO COMPLETA
 # Inclui: Parte COMERCIAL + Parte FINANCEIRA
@@ -27,6 +28,7 @@ from dotenv import load_dotenv
 from sqlalchemy import text
 from config.database import create_schema_raw, create_schema_processed, create_all_tables, Session
 from config.auth_manager import obter_token_para_empresa #IMPORTAR O GERENCIADOR DE TOKENS
+from config.logger import setup_logging, close_logging
 
 # =====================================================
 # IMPORTAÇÕES - PARTE COMERCIAL
@@ -526,6 +528,10 @@ def executar_pipeline_completo():
 # =====================================================
 
 if __name__ == "__main__":
+    # ===== INICIAR LOGGING (CAPTURA TUDO) =====
+    log_file = setup_logging(empresa_id=4) 
+    # ===========================================
+    
     try:
         # Cria os schemas se não existirem
         create_schema_raw()
@@ -544,4 +550,9 @@ if __name__ == "__main__":
         print(f"\n❌ ERRO CRÍTICO durante execução: {e}")
         import traceback
         traceback.print_exc()
-        raise
+        raise   
+    finally: 
+        # ===== FECHAR LOGGING (SEMPRE) =====
+        close_logging()
+        print(f"\n📁 Log completo salvo em: {log_file}")
+        # ====================================

@@ -16,7 +16,7 @@ ENV/
 *.pyd
 
 # Logs e temporários
-*.log
+logs/
 *.pot
 *.pyc
 *.sqlite3

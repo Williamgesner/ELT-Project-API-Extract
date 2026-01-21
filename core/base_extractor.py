@@ -3,79 +3,95 @@
 import requests
 import time
 from datetime import datetime
+import json
+from decimal import Decimal
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy import text
 from config.settings import headers
 from config.database import Session
 
 # =======================================================
-# 1. FUNÇÃO DE COMPARAÇÃO DE JSON - VERSÃO FINAL
+# 1. FUNÇÃO DE COMPARAÇÃO DE JSON - ✅ VERSÃO CORRIGIDA
 # =======================================================
+
+def _normalizar_json_para_comparacao(obj):
+    """
+    Normaliza estruturas JSON (dict/list) para comparação determinística.
+
+    Objetivo:
+    - Ignorar ordem de listas (ex.: categorias, imagens, etc.), evitando falsos positivos.
+    - Ignorar ordem das chaves em dicts (já é ignorada por padrão em dict equality, mas
+      aqui garantimos também uma representação canônica para ordenação de listas).
+    - Tratar números (int/float/Decimal) com arredondamento para evitar 100.0 != 100.00.
+
+    Observação:
+    - A normalização assume que a ordem das listas NÃO é semanticamente relevante para
+      os payloads do Bling usados aqui (se houver campo onde a ordem importa, devemos
+      tratar esse campo explicitamente).
+    """
+    # Dict: ordenar chaves e normalizar recursivamente valores
+    if isinstance(obj, dict):
+        return {k: _normalizar_json_para_comparacao(obj[k]) for k in sorted(obj.keys())}
+
+    # Lista: normalizar itens e ordenar por uma assinatura canônica (preserva duplicatas)
+    if isinstance(obj, list):
+        normalizados = [_normalizar_json_para_comparacao(x) for x in obj]
+
+        def assinatura(item):
+            # item já está normalizado (somente tipos serializáveis)
+            try:
+                return json.dumps(
+                    item,
+                    sort_keys=True,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+            except TypeError:
+                # Fallback conservador: string do objeto
+                return str(item)
+
+        return sorted(normalizados, key=assinatura)
+
+    # Números: normalizar para float com 2 casas
+    if isinstance(obj, (int, float, Decimal)):
+        return round(float(obj), 2)
+
+    # Outros tipos simples (str/bool/None) ou valores inesperados
+    return obj
+
 
 def comparar_jsons(json1, json2):
     """
     Compara dois JSONs de forma inteligente
-    Compara APENAS campos que existem em AMBOS os JSONs
-    Isso resolve o problema de endpoints diferentes (resumo vs detalhes)
+    ✅ CORREÇÃO: Ignora ordem de listas (incluindo listas de dicts ANINHADAS).
     
-Retorna True se são diferentes, False se são iguais
+    Retorna True se são diferentes, False se são iguais
     """
     try:
-        # Se não são dicts, comparar direto
+        # Se não são dicts, comparar já normalizado
         if not isinstance(json1, dict) or not isinstance(json2, dict):
-            return json1 != json2
-        
-        # Pegar apenas campos que existem em AMBOS
+            return _normalizar_json_para_comparacao(json1) != _normalizar_json_para_comparacao(json2)
+
+        # Pegar apenas campos que existem em AMBOS (mantém o comportamento atual do projeto)
         campos_comuns = set(json1.keys()) & set(json2.keys())
-        
+
         # Se não tem campos em comum, são diferentes
         if not campos_comuns:
             return True
-        
-        # Comparar cada campo comum
+
+        # Comparar cada campo comum, mas usando normalização profunda
         for campo in campos_comuns:
-            val1 = json1[campo]
-            val2 = json2[campo]
-            
-            # Comparar recursivamente se for dict
-            if isinstance(val1, dict) and isinstance(val2, dict):
-                if comparar_jsons(val1, val2):
-                    return True
-            
-            # Comparar listas
-            elif isinstance(val1, list) and isinstance(val2, list):
-                if len(val1) != len(val2):
-                    return True
-                # Tentar ordenar e comparar
-                try:
-                    if sorted(val1) != sorted(val2):
-                        return True
-                except TypeError:
-                    # Se não conseguir ordenar, comparar item a item
-                    for i, item in enumerate(val1):
-                        if i >= len(val2):
-                            return True
-                        if isinstance(item, dict):
-                            if comparar_jsons(item, val2[i]):
-                                return True
-                        elif item != val2[i]:
-                            return True
-            
-            # Comparar floats com arredondamento
-            elif isinstance(val1, (int, float)) and isinstance(val2, (int, float)):
-                if round(float(val1), 2) != round(float(val2), 2):
-                    return True
-            
-            # Comparar valores simples
-            elif val1 != val2:
+            val1 = json1.get(campo)
+            val2 = json2.get(campo)
+
+            if _normalizar_json_para_comparacao(val1) != _normalizar_json_para_comparacao(val2):
                 return True
-        
-        # Se chegou aqui, são iguais
+
         return False
         
     except Exception as e:
         print(f"⚠️  Erro ao comparar JSONs: {e}")
-        # Em caso de erro, assume que são diferentes
+        # Em caso de erro, assume que são diferentes (conservador)
         return True
 
 # =======================================================
@@ -193,7 +209,7 @@ class BaseExtractor:
                         time.sleep(delay_entre_requests)
                     else:
                         print(f"ERRO CRÍTICO: Erro não recuperável na página {pagina_atual}")
-                        print("INTERROMPENDO EXTRAÇÃO para análise do erro")
+                        print("INTERROMPINDO EXTRAÇÃO para análise do erro")
                         raise Exception(f"Erro não recuperável após {max_tentativas} tentativas: {e}")
             
             if not sucesso:
@@ -374,11 +390,19 @@ class BaseExtractor:
                         data_ingestao=datetime.now(),
                         status_processamento='pendente'
                     )
+
+                    # Regra especial para vendas:
+                    # - Não substituir o JSON completo pelo payload "lista"
+                    # - Fazer merge (preserva campos de detalhes já enriquecidos)
+                    if table_name == 'vendas_raw':
+                        dados_json_update = self.model_class.dados_json.op('||')(stmt.excluded.dados_json)
+                    else:
+                        dados_json_update = stmt.excluded.dados_json
                     
                     stmt = stmt.on_conflict_do_update(
                         index_elements=['bling_id', 'empresa_id'],
                         set_={
-                            'dados_json': stmt.excluded.dados_json, 
+                            'dados_json': dados_json_update,
                             'data_ingestao': stmt.excluded.data_ingestao,
                             'status_processamento': 'pendente'
                         }
