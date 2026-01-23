@@ -13,6 +13,9 @@ from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 from config.database import Session, engine
 
+# ✅ Configuração global do Pandas
+pd.set_option('future.no_silent_downcasting', True)
+
 # =====================================================
 # 0. FUNÇÃO DE COMPARAÇÃO ROBUSTA
 # =====================================================
@@ -308,32 +311,71 @@ class NFeTransformer:
         except Exception as e:
             print(f"      ⚠️  Erro ao mapear tipos: {e}")
 
-        # === RELACIONAMENTO COM VENDAS (NUMERO_PEDIDO) ===
-        print("   • Relacionando NFe com Vendas para pegar numero_pedido...")
+        # =====================================================
+        # 🔧 CORREÇÃO: RELACIONAMENTO HÍBRIDO COM PEDIDOS
+        # =====================================================
+        print("   • Relacionando NFe com Pedidos (método híbrido)...")
         
-        # Preparar dados de vendas
+        # ✅ MÉTODO 1: Buscar por numero_pedido_lv (ecommerce)
+        query_pedidos_lv = text("""
+            SELECT 
+                numero_pedido_lv,
+                numero_pedido_bling as numero_pedido
+            FROM processed.fato_pedidos
+            WHERE empresa_id = :empresa_id
+            AND numero_pedido_lv IS NOT NULL
+        """)
+        
+        df_pedidos_lv = pd.read_sql(query_pedidos_lv, self.engine, params={"empresa_id": self.empresa_id})
+        print(f"      • Método 1 (ecommerce): {len(df_pedidos_lv)} pedidos com numero_pedido_lv")
+        
+        # Preparar dados método 1
+        df_pedidos_lv['numero_pedido_lv'] = df_pedidos_lv['numero_pedido_lv'].astype(str).str.strip()
+        df_pedidos_lv['numero_pedido'] = pd.to_numeric(df_pedidos_lv['numero_pedido'], errors='coerce')
+        
+        # ✅ MÉTODO 2: Usar df_vendas que veio do raw (notaFiscal.id)
         df_vendas['nf_id'] = pd.to_numeric(df_vendas['nf_id'], errors='coerce')
         df_vendas['numero_pedido'] = pd.to_numeric(df_vendas['numero_pedido'], errors='coerce')
-
-        # Fazer LEFT JOIN para trazer numero_pedido
+        print(f"      • Método 2 (notaFiscal): {len(df_vendas)} vendas com notaFiscal.id")
+        
+        # ✅ JOIN MÉTODO 1: numeroPedidoLoja → numero_pedido_lv
+        df = df.merge(
+            df_pedidos_lv[['numero_pedido_lv', 'numero_pedido']],
+            left_on='numeroPedidoLoja',
+            right_on='numero_pedido_lv',
+            how='left',
+            suffixes=('', '_metodo1')
+        )
+        
+        # ✅ JOIN MÉTODO 2: bling_nfe_id → notaFiscal.id
         df = df.merge(
             df_vendas[['nf_id', 'numero_pedido']],
             left_on='bling_nfe_id',
             right_on='nf_id',
-            how='left'
+            how='left',
+            suffixes=('', '_metodo2')
         )
-
-        # Remover coluna auxiliar
-        if 'nf_id' in df.columns:
-            df = df.drop(columns=['nf_id'])
-
+        
+        # ✅ COALESCE: Usar método 1, se não tiver, usar método 2
+        df['numero_pedido_final'] = df['numero_pedido'].fillna(df['numero_pedido_metodo2'])
+        
+        # Renomear para coluna final
+        df = df.drop(columns=['numero_pedido', 'numero_pedido_metodo2'], errors='ignore')
+        df = df.rename(columns={'numero_pedido_final': 'numero_pedido'})
+        
+        # Remover colunas auxiliares
+        df = df.drop(columns=['numero_pedido_lv', 'nf_id', 'numeroPedidoLoja'], errors='ignore')
+        
         # Verificar resultados do relacionamento
         nfe_com_pedido = df['numero_pedido'].notna().sum()
         nfe_sem_pedido = df['numero_pedido'].isna().sum()
-
-        print(f"      ✅ Relacionamento concluído!")
+        
+        print(f"      ✅ Relacionamento concluído (híbrido)!")
         print(f"      • NFe com pedido: {nfe_com_pedido}")
         print(f"      • NFe sem pedido: {nfe_sem_pedido}")
+        # =====================================================
+        # FIM DA CORREÇÃO
+        # =====================================================
 
         # === CONVERTENDO STRINGS VAZIAS PARA NaN ===
         print("   • Convertendo strings vazias para NaN...")
