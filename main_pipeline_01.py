@@ -27,6 +27,7 @@ from dotenv import load_dotenv
 from sqlalchemy import text
 from config.database import create_schema_raw, create_schema_processed, create_all_tables, Session
 from config.auth_manager import obter_token_para_empresa #IMPORTAR O GERENCIADOR DE TOKENS
+from config.logger import setup_logging, close_logging
 
 # =====================================================
 # IMPORTAÇÕES - PARTE COMERCIAL
@@ -526,6 +527,7 @@ def executar_pipeline_completo():
 # =====================================================
 
 if __name__ == "__main__":
+    log_file = setup_logging(empresa_id=1) 
     try:
         # Cria os schemas se não existirem
         create_schema_raw()
@@ -545,3 +547,8 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         raise
+    finally: 
+        # ===== FECHAR LOGGING (SEMPRE) =====
+        close_logging()
+        print(f"\n📁 Log completo salvo em: {log_file}")
+        # ====================================

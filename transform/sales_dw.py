@@ -208,7 +208,7 @@ class VendasTransformer:
         # === LIMPAR STRINGS VAZIAS ===
         print("   • Limpando strings vazias...")
         for coluna in df.select_dtypes(include=["object"]).columns:
-            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True).infer_objects(copy=False)
+            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True)
             df[coluna] = df[coluna].replace(["", " "], np.nan)
 
         print("   • Convertendo situacao para Integer...")

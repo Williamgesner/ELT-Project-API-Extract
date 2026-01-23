@@ -10,6 +10,9 @@ from sqlalchemy.dialects.postgresql import insert
 from config.database import Session, engine
 from models.dim_fato.fato_contas_pagar import FatoContasPagar
 
+# Configuração global 
+pd.set_option('future.no_silent_downcasting', True)
+
 def obter_mapeamento_situacoes_contas_pagar():
     """Mapeamento de situações"""
     return {
@@ -142,6 +145,7 @@ class ContasPagarTransformer:
         LÓGICA:
         1. Contas "Em aberto" (situacao=1) onde vencimento mudou de status
         2. Contas onde situacao na RAW != situacao na PROCESSED (detecta pagamentos, cancelamentos, etc)
+        3. Contas onde VALOR na RAW != VALOR na PROCESSED (detecta alterações de valor)
         
         NÃO mexe com deleções (isso é feito em sincronizar_delecoes)
         """
@@ -189,9 +193,26 @@ class ContasPagarTransformer:
             """)
             
             resultado_mudanca = session.execute(query_mudanca_situacao, {"empresa_id": self.empresa_id})
+            
+            # =====================================================
+            # PARTE 3: Contas onde o VALOR mudou
+            # =====================================================
+            query_mudanca_valor = text("""
+                UPDATE raw.contas_pagar_raw r
+                SET status_processamento = 'pendente'
+                FROM processed.fato_contas_pagar p
+                WHERE r.bling_id = p.bling_contas_pagar_id
+                AND r.empresa_id = :empresa_id
+                AND r.empresa_id = p.empresa_id
+                AND r.status_processamento = 'processado'
+                AND (r.dados_json->>'valor')::numeric != p.valor
+            """)
+            
+            resultado_mudanca_valor = session.execute(query_mudanca_valor, {"empresa_id": self.empresa_id})
+            
             session.commit()
             
-            total_marcados = resultado_em_aberto.rowcount + resultado_mudanca.rowcount
+            total_marcados = resultado_em_aberto.rowcount + resultado_mudanca.rowcount + resultado_mudanca_valor.rowcount
             
             if total_marcados > 0:
                 print(f"   ⚡ {total_marcados} contas marcadas para reavaliação")
@@ -199,6 +220,8 @@ class ContasPagarTransformer:
                     print(f"      • {resultado_em_aberto.rowcount} por mudança de data")
                 if resultado_mudanca.rowcount > 0:
                     print(f"      • {resultado_mudanca.rowcount} por mudança de situação")
+                if resultado_mudanca_valor.rowcount > 0:
+                    print(f"      • {resultado_mudanca_valor.rowcount} por mudança de valor")
             else:
                 print(f"   ✅ Nenhuma conta precisa de reavaliação")
                 
@@ -282,9 +305,9 @@ class ContasPagarTransformer:
         for coluna in df.select_dtypes(include=["object"]).columns:
             # Corrigir FutureWarning: adicionar infer_objects(copy=False) explicitamente
             # conforme recomendação do pandas
-            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True).infer_objects(copy=False)
-            df[coluna] = df[coluna].replace("", np.nan).infer_objects(copy=False)
-            df[coluna] = df[coluna].replace(" ", np.nan).infer_objects(copy=False)
+            df[coluna] = df[coluna].replace(r"^\s*$", np.nan, regex=True)
+            df[coluna] = df[coluna].replace("", np.nan)
+            df[coluna] = df[coluna].replace(" ", np.nan)
             # Converter explicitamente para object mantendo NaN
             df[coluna] = df[coluna].astype(object)
 
@@ -636,7 +659,7 @@ class ContasPagarTransformer:
                     for campo in campos_comparar:
                         valor_novo = registro.get(campo)
                         valor_antigo = getattr(resultado, campo, None)
-                        
+
                         # Tratamento especial para datas
                         if campo == "data_vencimento":
                             if valor_novo and isinstance(valor_novo, datetime):
@@ -654,12 +677,13 @@ class ContasPagarTransformer:
                                 break
                         
                         # Tratamento especial para valores decimais
-                        elif campo == "valor":
+                        elif campo == "valor": 
                             if valor_novo is not None and valor_antigo is not None:
                                 try:
                                     diff = abs(float(valor_novo) - float(valor_antigo))
-                                    if diff < 0.01:  # Tolerância para diferenças de arredondamento
-                                        continue
+                                    if diff >= 0.01:  # Tolerância para diferenças de arredondamento
+                                        mudou = True
+                                        break
                                 except (ValueError, TypeError):
                                     pass
                             elif valor_novo is None and valor_antigo is None:
@@ -783,7 +807,8 @@ class ContasPagarTransformer:
                             }
                         )
                         session.execute(stmt)
-                    else:
+
+                    else:  # Registro já existe
                         resultado = registros_existentes[contas_pagar_id]
                         
                         campos_comparar = [
@@ -797,84 +822,55 @@ class ContasPagarTransformer:
                         ]
 
                         mudou = False
+                        
                         for campo in campos_comparar:
                             valor_novo = registro.get(campo)
                             valor_antigo = getattr(resultado, campo, None)
                             
-                            # Tratamento especial para datas
+                            # Datas
                             if campo == "data_vencimento":
                                 if valor_novo and isinstance(valor_novo, datetime):
                                     valor_novo = valor_novo.date()
                                 if valor_antigo and isinstance(valor_antigo, datetime):
                                     valor_antigo = valor_antigo.date()
-                                # Comparar datas como strings para evitar problemas de tipo
-                                if valor_novo and valor_antigo:
-                                    if str(valor_novo) == str(valor_antigo):
-                                        continue
-                                elif valor_novo is None and valor_antigo is None:
-                                    continue
-                                else:
+                                if str(valor_novo) != str(valor_antigo):
                                     mudou = True
                                     break
                             
-                            # Tratamento especial para valores decimais
+                            # Tratamento de decimais
                             elif campo == "valor":
                                 if valor_novo is not None and valor_antigo is not None:
                                     try:
                                         diff = abs(float(valor_novo) - float(valor_antigo))
-                                        if diff < 0.01:  # Tolerância para diferenças de arredondamento
-                                            continue
+                                        if diff >= 0.01:  # Diferença maior que 1 centavo
+                                            mudou = True
+                                            break
                                     except (ValueError, TypeError):
                                         pass
-                                elif valor_novo is None and valor_antigo is None:
-                                    continue
-                                else:
-                                    mudou = True
-                                    break
                             
-                            # Tratamento especial para IDs (BigInteger)
-                            elif campo in ["bling_contas_pagar_id", "bling_cliente_id", "forma_pagamento_id", "bling_categoria_id"]:
-                                # Converter para int para comparação segura
+                            # IDs
+                            elif campo in ["bling_contas_pagar_id", "bling_cliente_id", 
+                                        "forma_pagamento_id", "bling_categoria_id"]:
                                 try:
                                     novo_int = int(valor_novo) if valor_novo is not None else None
                                     antigo_int = int(valor_antigo) if valor_antigo is not None else None
-                                    if novo_int == antigo_int:
-                                        continue
-                                    else:
+                                    if novo_int != antigo_int:
                                         mudou = True
                                         break
                                 except (ValueError, TypeError):
-                                    # Se não conseguir converter, comparar como está
-                                    if valor_novo == valor_antigo:
-                                        continue
-                                    elif valor_novo is None and valor_antigo is None:
-                                        continue
-                                    else:
+                                    if str(valor_novo) != str(valor_antigo):
                                         mudou = True
                                         break
                             
-                            # Tratamento para strings (situacao)
+                            # Strings
                             elif campo == "situacao":
                                 novo_str = str(valor_novo).strip() if valor_novo is not None else ""
                                 antigo_str = str(valor_antigo).strip() if valor_antigo is not None else ""
-                                if novo_str == antigo_str:
-                                    continue
-                                else:
+                                if novo_str != antigo_str:
                                     mudou = True
                                     break
-                            
-                            # Comparação genérica
-                            else:
-                                if valor_novo is None and valor_antigo is None:
-                                    continue
-                                if (valor_novo is None) != (valor_antigo is None):
-                                    mudou = True
-                                    break
-                                # Comparar convertendo para string para evitar problemas de tipo
-                                if str(valor_novo) != str(valor_antigo):
-                                    mudou = True
-                                    break
-
+                        
+                        # ✅ ATUALIZAR SE MUDOU
                         if mudou:
                             session.execute(
                                 text("""
