@@ -47,29 +47,29 @@ class ContasPagarExtractor(BaseExtractor):
             # Extrai TODOS os dados da API usando paginação
             print("Extraindo todas as contas a pagar da API...")
             # Filtro correto conforme OpenAPI do Bling (GET /contas/pagar):
-            # - dataEmissaoInicial / dataEmissaoFinal (format: "YYYY-MM-DD")
-            #
+            # dataVencimentoInicial / dataVenciementoFinal (format: "YYYY-MM-DD")
+
             # Observação: para evitar erro de intervalo (ex.: > 1 ano),
-            # extraímos em janelas de datas.
-            data_inicial = datetime(2024, 1, 1).date()
-            data_final = datetime.now().date()
+            # Extraímos em janelas de datas.
+            data_vencimento_inicial = datetime(2024, 1, 1).date()
+            data_vencimento_final = (datetime.now() + timedelta(days=365)).date()
             janela_dias = 360  # margem de segurança (< 365)
 
             todas_contas = []
             ids_vistos = set()
 
-            inicio_janela = data_inicial
-            while inicio_janela <= data_final:
-                fim_janela = min(inicio_janela + timedelta(days=janela_dias), data_final)
+            inicio_janela = data_vencimento_inicial
+            while inicio_janela <= data_vencimento_final:
+                fim_janela = min(inicio_janela + timedelta(days=janela_dias), data_vencimento_final)
 
                 filtros_adicionais = {
-                    "dataEmissaoInicial": inicio_janela.strftime("%Y-%m-%d"),
-                    "dataEmissaoFinal": fim_janela.strftime("%Y-%m-%d"),
+                    "dataVencimentoInicial": inicio_janela.strftime("%Y-%m-%d"),
+                    "dataVencimentoFinal": fim_janela.strftime("%Y-%m-%d"),
                 }
 
                 print(
                     f"\n📅 Janela (contas a pagar): "
-                    f"{filtros_adicionais['dataEmissaoInicial']} → {filtros_adicionais['dataEmissaoFinal']}"
+                    f"{filtros_adicionais['dataVencimentoInicial']} → {filtros_adicionais['dataVencimentoFinal']}"
                 )
 
                 contas_janela = self.extract_dados_bling_paginado(
