@@ -68,7 +68,7 @@ def carregar_empresas_do_csv():
     """
     try:
         # Ler o CSV
-        df = pd.read_csv('empresas.csv')  # Lê as empresas
+        df = pd.read_csv('data_business/empresas.csv')
         
         empresas_list = []
         empresas_sem_api_key = []

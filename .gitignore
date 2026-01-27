@@ -59,5 +59,6 @@ analyze_raw_data.py
 research_items.py
 analysis/
 empresas.csv
+metas_empresas.csv  
 config/auth_manager/.token_control_*.txt
 

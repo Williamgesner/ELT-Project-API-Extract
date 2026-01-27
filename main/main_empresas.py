@@ -7,7 +7,7 @@ VERSÃO CORRIGIDA: Insere apenas empresas que NÃO existem no banco
 Fluxo:
 1. Importar o modelo DimEmpresas
 2. Criar a tabela no banco (se não existir)
-3. Ler o arquivo empresas.csv
+3. Ler o arquivo empresas.csv (de data_business/)
 4. Verificar quais empresas já existem
 5. Inserir APENAS as empresas novas
 6. Validar os dados inseridos
@@ -19,6 +19,13 @@ from datetime import datetime
 from sqlalchemy import text
 from config.database import engine, Session, create_schema_processed
 from models.dim_fato.dim_empresas import DimEmpresas
+import os  # ← ADICIONAR IMPORT
+
+# =====================================================
+# CONFIGURAÇÕES
+# =====================================================
+
+EMPRESAS_FILE = 'data_business/empresas.csv'  # ← NOVA CONSTANTE
 
 # =====================================================
 # 1. CRIAR SCHEMA E TABELA
@@ -57,9 +64,13 @@ def importar_empresas_do_csv():
     session = Session()
     
     try:
+        # Verificar se arquivo existe
+        if not os.path.exists(EMPRESAS_FILE):
+            raise FileNotFoundError(f"Arquivo não encontrado: {EMPRESAS_FILE}")
+        
         # Ler CSV
-        print("\n1️⃣ Lendo arquivo empresas.csv...")
-        df = pd.read_csv('empresas.csv')
+        print(f"\n1️⃣ Lendo arquivo {EMPRESAS_FILE}...")  
+        df = pd.read_csv(EMPRESAS_FILE)
         
         print(f"✅ Arquivo lido com sucesso!")
         print(f"   • Total de empresas no CSV: {len(df)}")
@@ -115,10 +126,10 @@ def importar_empresas_do_csv():
         
         return len(df_novas)
         
-    except FileNotFoundError:
-        print("\n❌ ERRO: Arquivo 'empresas.csv' não encontrado!")
-        print("💡 Crie o arquivo empresas.csv na raiz do projeto com as colunas:")
-        print("   empresa_id,cnpj,razao_social")
+    except FileNotFoundError as e:
+        print(f"\n❌ ERRO: {str(e)}")
+        print(f"💡 Crie o arquivo em: {EMPRESAS_FILE}")
+        print("   Com as colunas: empresa_id, cnpj, razao_social")
         raise
     except Exception as e:
         print(f"\n❌ ERRO ao importar dados: {e}")
@@ -200,7 +211,7 @@ def executar_criacao_dim_empresas():
     print("="*70)
     print("Este script irá:")
     print("   1. Criar a tabela dim_empresas")
-    print("   2. Importar dados do arquivo empresas.csv")
+    print(f"   2. Importar dados do arquivo {EMPRESAS_FILE}")
     print("   3. Inserir APENAS empresas que não existem")
     print("   4. Validar os dados inseridos")
     print("="*70)
@@ -230,7 +241,7 @@ def executar_criacao_dim_empresas():
         print("="*70)
         print(f"Erro: {e}")
         print("\n💡 Verifique:")
-        print("   • O arquivo empresas.csv existe na raiz do projeto")
+        print(f"   • O arquivo {EMPRESAS_FILE} existe")
         print("   • O arquivo tem as colunas corretas: empresa_id, cnpj, razao_social")
         print("   • A conexão com o banco está funcionando")
         print("="*70 + "\n")
