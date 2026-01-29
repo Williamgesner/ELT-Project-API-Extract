@@ -435,6 +435,25 @@ class NFeTransformer:
                 df_final[coluna] = df_final[coluna].replace({np.nan: None, pd.NA: None})
                 df_final[coluna] = df_final[coluna].astype(object)  # Permite None no PostgreSQL
 
+        # Converter NaN para None em colunas NUMERIC/DECIMAL (PBI estava dando erro)
+        print("   • Convertendo NaN para None (compatibilidade PostgreSQL NUMERIC)...")
+        
+        colunas_numeric = ['valor_nf', 'valor_frete']
+        
+        for coluna in colunas_numeric:
+            if coluna in df_final.columns:
+                # Substituir NaN, inf, -inf por None
+                df_final[coluna] = df_final[coluna].replace({
+                    np.nan: None, 
+                    pd.NA: None,
+                    np.inf: None,
+                    -np.inf: None
+                })
+                # Converter para float quando não é None, mantendo None para NULL no banco
+                df_final[coluna] = df_final[coluna].apply(
+                    lambda x: float(x) if x is not None and pd.notna(x) else None
+                )
+
         # Normalizar colunas DATE (data_emissao, data_entrada)
         print("   • Normalizando colunas de data (DATE)...")
         colunas_date = ['data_emissao', 'data_entrada']
