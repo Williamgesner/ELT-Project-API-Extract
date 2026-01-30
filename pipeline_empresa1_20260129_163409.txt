@@ -1,0 +1,3220 @@
+================================================================================
+🔍 LOG DE DIAGNÓSTICO - EMPRESA 1
+================================================================================
+📅 Data/Hora: 2026-01-29 16:34:09
+📁 Arquivo de log: logs/pipeline_empresa1_20260129_163409.txt
+================================================================================
+
+Criando schema raw...
+✅ Schema 'raw' criado/verificado com sucesso!
+Criando schema processed...
+✅ Schema 'processed' criado/verificado com sucesso!
+
+📋 CRIANDO TODAS AS TABELAS
+============================================================
+Importando modelos:
+
+🗄️  MODELOS RAW (Dados Brutos):
+   ✓ ContatoRaw
+   ✓ ProdutoRaw
+   ✓ VendasRaw
+   ✓ SituacoesRaw
+   ✓ CanaisRaw
+   ✓ ContasPgarRaw
+   ✓ CategoriasRaw
+   ✓ FormasPagamentosRaw
+   ✓ ContasReceberRaw
+   ✓ NfeRaw
+   ✓ NaturezaOperacaoRaw
+
+📊 MODELOS PROCESSED - DIMENSÕES:
+   ✓ DimEmpresas
+   ✓ DimContatos
+   ✓ DimTempo
+   ✓ DimProdutos
+   ✓ DimSituacao
+   ✓ DimCanais
+   ✓ DimCategoriasContasPagar
+   ✓ DimFormasPagamento
+   ✓ DimNaturezaOperacao
+
+📈 MODELOS PROCESSED - FATOS:
+   ✓ FatoPedidos
+   ✓ FatoItensPedidos
+   ✓ FatoContasPagar
+   ✓ FatoContasReceber
+   ✓ FatoNfe
+
+🔨 Criando tabelas no banco de dados...
+------------------------------------------------------------
+
+Tabelas RAW que serão criadas:
+   • raw.contatos_raw
+   • raw.produtos_raw
+   • raw.vendas_raw
+   • raw.situacoes_raw
+   • raw.canais_raw
+   • raw.contas_pagar_raw
+   ✓ raw.categorias_contas_pagar_raw
+   ✓ raw.formas_pagamentos_raw
+   ✓ raw.contas_receber_raw
+   ✓ raw.nfe_raw
+   ✓ raw.natureza_operacao_raw
+
+Tabelas PROCESSED que serão criadas:
+   • processed.dim_empresas
+   • processed.dim_contatos
+   • processed.dim_tempo
+   • processed.dim_produtos
+   • processed.dim_canais
+   • processed.dim_situacao
+   • processed.dim_categorias_contas_pagar
+   • processed.dim_formas_pagamento
+   • processed.dim_natureza_operacao
+   • processed.fato_pedidos
+   • processed.fato_itens_pedidos
+   • processed.fato_contas_pagar
+   • processed.fato_contas_receber
+   • processed.fato_NFe
+
+============================================================
+✅ Todas as tabelas foram criadas com sucesso!
+============================================================
+
+
+======================================================================
+🔄 PIPELINE COMPLETO: EMPRESA 1
+======================================================================
+📌 Empresa ID: 1
+📊 PARTE COMERCIAL: Contatos, Produtos, Vendas, Itens
+💰 PARTE FINANCEIRA: Contas a Pagar, Receber, NFe
+🛡️ PROTEÇÃO: Aborta transformação se extração falhar
+Executar a cada 2 horas
+======================================================================
+
+🚀 FASE 1: EXTRAÇÃO COMPLETA DE TODOS OS ENDPOINTS
+======================================================================
+📌 Empresa ID: 1
+📊 PARTE COMERCIAL + 💰 PARTE FINANCEIRA
+======================================================================
+
+======================================================================
+▶️  INICIANDO: 📊 👥 CONTATOS
+======================================================================
+🚀 EXTRAÇÃO: CONTATOS COMPLETOS (Empresa ID: 1)
+⚡ Estratégia: Inserir apenas novos (SEM comparação de JSON)
+============================================================
+
+1️⃣ EXTRAINDO LISTA BÁSICA DE CONTATOS...
+
+📅 Janela de inclusão: 2024-01-01 00:00:00 → 2024-12-25 23:59:59
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 100 registro da página 2 (100 novos)
+Processando página 3/1...
+Extraídos 100 registro da página 3 (100 novos)
+Processando página 4/1...
+Extraídos 100 registro da página 4 (100 novos)
+Processando página 5/1...
+Extraídos 100 registro da página 5 (100 novos)
+Processando página 6/1...
+Extraídos 100 registro da página 6 (100 novos)
+Processando página 7/1...
+Extraídos 100 registro da página 7 (100 novos)
+Processando página 8/1...
+Extraídos 100 registro da página 8 (100 novos)
+Processando página 9/1...
+Extraídos 100 registro da página 9 (100 novos)
+Processando página 10/1...
+Extraídos 100 registro da página 10 (100 novos)
+Processando página 11/1...
+Extraídos 100 registro da página 11 (100 novos)
+Processando página 12/1...
+Extraídos 100 registro da página 12 (100 novos)
+Processando página 13/1...
+Extraídos 100 registro da página 13 (100 novos)
+Processando página 14/1...
+Extraídos 100 registro da página 14 (100 novos)
+Processando página 15/1...
+Extraídos 100 registro da página 15 (100 novos)
+Processando página 16/1...
+Extraídos 100 registro da página 16 (100 novos)
+Processando página 17/1...
+Extraídos 100 registro da página 17 (100 novos)
+Processando página 18/1...
+Extraídos 100 registro da página 18 (100 novos)
+Processando página 19/1...
+Extraídos 100 registro da página 19 (100 novos)
+Processando página 20/1...
+Extraídos 100 registro da página 20 (100 novos)
+Processando página 21/1...
+Extraídos 100 registro da página 21 (100 novos)
+Processando página 22/1...
+Extraídos 100 registro da página 22 (100 novos)
+Processando página 23/1...
+Extraídos 100 registro da página 23 (100 novos)
+Processando página 24/1...
+Extraídos 100 registro da página 24 (100 novos)
+Processando página 25/1...
+Extraídos 100 registro da página 25 (100 novos)
+Processando página 26/1...
+Extraídos 100 registro da página 26 (100 novos)
+Processando página 27/1...
+Extraídos 100 registro da página 27 (100 novos)
+Processando página 28/1...
+Extraídos 100 registro da página 28 (100 novos)
+Processando página 29/1...
+Extraídos 100 registro da página 29 (100 novos)
+Processando página 30/1...
+Extraídos 100 registro da página 30 (100 novos)
+Processando página 31/1...
+Extraídos 100 registro da página 31 (100 novos)
+Processando página 32/1...
+Extraídos 100 registro da página 32 (100 novos)
+Processando página 33/1...
+Extraídos 100 registro da página 33 (100 novos)
+Processando página 34/1...
+Extraídos 100 registro da página 34 (100 novos)
+Processando página 35/1...
+Extraídos 100 registro da página 35 (100 novos)
+Processando página 36/1...
+Extraídos 100 registro da página 36 (100 novos)
+Processando página 37/1...
+Extraídos 100 registro da página 37 (100 novos)
+Processando página 38/1...
+Extraídos 100 registro da página 38 (100 novos)
+Processando página 39/1...
+Extraídos 100 registro da página 39 (100 novos)
+Processando página 40/1...
+Extraídos 100 registro da página 40 (100 novos)
+Processando página 41/1...
+Extraídos 100 registro da página 41 (100 novos)
+Processando página 42/1...
+Extraídos 100 registro da página 42 (100 novos)
+Processando página 43/1...
+Extraídos 100 registro da página 43 (100 novos)
+Processando página 44/1...
+Extraídos 100 registro da página 44 (100 novos)
+Processando página 45/1...
+Extraídos 100 registro da página 45 (100 novos)
+Processando página 46/1...
+Extraídos 100 registro da página 46 (100 novos)
+Processando página 47/1...
+Extraídos 100 registro da página 47 (100 novos)
+Processando página 48/1...
+Extraídos 24 registro da página 48 (24 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 4724
+Páginas processadas: 47
+
+📅 Janela de inclusão: 2024-12-26 00:00:00 → 2025-12-20 23:59:59
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 100 registro da página 2 (100 novos)
+Processando página 3/1...
+Extraídos 100 registro da página 3 (100 novos)
+Processando página 4/1...
+Extraídos 100 registro da página 4 (100 novos)
+Processando página 5/1...
+Extraídos 100 registro da página 5 (100 novos)
+Processando página 6/1...
+Extraídos 100 registro da página 6 (100 novos)
+Processando página 7/1...
+Extraídos 100 registro da página 7 (100 novos)
+Processando página 8/1...
+Extraídos 100 registro da página 8 (100 novos)
+Processando página 9/1...
+Extraídos 100 registro da página 9 (100 novos)
+Processando página 10/1...
+Extraídos 100 registro da página 10 (100 novos)
+Processando página 11/1...
+Extraídos 100 registro da página 11 (100 novos)
+Processando página 12/1...
+Extraídos 100 registro da página 12 (100 novos)
+Processando página 13/1...
+Extraídos 100 registro da página 13 (100 novos)
+Processando página 14/1...
+Extraídos 100 registro da página 14 (100 novos)
+Processando página 15/1...
+Extraídos 100 registro da página 15 (100 novos)
+Processando página 16/1...
+Extraídos 100 registro da página 16 (100 novos)
+Processando página 17/1...
+Extraídos 100 registro da página 17 (100 novos)
+Processando página 18/1...
+Extraídos 100 registro da página 18 (100 novos)
+Processando página 19/1...
+Extraídos 100 registro da página 19 (100 novos)
+Processando página 20/1...
+Extraídos 100 registro da página 20 (100 novos)
+Processando página 21/1...
+Extraídos 100 registro da página 21 (100 novos)
+Processando página 22/1...
+Extraídos 100 registro da página 22 (100 novos)
+Processando página 23/1...
+Extraídos 100 registro da página 23 (100 novos)
+Processando página 24/1...
+Extraídos 100 registro da página 24 (100 novos)
+Processando página 25/1...
+Extraídos 100 registro da página 25 (100 novos)
+Processando página 26/1...
+Extraídos 100 registro da página 26 (100 novos)
+Processando página 27/1...
+Extraídos 100 registro da página 27 (100 novos)
+Processando página 28/1...
+Extraídos 100 registro da página 28 (100 novos)
+Processando página 29/1...
+Extraídos 100 registro da página 29 (100 novos)
+Processando página 30/1...
+Extraídos 100 registro da página 30 (100 novos)
+Processando página 31/1...
+Extraídos 100 registro da página 31 (100 novos)
+Processando página 32/1...
+Extraídos 100 registro da página 32 (100 novos)
+Processando página 33/1...
+Extraídos 100 registro da página 33 (100 novos)
+Processando página 34/1...
+Extraídos 100 registro da página 34 (100 novos)
+Processando página 35/1...
+Extraídos 100 registro da página 35 (100 novos)
+Processando página 36/1...
+Extraídos 100 registro da página 36 (100 novos)
+Processando página 37/1...
+Extraídos 100 registro da página 37 (100 novos)
+Processando página 38/1...
+Extraídos 100 registro da página 38 (100 novos)
+Processando página 39/1...
+Extraídos 100 registro da página 39 (100 novos)
+Processando página 40/1...
+Extraídos 25 registro da página 40 (25 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 3925
+Páginas processadas: 39
+
+📅 Janela de inclusão: 2025-12-21 00:00:00 → 2026-01-29 16:34:18
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 100 registro da página 2 (100 novos)
+Processando página 3/1...
+Extraídos 100 registro da página 3 (100 novos)
+Processando página 4/1...
+Extraídos 100 registro da página 4 (100 novos)
+Processando página 5/1...
+Extraídos 35 registro da página 5 (35 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 435
+Páginas processadas: 4
+✅ 9084 contatos extraídos em 0:01:34.502333
+
+2️⃣ IDENTIFICANDO CONTATOS NOVOS...
+   📊 9082 já existem no banco
+   🆕 2 são novos
+✅ 2 contatos novos identificados em 0:00:02.529111
+
+3️⃣ BUSCANDO DETALHES DOS NOVOS CONTATOS...
+   📡 Buscando detalhes de 2 contatos...
+✅ Detalhes coletados em 0:00:01.116322
+
+4️⃣ SALVANDO NOVOS CONTATOS (INSERT DIRETO)...
+   💾 Preparando 2 registros para inserção...
+   ✅ Commit final realizado
+
+🎉 EXTRAÇÃO CONCLUÍDA COM SUCESSO!
+============================================================
+
+⏱️  TEMPOS:
+   • Extração da API: 0:01:34.502333
+   • Filtro de novos: 0:00:02.529111
+   • Busca detalhes: 0:00:01.116322
+   • Salvamento: 0:00:00.748992
+   • TOTAL: 0:01:38.897186
+
+📊 ESTATÍSTICAS GERAIS:
+   • Total de contatos na API: 9084
+   • Contatos já existentes no banco: 9082
+   • Contatos novos encontrados: 2
+
+💾 OPERAÇÕES NO BANCO:
+   • Inseridos com sucesso: 2
+   • Erros durante inserção: 0
+
+📈 RESUMO DO BANCO:
+   • Total de contatos no banco agora: 22275
+
+🏠 ESTATÍSTICAS DE ENDEREÇOS:
+   • Com endereços completos: 2/2
+   • Taxa de cobertura: 100.0%
+
+⚡ ECONOMIA:
+   • 9082 inserções duplicadas evitadas
+
+✨ Estratégia otimizada executada com sucesso!
+
+======================================================================
+✅ CONCLUÍDO: 📊 👥 CONTATOS
+======================================================================
+⏱️  Tempo: 1.66 minutos (99.77s)
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 📊 🏭 PRODUTOS
+======================================================================
+Extraindo todos os produtos da API (Empresa ID: 1)...
+
+📅 Janela de inclusão (produtos): 2024-01-01 00:00:00 → 2024-12-25 23:59:59
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 100 registro da página 2 (100 novos)
+Processando página 3/1...
+Extraídos 100 registro da página 3 (100 novos)
+Processando página 4/1...
+Extraídos 100 registro da página 4 (100 novos)
+Processando página 5/1...
+Extraídos 100 registro da página 5 (100 novos)
+Processando página 6/1...
+Extraídos 100 registro da página 6 (100 novos)
+Processando página 7/1...
+Extraídos 100 registro da página 7 (100 novos)
+Processando página 8/1...
+Extraídos 100 registro da página 8 (100 novos)
+Processando página 9/1...
+Extraídos 100 registro da página 9 (100 novos)
+Processando página 10/1...
+Extraídos 100 registro da página 10 (100 novos)
+Processando página 11/1...
+Extraídos 100 registro da página 11 (100 novos)
+Processando página 12/1...
+Extraídos 100 registro da página 12 (100 novos)
+Processando página 13/1...
+Extraídos 100 registro da página 13 (100 novos)
+Processando página 14/1...
+Extraídos 100 registro da página 14 (100 novos)
+Processando página 15/1...
+Extraídos 100 registro da página 15 (100 novos)
+Processando página 16/1...
+Extraídos 100 registro da página 16 (100 novos)
+Processando página 17/1...
+Extraídos 100 registro da página 17 (100 novos)
+Processando página 18/1...
+Extraídos 100 registro da página 18 (100 novos)
+Processando página 19/1...
+Extraídos 100 registro da página 19 (100 novos)
+Processando página 20/1...
+Extraídos 100 registro da página 20 (100 novos)
+Processando página 21/1...
+Extraídos 100 registro da página 21 (100 novos)
+Processando página 22/1...
+Extraídos 100 registro da página 22 (100 novos)
+Processando página 23/1...
+Extraídos 100 registro da página 23 (100 novos)
+Processando página 24/1...
+Extraídos 100 registro da página 24 (100 novos)
+Processando página 25/1...
+Extraídos 100 registro da página 25 (100 novos)
+Processando página 26/1...
+Extraídos 100 registro da página 26 (100 novos)
+Processando página 27/1...
+Extraídos 100 registro da página 27 (100 novos)
+Processando página 28/1...
+Extraídos 100 registro da página 28 (100 novos)
+Processando página 29/1...
+Extraídos 100 registro da página 29 (100 novos)
+Processando página 30/1...
+Extraídos 100 registro da página 30 (100 novos)
+Processando página 31/1...
+Extraídos 100 registro da página 31 (100 novos)
+Processando página 32/1...
+Extraídos 100 registro da página 32 (100 novos)
+Processando página 33/1...
+Extraídos 100 registro da página 33 (100 novos)
+Processando página 34/1...
+Extraídos 100 registro da página 34 (100 novos)
+Processando página 35/1...
+Extraídos 100 registro da página 35 (100 novos)
+Processando página 36/1...
+Extraídos 100 registro da página 36 (100 novos)
+Processando página 37/1...
+Extraídos 100 registro da página 37 (100 novos)
+Processando página 38/1...
+Extraídos 100 registro da página 38 (100 novos)
+Processando página 39/1...
+Extraídos 100 registro da página 39 (100 novos)
+Processando página 40/1...
+Extraídos 100 registro da página 40 (100 novos)
+Processando página 41/1...
+Extraídos 100 registro da página 41 (100 novos)
+Processando página 42/1...
+Extraídos 100 registro da página 42 (100 novos)
+Processando página 43/1...
+Extraídos 100 registro da página 43 (100 novos)
+Processando página 44/1...
+Extraídos 100 registro da página 44 (100 novos)
+Processando página 45/1...
+Extraídos 100 registro da página 45 (100 novos)
+Processando página 46/1...
+Extraídos 100 registro da página 46 (100 novos)
+Processando página 47/1...
+Extraídos 100 registro da página 47 (100 novos)
+Processando página 48/1...
+Extraídos 100 registro da página 48 (100 novos)
+Processando página 49/1...
+Extraídos 100 registro da página 49 (100 novos)
+Processando página 50/1...
+Extraídos 100 registro da página 50 (100 novos)
+Processando página 51/1...
+Extraídos 100 registro da página 51 (100 novos)
+Processando página 52/1...
+Extraídos 100 registro da página 52 (100 novos)
+Processando página 53/1...
+Extraídos 100 registro da página 53 (100 novos)
+Processando página 54/1...
+Extraídos 100 registro da página 54 (100 novos)
+Processando página 55/1...
+Extraídos 100 registro da página 55 (100 novos)
+Processando página 56/1...
+Extraídos 100 registro da página 56 (100 novos)
+Processando página 57/1...
+Extraídos 100 registro da página 57 (100 novos)
+Processando página 58/1...
+Extraídos 100 registro da página 58 (100 novos)
+Processando página 59/1...
+Extraídos 100 registro da página 59 (100 novos)
+Processando página 60/1...
+Extraídos 100 registro da página 60 (100 novos)
+Processando página 61/1...
+Extraídos 100 registro da página 61 (100 novos)
+Processando página 62/1...
+Extraídos 100 registro da página 62 (100 novos)
+Processando página 63/1...
+Extraídos 100 registro da página 63 (100 novos)
+Processando página 64/1...
+Extraídos 100 registro da página 64 (100 novos)
+Processando página 65/1...
+Extraídos 100 registro da página 65 (100 novos)
+Processando página 66/1...
+Extraídos 100 registro da página 66 (100 novos)
+Processando página 67/1...
+Extraídos 100 registro da página 67 (100 novos)
+Processando página 68/1...
+Extraídos 100 registro da página 68 (100 novos)
+Processando página 69/1...
+Extraídos 100 registro da página 69 (100 novos)
+Processando página 70/1...
+Extraídos 100 registro da página 70 (100 novos)
+Processando página 71/1...
+Extraídos 100 registro da página 71 (100 novos)
+Processando página 72/1...
+Extraídos 100 registro da página 72 (100 novos)
+Processando página 73/1...
+Extraídos 100 registro da página 73 (100 novos)
+Processando página 74/1...
+Extraídos 100 registro da página 74 (100 novos)
+Processando página 75/1...
+Extraídos 100 registro da página 75 (100 novos)
+Processando página 76/1...
+Extraídos 100 registro da página 76 (100 novos)
+Processando página 77/1...
+Extraídos 100 registro da página 77 (100 novos)
+Processando página 78/1...
+Extraídos 100 registro da página 78 (100 novos)
+Processando página 79/1...
+Extraídos 100 registro da página 79 (100 novos)
+Processando página 80/1...
+Extraídos 100 registro da página 80 (100 novos)
+Processando página 81/1...
+Extraídos 100 registro da página 81 (100 novos)
+Processando página 82/1...
+Extraídos 100 registro da página 82 (100 novos)
+Processando página 83/1...
+Extraídos 100 registro da página 83 (100 novos)
+Processando página 84/1...
+Extraídos 100 registro da página 84 (100 novos)
+Processando página 85/1...
+Extraídos 100 registro da página 85 (100 novos)
+Processando página 86/1...
+Extraídos 100 registro da página 86 (100 novos)
+Processando página 87/1...
+Extraídos 100 registro da página 87 (100 novos)
+Processando página 88/1...
+Extraídos 100 registro da página 88 (100 novos)
+Processando página 89/1...
+Extraídos 100 registro da página 89 (100 novos)
+Processando página 90/1...
+Extraídos 100 registro da página 90 (100 novos)
+Processando página 91/1...
+Extraídos 100 registro da página 91 (100 novos)
+Processando página 92/1...
+Extraídos 100 registro da página 92 (100 novos)
+Processando página 93/1...
+Extraídos 100 registro da página 93 (100 novos)
+Processando página 94/1...
+Extraídos 100 registro da página 94 (100 novos)
+Processando página 95/1...
+Extraídos 100 registro da página 95 (100 novos)
+Processando página 96/1...
+Extraídos 100 registro da página 96 (100 novos)
+Processando página 97/1...
+Extraídos 100 registro da página 97 (100 novos)
+Processando página 98/1...
+Extraídos 100 registro da página 98 (100 novos)
+Processando página 99/1...
+Extraídos 100 registro da página 99 (100 novos)
+Processando página 100/1...
+Extraídos 100 registro da página 100 (100 novos)
+Processando página 101/1...
+Extraídos 100 registro da página 101 (100 novos)
+Processando página 102/1...
+Extraídos 100 registro da página 102 (100 novos)
+Processando página 103/1...
+Extraídos 100 registro da página 103 (100 novos)
+Processando página 104/1...
+Extraídos 100 registro da página 104 (100 novos)
+Processando página 105/1...
+Extraídos 100 registro da página 105 (100 novos)
+Processando página 106/1...
+Extraídos 100 registro da página 106 (100 novos)
+Processando página 107/1...
+Extraídos 100 registro da página 107 (100 novos)
+Processando página 108/1...
+Extraídos 100 registro da página 108 (100 novos)
+Processando página 109/1...
+Extraídos 100 registro da página 109 (100 novos)
+Processando página 110/1...
+Extraídos 100 registro da página 110 (100 novos)
+Processando página 111/1...
+Extraídos 100 registro da página 111 (100 novos)
+Processando página 112/1...
+Extraídos 100 registro da página 112 (100 novos)
+Processando página 113/1...
+Extraídos 100 registro da página 113 (100 novos)
+Processando página 114/1...
+Extraídos 100 registro da página 114 (100 novos)
+Processando página 115/1...
+Extraídos 100 registro da página 115 (100 novos)
+Processando página 116/1...
+Extraídos 100 registro da página 116 (100 novos)
+Processando página 117/1...
+Extraídos 100 registro da página 117 (100 novos)
+Processando página 118/1...
+Extraídos 100 registro da página 118 (100 novos)
+Processando página 119/1...
+Extraídos 100 registro da página 119 (100 novos)
+Processando página 120/1...
+Extraídos 100 registro da página 120 (100 novos)
+Processando página 121/1...
+Extraídos 100 registro da página 121 (100 novos)
+Processando página 122/1...
+Extraídos 100 registro da página 122 (100 novos)
+Processando página 123/1...
+Extraídos 100 registro da página 123 (100 novos)
+Processando página 124/1...
+Extraídos 100 registro da página 124 (100 novos)
+Processando página 125/1...
+Extraídos 100 registro da página 125 (100 novos)
+Processando página 126/1...
+Extraídos 100 registro da página 126 (100 novos)
+Processando página 127/1...
+Extraídos 100 registro da página 127 (100 novos)
+Processando página 128/1...
+Extraídos 100 registro da página 128 (100 novos)
+Processando página 129/1...
+Extraídos 100 registro da página 129 (100 novos)
+Processando página 130/1...
+Extraídos 100 registro da página 130 (100 novos)
+Processando página 131/1...
+Extraídos 100 registro da página 131 (100 novos)
+Processando página 132/1...
+Extraídos 100 registro da página 132 (100 novos)
+Processando página 133/1...
+Extraídos 100 registro da página 133 (100 novos)
+Processando página 134/1...
+Extraídos 100 registro da página 134 (100 novos)
+Processando página 135/1...
+Extraídos 100 registro da página 135 (100 novos)
+Processando página 136/1...
+Extraídos 100 registro da página 136 (100 novos)
+Processando página 137/1...
+Extraídos 100 registro da página 137 (100 novos)
+Processando página 138/1...
+Extraídos 100 registro da página 138 (100 novos)
+Processando página 139/1...
+Extraídos 100 registro da página 139 (100 novos)
+Processando página 140/1...
+Extraídos 100 registro da página 140 (100 novos)
+Processando página 141/1...
+Extraídos 100 registro da página 141 (100 novos)
+Processando página 142/1...
+Extraídos 100 registro da página 142 (100 novos)
+Processando página 143/1...
+Extraídos 100 registro da página 143 (100 novos)
+Processando página 144/1...
+Extraídos 100 registro da página 144 (100 novos)
+Processando página 145/1...
+Extraídos 100 registro da página 145 (100 novos)
+Processando página 146/1...
+Extraídos 100 registro da página 146 (100 novos)
+Processando página 147/1...
+Extraídos 100 registro da página 147 (100 novos)
+Processando página 148/1...
+Extraídos 100 registro da página 148 (100 novos)
+Processando página 149/1...
+Extraídos 100 registro da página 149 (100 novos)
+Processando página 150/1...
+Extraídos 100 registro da página 150 (100 novos)
+Processando página 151/1...
+Extraídos 100 registro da página 151 (100 novos)
+Processando página 152/1...
+Extraídos 4 registro da página 152 (4 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 15104
+Páginas processadas: 151
+
+📅 Janela de inclusão (produtos): 2024-12-26 00:00:00 → 2025-12-20 23:59:59
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 100 registro da página 2 (100 novos)
+Processando página 3/1...
+Extraídos 100 registro da página 3 (100 novos)
+Processando página 4/1...
+Extraídos 100 registro da página 4 (100 novos)
+Processando página 5/1...
+Extraídos 100 registro da página 5 (100 novos)
+Processando página 6/1...
+Extraídos 100 registro da página 6 (100 novos)
+Processando página 7/1...
+Extraídos 100 registro da página 7 (100 novos)
+Processando página 8/1...
+Extraídos 100 registro da página 8 (100 novos)
+Processando página 9/1...
+Extraídos 100 registro da página 9 (100 novos)
+Processando página 10/1...
+Extraídos 100 registro da página 10 (100 novos)
+Processando página 11/1...
+Extraídos 100 registro da página 11 (100 novos)
+Processando página 12/1...
+Extraídos 100 registro da página 12 (100 novos)
+Processando página 13/1...
+Extraídos 100 registro da página 13 (100 novos)
+Processando página 14/1...
+Extraídos 100 registro da página 14 (100 novos)
+Processando página 15/1...
+Extraídos 100 registro da página 15 (100 novos)
+Processando página 16/1...
+Extraídos 100 registro da página 16 (100 novos)
+Processando página 17/1...
+Extraídos 100 registro da página 17 (100 novos)
+Processando página 18/1...
+Extraídos 100 registro da página 18 (100 novos)
+Processando página 19/1...
+Extraídos 100 registro da página 19 (100 novos)
+Processando página 20/1...
+Extraídos 100 registro da página 20 (100 novos)
+Processando página 21/1...
+Extraídos 100 registro da página 21 (100 novos)
+Processando página 22/1...
+Extraídos 100 registro da página 22 (100 novos)
+Processando página 23/1...
+Extraídos 100 registro da página 23 (100 novos)
+Processando página 24/1...
+Extraídos 100 registro da página 24 (100 novos)
+Processando página 25/1...
+Extraídos 100 registro da página 25 (100 novos)
+Processando página 26/1...
+Extraídos 100 registro da página 26 (100 novos)
+Processando página 27/1...
+Extraídos 100 registro da página 27 (100 novos)
+Processando página 28/1...
+Extraídos 100 registro da página 28 (100 novos)
+Processando página 29/1...
+Extraídos 100 registro da página 29 (100 novos)
+Processando página 30/1...
+Extraídos 100 registro da página 30 (100 novos)
+Processando página 31/1...
+Extraídos 100 registro da página 31 (100 novos)
+Processando página 32/1...
+Extraídos 100 registro da página 32 (100 novos)
+Processando página 33/1...
+Extraídos 100 registro da página 33 (100 novos)
+Processando página 34/1...
+Extraídos 100 registro da página 34 (100 novos)
+Processando página 35/1...
+Extraídos 100 registro da página 35 (100 novos)
+Processando página 36/1...
+Extraídos 100 registro da página 36 (100 novos)
+Processando página 37/1...
+Extraídos 100 registro da página 37 (100 novos)
+Processando página 38/1...
+Extraídos 100 registro da página 38 (100 novos)
+Processando página 39/1...
+Extraídos 100 registro da página 39 (100 novos)
+Processando página 40/1...
+Extraídos 100 registro da página 40 (100 novos)
+Processando página 41/1...
+Extraídos 100 registro da página 41 (100 novos)
+Processando página 42/1...
+Extraídos 100 registro da página 42 (100 novos)
+Processando página 43/1...
+Extraídos 100 registro da página 43 (100 novos)
+Processando página 44/1...
+Extraídos 100 registro da página 44 (100 novos)
+Processando página 45/1...
+Extraídos 100 registro da página 45 (100 novos)
+Processando página 46/1...
+Extraídos 100 registro da página 46 (100 novos)
+Processando página 47/1...
+Extraídos 100 registro da página 47 (100 novos)
+Processando página 48/1...
+Extraídos 100 registro da página 48 (100 novos)
+Processando página 49/1...
+Extraídos 100 registro da página 49 (100 novos)
+Processando página 50/1...
+Extraídos 100 registro da página 50 (100 novos)
+Processando página 51/1...
+Extraídos 100 registro da página 51 (100 novos)
+Processando página 52/1...
+Extraídos 100 registro da página 52 (100 novos)
+Processando página 53/1...
+Extraídos 100 registro da página 53 (100 novos)
+Processando página 54/1...
+Extraídos 100 registro da página 54 (100 novos)
+Processando página 55/1...
+Extraídos 100 registro da página 55 (100 novos)
+Processando página 56/1...
+Extraídos 100 registro da página 56 (100 novos)
+Processando página 57/1...
+Extraídos 100 registro da página 57 (100 novos)
+Processando página 58/1...
+Extraídos 100 registro da página 58 (100 novos)
+Processando página 59/1...
+Extraídos 100 registro da página 59 (100 novos)
+Processando página 60/1...
+Extraídos 100 registro da página 60 (100 novos)
+Processando página 61/1...
+Extraídos 100 registro da página 61 (100 novos)
+Processando página 62/1...
+Extraídos 100 registro da página 62 (100 novos)
+Processando página 63/1...
+Extraídos 100 registro da página 63 (100 novos)
+Processando página 64/1...
+Extraídos 100 registro da página 64 (100 novos)
+Processando página 65/1...
+Extraídos 100 registro da página 65 (100 novos)
+Processando página 66/1...
+Extraídos 100 registro da página 66 (100 novos)
+Processando página 67/1...
+Extraídos 100 registro da página 67 (100 novos)
+Processando página 68/1...
+Extraídos 100 registro da página 68 (100 novos)
+Processando página 69/1...
+Extraídos 100 registro da página 69 (100 novos)
+Processando página 70/1...
+Extraídos 100 registro da página 70 (100 novos)
+Processando página 71/1...
+Extraídos 85 registro da página 71 (85 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 7085
+Páginas processadas: 70
+
+📅 Janela de inclusão (produtos): 2025-12-21 00:00:00 → 2026-01-29 16:35:58
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 1 registro da página 2 (1 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 101
+Páginas processadas: 1
+
+📊 EXTRAÇÃO CONCLUÍDA:
+⏱️ Tempo de extração: 0:04:48.419636
+📈 Produtos extraídos: 22290
+🚀 Velocidade: 77.3 produtos/segundo
+
+📝 Preparando dados para salvamento...
+
+💾 Iniciando salvamento inteligente...
+🔍 Buscando registros existentes para comparação...
+   📋 Tabela: raw.produtos_raw
+📋 22290 registros existentes carregados em 0:00:11.471913
+🔍 Comparando 22290 registros...
+Processados 1000/22290 registros...
+Processados 2000/22290 registros...
+Processados 3000/22290 registros...
+Processados 4000/22290 registros...
+Processados 5000/22290 registros...
+Processados 6000/22290 registros...
+Processados 7000/22290 registros...
+Processados 8000/22290 registros...
+Processados 9000/22290 registros...
+Processados 10000/22290 registros...
+Processados 11000/22290 registros...
+Processados 12000/22290 registros...
+Processados 13000/22290 registros...
+Processados 14000/22290 registros...
+Processados 15000/22290 registros...
+Processados 16000/22290 registros...
+Processados 17000/22290 registros...
+Processados 18000/22290 registros...
+Processados 19000/22290 registros...
+Processados 20000/22290 registros...
+Processados 21000/22290 registros...
+Processados 22000/22290 registros...
+✅ Comparação concluída em 0:00:00.326066
+
+📊 CLASSIFICAÇÃO DOS REGISTROS:
+   • 🆕 Novos (inserir): 0
+   • 🔄 Diferentes (atualizar): 0
+   • ⏭️ Idênticos (tocar data): 22290
+
+🕐 Atualizando data_ingestao em 22290 registros idênticos...
+   📋 Tabela alvo: raw.produtos_raw
+✅ Datas atualizadas em 0:00:11.145705
+   ✅ CORREÇÃO APLICADA: Registros idênticos NÃO são marcados como 'pendente'!
+
+🎉 SALVAMENTO CONCLUÍDO!
+📊 Estatísticas detalhadas:
+   • 🆕 Registros inseridos: 0
+   • 🔄 Registros atualizados: 0
+   • ⏭️ Registros idênticos (data atualizada): 22290
+   • 📈 Total processado: 22290
+   • 💾 Operações de escrita: 22290
+   • ✅ CORREÇÃO ATIVA: data_ingestao sempre atualizada na tabela raw.produtos_raw!
+
+🧹 LIMPANDO REGISTROS ÓRFÃOS DA RAW...
+   📋 Registros na RAW: 22290
+   📥 Registros da API: 22290
+   ✅ Nenhum registro órfão detectado
+
+🏁 EXECUÇÃO COMPLETA!
+⏱️ Tempo total: 0:05:11.731287
+⏱️ Tempo de salvamento: 0:00:23.226565
+🚀 Performance geral: 71.5 produtos/segundo
+⚡ Eficiência: 100.0% dos registros eram idênticos (evitou escritas desnecessárias)
+
+🎉 Script de produtos executado com sucesso!
+
+======================================================================
+✅ CONCLUÍDO: 📊 🏭 PRODUTOS
+======================================================================
+⏱️  Tempo: 5.20 minutos (311.75s)
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 📊 💰 VENDAS (Lista)
+======================================================================
+Extraindo todos as vendas da API (Empresa ID: 1)...
+
+📅 Janela de vendas: 2024-01-01 → 2024-12-26
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 100 registro da página 2 (100 novos)
+Processando página 3/1...
+Extraídos 100 registro da página 3 (100 novos)
+Processando página 4/1...
+Extraídos 100 registro da página 4 (100 novos)
+Processando página 5/1...
+Extraídos 100 registro da página 5 (100 novos)
+Processando página 6/1...
+Extraídos 100 registro da página 6 (100 novos)
+Processando página 7/1...
+Extraídos 100 registro da página 7 (100 novos)
+Processando página 8/1...
+Extraídos 100 registro da página 8 (100 novos)
+Processando página 9/1...
+Extraídos 100 registro da página 9 (100 novos)
+Processando página 10/1...
+Extraídos 100 registro da página 10 (100 novos)
+Processando página 11/1...
+Extraídos 100 registro da página 11 (100 novos)
+Processando página 12/1...
+Extraídos 100 registro da página 12 (100 novos)
+Processando página 13/1...
+Extraídos 100 registro da página 13 (100 novos)
+Processando página 14/1...
+Extraídos 100 registro da página 14 (100 novos)
+Processando página 15/1...
+Extraídos 100 registro da página 15 (100 novos)
+Processando página 16/1...
+Extraídos 100 registro da página 16 (100 novos)
+Processando página 17/1...
+Extraídos 100 registro da página 17 (100 novos)
+Processando página 18/1...
+Extraídos 100 registro da página 18 (100 novos)
+Processando página 19/1...
+Extraídos 100 registro da página 19 (100 novos)
+Processando página 20/1...
+Extraídos 100 registro da página 20 (100 novos)
+Processando página 21/1...
+Extraídos 100 registro da página 21 (100 novos)
+Processando página 22/1...
+Extraídos 100 registro da página 22 (100 novos)
+Processando página 23/1...
+Extraídos 100 registro da página 23 (100 novos)
+Processando página 24/1...
+Extraídos 100 registro da página 24 (100 novos)
+Processando página 25/1...
+Extraídos 100 registro da página 25 (100 novos)
+Processando página 26/1...
+Extraídos 100 registro da página 26 (100 novos)
+Processando página 27/1...
+Extraídos 100 registro da página 27 (100 novos)
+Processando página 28/1...
+Extraídos 100 registro da página 28 (100 novos)
+Processando página 29/1...
+Extraídos 100 registro da página 29 (100 novos)
+Processando página 30/1...
+Extraídos 100 registro da página 30 (100 novos)
+Processando página 31/1...
+Extraídos 100 registro da página 31 (100 novos)
+Processando página 32/1...
+Extraídos 100 registro da página 32 (100 novos)
+Processando página 33/1...
+Extraídos 100 registro da página 33 (100 novos)
+Processando página 34/1...
+Extraídos 100 registro da página 34 (100 novos)
+Processando página 35/1...
+Extraídos 100 registro da página 35 (100 novos)
+Processando página 36/1...
+Extraídos 100 registro da página 36 (100 novos)
+Processando página 37/1...
+Extraídos 100 registro da página 37 (100 novos)
+Processando página 38/1...
+Extraídos 100 registro da página 38 (100 novos)
+Processando página 39/1...
+Extraídos 100 registro da página 39 (100 novos)
+Processando página 40/1...
+Extraídos 100 registro da página 40 (100 novos)
+Processando página 41/1...
+Extraídos 100 registro da página 41 (100 novos)
+Processando página 42/1...
+Extraídos 100 registro da página 42 (100 novos)
+Processando página 43/1...
+Extraídos 100 registro da página 43 (100 novos)
+Processando página 44/1...
+Extraídos 100 registro da página 44 (100 novos)
+Processando página 45/1...
+Extraídos 100 registro da página 45 (100 novos)
+Processando página 46/1...
+Extraídos 100 registro da página 46 (100 novos)
+Processando página 47/1...
+Extraídos 100 registro da página 47 (100 novos)
+Processando página 48/1...
+Extraídos 100 registro da página 48 (100 novos)
+Processando página 49/1...
+Extraídos 100 registro da página 49 (100 novos)
+Processando página 50/1...
+Extraídos 14 registro da página 50 (14 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 4914
+Páginas processadas: 49
+
+📅 Janela de vendas: 2024-12-27 → 2025-12-22
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 100 registro da página 2 (100 novos)
+Processando página 3/1...
+Extraídos 100 registro da página 3 (100 novos)
+Processando página 4/1...
+Extraídos 100 registro da página 4 (100 novos)
+Processando página 5/1...
+Extraídos 100 registro da página 5 (100 novos)
+Processando página 6/1...
+Extraídos 100 registro da página 6 (100 novos)
+Processando página 7/1...
+Extraídos 100 registro da página 7 (100 novos)
+Processando página 8/1...
+Extraídos 100 registro da página 8 (100 novos)
+Processando página 9/1...
+Extraídos 100 registro da página 9 (100 novos)
+Processando página 10/1...
+Extraídos 100 registro da página 10 (100 novos)
+Processando página 11/1...
+Extraídos 100 registro da página 11 (100 novos)
+Processando página 12/1...
+Extraídos 100 registro da página 12 (100 novos)
+Processando página 13/1...
+Extraídos 100 registro da página 13 (100 novos)
+Processando página 14/1...
+Extraídos 100 registro da página 14 (100 novos)
+Processando página 15/1...
+Extraídos 100 registro da página 15 (100 novos)
+Processando página 16/1...
+Extraídos 100 registro da página 16 (100 novos)
+Processando página 17/1...
+Extraídos 100 registro da página 17 (100 novos)
+Processando página 18/1...
+Extraídos 100 registro da página 18 (100 novos)
+Processando página 19/1...
+Extraídos 100 registro da página 19 (100 novos)
+Processando página 20/1...
+Extraídos 100 registro da página 20 (100 novos)
+Processando página 21/1...
+Extraídos 100 registro da página 21 (100 novos)
+Processando página 22/1...
+Extraídos 100 registro da página 22 (100 novos)
+Processando página 23/1...
+Extraídos 100 registro da página 23 (100 novos)
+Processando página 24/1...
+Extraídos 100 registro da página 24 (100 novos)
+Processando página 25/1...
+Extraídos 100 registro da página 25 (100 novos)
+Processando página 26/1...
+Extraídos 100 registro da página 26 (100 novos)
+Processando página 27/1...
+Extraídos 100 registro da página 27 (100 novos)
+Processando página 28/1...
+Extraídos 100 registro da página 28 (100 novos)
+Processando página 29/1...
+Extraídos 100 registro da página 29 (100 novos)
+Processando página 30/1...
+Extraídos 100 registro da página 30 (100 novos)
+Processando página 31/1...
+Extraídos 100 registro da página 31 (100 novos)
+Processando página 32/1...
+Extraídos 100 registro da página 32 (100 novos)
+Processando página 33/1...
+Extraídos 100 registro da página 33 (100 novos)
+Processando página 34/1...
+Extraídos 100 registro da página 34 (100 novos)
+Processando página 35/1...
+Extraídos 100 registro da página 35 (100 novos)
+Processando página 36/1...
+Extraídos 100 registro da página 36 (100 novos)
+Processando página 37/1...
+Extraídos 100 registro da página 37 (100 novos)
+Processando página 38/1...
+Extraídos 100 registro da página 38 (100 novos)
+Processando página 39/1...
+Extraídos 100 registro da página 39 (100 novos)
+Processando página 40/1...
+Extraídos 100 registro da página 40 (100 novos)
+Processando página 41/1...
+Extraídos 100 registro da página 41 (100 novos)
+Processando página 42/1...
+Extraídos 61 registro da página 42 (61 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 4161
+Páginas processadas: 41
+
+📅 Janela de vendas: 2025-12-23 → 2026-01-29
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 100 registro da página 2 (100 novos)
+Processando página 3/1...
+Extraídos 100 registro da página 3 (100 novos)
+Processando página 4/1...
+Extraídos 100 registro da página 4 (100 novos)
+Processando página 5/1...
+Extraídos 7 registro da página 5 (7 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 407
+Páginas processadas: 4
+
+📊 EXTRAÇÃO CONCLUÍDA:
+⏱️ Tempo de extração: 0:01:46.612681
+📈 Contatos extraídos: 9482
+🚀 Velocidade: 88.9 vendas/segundo
+
+📝 Preparando dados para salvamento...
+
+💾 Iniciando salvamento inteligente...
+🔍 Buscando registros existentes para comparação...
+   📋 Tabela: raw.vendas_raw
+📋 9481 registros existentes carregados em 0:00:07.615143
+🔍 Comparando 9482 registros...
+Processados 1000/9482 registros...
+Processados 2000/9482 registros...
+Processados 3000/9482 registros...
+Processados 4000/9482 registros...
+Processados 5000/9482 registros...
+Processados 6000/9482 registros...
+Processados 7000/9482 registros...
+Processados 8000/9482 registros...
+Processados 9000/9482 registros...
+✅ Comparação concluída em 0:00:00.200583
+
+📊 CLASSIFICAÇÃO DOS REGISTROS:
+   • 🆕 Novos (inserir): 1
+   • 🔄 Diferentes (atualizar): 0
+   • ⏭️ Idênticos (tocar data): 9481
+
+💾 Inserindo 1 registros novos...
+✅ Inserções concluídas em 0:00:00.197543
+
+🕐 Atualizando data_ingestao em 9481 registros idênticos...
+   📋 Tabela alvo: raw.vendas_raw
+✅ Datas atualizadas em 0:00:02.229187
+   ✅ CORREÇÃO APLICADA: Registros idênticos NÃO são marcados como 'pendente'!
+
+🎉 SALVAMENTO CONCLUÍDO!
+📊 Estatísticas detalhadas:
+   • 🆕 Registros inseridos: 1
+   • 🔄 Registros atualizados: 0
+   • ⏭️ Registros idênticos (data atualizada): 9481
+   • 📈 Total processado: 9482
+   • 💾 Operações de escrita: 9482
+   • ✅ CORREÇÃO ATIVA: data_ingestao sempre atualizada na tabela raw.vendas_raw!
+
+🧹 LIMPANDO REGISTROS ÓRFÃOS DA RAW...
+   📋 Registros na RAW: 9481
+   📥 Registros da API: 9482
+   ✅ Nenhum registro órfão detectado
+
+🏁 EXECUÇÃO COMPLETA!
+⏱️ Tempo total: 0:01:57.175690
+⏱️ Tempo de salvamento: 0:00:10.487149
+🚀 Performance geral: 80.9 vendas/segundo
+⚡ Eficiência: 100.0% dos registros eram idênticos (evitou escritas desnecessárias)
+
+🎉 Script de vendas executado com sucesso!
+
+======================================================================
+✅ CONCLUÍDO: 📊 💰 VENDAS (Lista)
+======================================================================
+⏱️  Tempo: 1.95 minutos (117.18s)
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 📊 🛒 VENDAS (Detalhes + Itens)
+======================================================================
+
+🔍 EXTRATOR DE DETALHES COMPLETOS DE VENDAS (Empresa ID: 1)
+======================================================================
+Este processo busca os detalhes de CADA venda individualmente
+para obter os itens dos pedidos.
+======================================================================
+
+1️⃣ BUSCANDO IDS DAS VENDAS...
+✅ 9482 vendas encontradas
+
+2️⃣ VERIFICANDO QUAIS VENDAS JÁ TÊM ITENS...
+✅ 9481 vendas já têm itens
+🔄 1 vendas precisam ser atualizadas
+
+3️⃣ BUSCANDO DETALHES DE 1 VENDAS...
+⏱️  Tempo estimado: ~0.0 minutos
+======================================================================
+
+📊 Progresso: 1/1 (100.0%)
+   ⏱️  Tempo decorrido: 0:00:00.000009
+   ⏳ Tempo restante estimado: 0.0 minutos
+   🚀 Velocidade: 111111.11 vendas/segundo
+
+   💾 Commit final realizado
+
+======================================================================
+🎉 EXTRAÇÃO DE DETALHES CONCLUÍDA!
+======================================================================
+
+⏱️  TEMPOS:
+   • Tempo total: 0:00:04.174000
+   • Tempo de processamento: 0:00:01.164169
+
+📊 ESTATÍSTICAS:
+   • Vendas processadas: 1
+   • Vendas atualizadas: 1
+   • Vendas com itens: 1
+   • Vendas sem itens: 0
+   • Erros: 0
+
+📈 RESUMO:
+   • Total de vendas no banco: 9482
+   • Vendas com detalhes completos: 9482
+   • Taxa de vendas com itens: 100.0%
+
+🚀 Performance: 0.24 vendas/segundo
+
+4️⃣ VALIDAÇÃO FINAL...
+   • Total de vendas: 9482
+   • Com campo 'itens': 9482
+   • Com itens preenchidos: 9482
+   • Taxa de cobertura: 100.0%
+
+✅ Processo concluído com sucesso!
+
+======================================================================
+✅ CONCLUÍDO: 📊 🛒 VENDAS (Detalhes + Itens)
+======================================================================
+⏱️  Tempo: 4.93s
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 💰 💳 FORMAS DE PAGAMENTO
+======================================================================
+
+💳 EXTRAÇÃO: FORMAS DE PAGAMENTO (Empresa ID: 1)
+============================================================
+Extraindo todas as formas de pagamento da API...
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 13 registro da página 1 (13 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 13
+Páginas processadas: 0
+
+📊 EXTRAÇÃO CONCLUÍDA:
+⏱️ Tempo de extração: 0:00:00.393901
+📈 Formas de pagamento extraídas: 13
+🚀 Velocidade: 33.0 formas/segundo
+
+📝 Preparando dados para salvamento...
+
+💾 Iniciando salvamento inteligente...
+🔍 Buscando registros existentes para comparação...
+   📋 Tabela: raw.formas_pagamentos_raw
+📋 13 registros existentes carregados em 0:00:00.402391
+🔍 Comparando 13 registros...
+✅ Comparação concluída em 0:00:00.000285
+
+📊 CLASSIFICAÇÃO DOS REGISTROS:
+   • 🆕 Novos (inserir): 0
+   • 🔄 Diferentes (atualizar): 0
+   • ⏭️ Idênticos (tocar data): 13
+
+🕐 Atualizando data_ingestao em 13 registros idênticos...
+   📋 Tabela alvo: raw.formas_pagamentos_raw
+✅ Datas atualizadas em 0:00:00.173092
+   ✅ CORREÇÃO APLICADA: Registros idênticos NÃO são marcados como 'pendente'!
+
+🎉 SALVAMENTO CONCLUÍDO!
+📊 Estatísticas detalhadas:
+   • 🆕 Registros inseridos: 0
+   • 🔄 Registros atualizados: 0
+   • ⏭️ Registros idênticos (data atualizada): 13
+   • 📈 Total processado: 13
+   • 💾 Operações de escrita: 13
+   • ✅ CORREÇÃO ATIVA: data_ingestao sempre atualizada na tabela raw.formas_pagamentos_raw!
+
+🧹 LIMPANDO REGISTROS ÓRFÃOS DA RAW...
+   📋 Registros na RAW: 13
+   📥 Registros da API: 13
+   ✅ Nenhum registro órfão detectado
+
+🏁 EXECUÇÃO COMPLETA!
+⏱️ Tempo total: 0:00:01.152831
+⏱️ Tempo de salvamento: 0:00:00.758770
+🚀 Performance geral: 11.3 formas/segundo
+⚡ Eficiência: 100.0% dos registros eram idênticos (evitou escritas desnecessárias)
+
+📊 ESTATÍSTICAS DAS FORMAS DE PAGAMENTO:
+   • Total de formas: 13
+   • Ativas: 13
+   • Fixas: 0
+   • Por tipo de pagamento:
+      - Tipo 1: 5
+      - Tipo 2: 1
+      - Tipo 3: 1
+      - Tipo 5: 1
+      - Tipo 15: 1
+      - Tipo 16: 2
+      - Tipo 20: 1
+      - Tipo 99: 1
+
+📋 Exemplos de formas cadastradas:
+   • B2W INGA (✅ Ativa)
+   • Boleto Bancário (✅ Ativa)
+   • Cartão de Crédito/Débito (✅ Ativa)
+   • Cheque (✅ Ativa)
+   • Débito Automático em C/C (✅ Ativa)
+
+🎉 Script de formas de pagamento executado com sucesso!
+
+======================================================================
+✅ CONCLUÍDO: 💰 💳 FORMAS DE PAGAMENTO
+======================================================================
+⏱️  Tempo: 1.15s
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 💰 📂 CATEGORIAS (Receitas/Despesas)
+======================================================================
+
+📂 EXTRAÇÃO: CATEGORIAS DE RECEITAS/DESPESAS (Empresa ID: 1)
+============================================================
+Extraindo todas as categorias da API...
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 2 registro da página 2 (2 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 102
+Páginas processadas: 1
+
+📊 EXTRAÇÃO CONCLUÍDA:
+⏱️ Tempo de extração: 0:00:01.164339
+📈 Categorias extraídas: 102
+🚀 Velocidade: 87.6 categorias/segundo
+
+📝 Preparando dados para salvamento...
+
+💾 Iniciando salvamento inteligente...
+🔍 Buscando registros existentes para comparação...
+   📋 Tabela: raw.categorias_contas_pagar_raw
+📋 102 registros existentes carregados em 0:00:00.358926
+🔍 Comparando 102 registros...
+✅ Comparação concluída em 0:00:00.002372
+
+📊 CLASSIFICAÇÃO DOS REGISTROS:
+   • 🆕 Novos (inserir): 0
+   • 🔄 Diferentes (atualizar): 0
+   • ⏭️ Idênticos (tocar data): 102
+
+🕐 Atualizando data_ingestao em 102 registros idênticos...
+   📋 Tabela alvo: raw.categorias_contas_pagar_raw
+✅ Datas atualizadas em 0:00:00.162309
+   ✅ CORREÇÃO APLICADA: Registros idênticos NÃO são marcados como 'pendente'!
+
+🎉 SALVAMENTO CONCLUÍDO!
+📊 Estatísticas detalhadas:
+   • 🆕 Registros inseridos: 0
+   • 🔄 Registros atualizados: 0
+   • ⏭️ Registros idênticos (data atualizada): 102
+   • 📈 Total processado: 102
+   • 💾 Operações de escrita: 102
+   • ✅ CORREÇÃO ATIVA: data_ingestao sempre atualizada na tabela raw.categorias_contas_pagar_raw!
+
+🧹 LIMPANDO REGISTROS ÓRFÃOS DA RAW...
+   📋 Registros na RAW: 102
+   📥 Registros da API: 102
+   ✅ Nenhum registro órfão detectado
+
+🏁 EXECUÇÃO COMPLETA!
+⏱️ Tempo total: 0:00:01.851334
+⏱️ Tempo de salvamento: 0:00:00.686889
+🚀 Performance geral: 55.1 categorias/segundo
+⚡ Eficiência: 100.0% dos registros eram idênticos (evitou escritas desnecessárias)
+
+📊 ESTATÍSTICAS DAS CATEGORIAS:
+   • Total de categorias: 102
+   • Receitas: 0
+   • Despesas: 0
+   • Outras: 102
+
+🎉 Script de categorias executado com sucesso!
+
+======================================================================
+✅ CONCLUÍDO: 💰 📂 CATEGORIAS (Receitas/Despesas)
+======================================================================
+⏱️  Tempo: 1.85s
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 💰 🌿 NATUREZA DE OPERAÇÃO
+======================================================================
+
+🌿 EXTRAÇÃO: NATUREZAS DE OPERAÇÃO (Empresa ID: 1)
+======================================================================
+Este processo busca TODAS as naturezas de operação do Bling
+======================================================================
+
+🔍 Buscando naturezas de operação da API...
+   URL: https://api.bling.com.br/Api/v3/naturezas-operacoes
+   ✅ 12 naturezas encontradas
+
+💾 SALVANDO 12 NATUREZAS NO BANCO...
+----------------------------------------------------------------------
+
+[1/12] ID: 10890419904
+   Descrição: Anulação de Valor Relativo a Fretes
+   ✅ Salva com sucesso
+
+[2/12] ID: 3793254761
+   Descrição: Compra de mercadorias
+   ✅ Salva com sucesso
+
+[3/12] ID: 15108770701
+   Descrição: Devolução de compra
+   ✅ Salva com sucesso
+
+[4/12] ID: 7402981739
+   Descrição: Devolução de Mercadoria Dentro do Estado
+   ✅ Salva com sucesso
+
+[5/12] ID: 7501296099
+   Descrição: Devolução de Mercadoria Dentro do Estado
+   ✅ Salva com sucesso
+
+[6/12] ID: 5722119403
+   Descrição: Devolução de Mercadoria fora do Estado
+   ✅ Salva com sucesso
+
+[7/12] ID: 5991360857
+   Descrição: Devolução de Mercadoria fora do Estado
+   ✅ Salva com sucesso
+
+[8/12] ID: 5722116058
+   Descrição: Devolução de Mercadoria Indsutrializada fora do Estado
+   ✅ Salva com sucesso
+
+[9/12] ID: 15101726972
+   Descrição: Remessa para Conserto
+   ✅ Salva com sucesso
+
+[10/12] ID: 8265174426
+   Descrição: Remessas de bonificação, doação ou Brinde Dentro do Estado
+   ✅ Salva com sucesso
+
+[11/12] ID: 7457495752
+   Descrição: Remessas de bonificação, doação ou Brinde Fora do Estado
+   ✅ Salva com sucesso
+
+[12/12] ID: 3793254689
+   Descrição: Venda de mercadorias
+   ✅ Salva com sucesso
+
+======================================================================
+🎉 EXTRAÇÃO CONCLUÍDA!
+======================================================================
+
+⏱️  Tempo total: 0:00:06.629696
+
+📊 ESTATÍSTICAS:
+   ✅ Sucesso: 12
+   ❌ Erros: 0
+
+💡 PRÓXIMOS PASSOS:
+   1. Verificar dados: SELECT * FROM raw.natureza_operacao_raw WHERE empresa_id = 1;
+   2. Usar na transformação de NFe
+
+======================================================================
+✅ CONCLUÍDO: 💰 🌿 NATUREZA DE OPERAÇÃO
+======================================================================
+⏱️  Tempo: 6.63s
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 💰 💵 CONTAS A PAGAR (Lista)
+======================================================================
+
+💰 EXTRAÇÃO: CONTAS A PAGAR (Empresa ID: 1)
+============================================================
+Extraindo todas as contas a pagar da API...
+
+📅 Janela (contas a pagar): 2024-01-01 → 2024-12-26
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 100 registro da página 2 (100 novos)
+Processando página 3/1...
+Extraídos 100 registro da página 3 (100 novos)
+Processando página 4/1...
+Extraídos 100 registro da página 4 (100 novos)
+Processando página 5/1...
+Extraídos 100 registro da página 5 (100 novos)
+Processando página 6/1...
+Extraídos 100 registro da página 6 (100 novos)
+Processando página 7/1...
+Extraídos 100 registro da página 7 (100 novos)
+Processando página 8/1...
+Extraídos 100 registro da página 8 (100 novos)
+Processando página 9/1...
+Extraídos 100 registro da página 9 (100 novos)
+Processando página 10/1...
+Extraídos 100 registro da página 10 (100 novos)
+Processando página 11/1...
+Extraídos 100 registro da página 11 (100 novos)
+Processando página 12/1...
+Extraídos 100 registro da página 12 (100 novos)
+Processando página 13/1...
+Extraídos 100 registro da página 13 (100 novos)
+Processando página 14/1...
+Extraídos 100 registro da página 14 (100 novos)
+Processando página 15/1...
+Extraídos 100 registro da página 15 (100 novos)
+Processando página 16/1...
+Extraídos 100 registro da página 16 (100 novos)
+Processando página 17/1...
+Extraídos 100 registro da página 17 (100 novos)
+Processando página 18/1...
+Extraídos 100 registro da página 18 (100 novos)
+Processando página 19/1...
+Extraídos 100 registro da página 19 (100 novos)
+Processando página 20/1...
+Extraídos 100 registro da página 20 (100 novos)
+Processando página 21/1...
+Extraídos 100 registro da página 21 (100 novos)
+Processando página 22/1...
+Extraídos 100 registro da página 22 (100 novos)
+Processando página 23/1...
+Extraídos 100 registro da página 23 (100 novos)
+Processando página 24/1...
+Extraídos 100 registro da página 24 (100 novos)
+Processando página 25/1...
+Extraídos 100 registro da página 25 (100 novos)
+Processando página 26/1...
+Extraídos 11 registro da página 26 (11 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 2511
+Páginas processadas: 25
+
+📅 Janela (contas a pagar): 2024-12-27 → 2025-12-22
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 100 registro da página 2 (100 novos)
+Processando página 3/1...
+Extraídos 100 registro da página 3 (100 novos)
+Processando página 4/1...
+Extraídos 100 registro da página 4 (100 novos)
+Processando página 5/1...
+Extraídos 100 registro da página 5 (100 novos)
+Processando página 6/1...
+Extraídos 100 registro da página 6 (100 novos)
+Processando página 7/1...
+Extraídos 100 registro da página 7 (100 novos)
+Processando página 8/1...
+Extraídos 100 registro da página 8 (100 novos)
+Processando página 9/1...
+Extraídos 100 registro da página 9 (100 novos)
+Processando página 10/1...
+Extraídos 100 registro da página 10 (100 novos)
+Processando página 11/1...
+Extraídos 100 registro da página 11 (100 novos)
+Processando página 12/1...
+Extraídos 100 registro da página 12 (100 novos)
+Processando página 13/1...
+Extraídos 100 registro da página 13 (100 novos)
+Processando página 14/1...
+Extraídos 100 registro da página 14 (100 novos)
+Processando página 15/1...
+Extraídos 100 registro da página 15 (100 novos)
+Processando página 16/1...
+Extraídos 100 registro da página 16 (100 novos)
+Processando página 17/1...
+Extraídos 100 registro da página 17 (100 novos)
+Processando página 18/1...
+Extraídos 100 registro da página 18 (100 novos)
+Processando página 19/1...
+Extraídos 100 registro da página 19 (100 novos)
+Processando página 20/1...
+Extraídos 100 registro da página 20 (100 novos)
+Processando página 21/1...
+Extraídos 100 registro da página 21 (100 novos)
+Processando página 22/1...
+Extraídos 100 registro da página 22 (100 novos)
+Processando página 23/1...
+Extraídos 100 registro da página 23 (100 novos)
+Processando página 24/1...
+Extraídos 100 registro da página 24 (100 novos)
+Processando página 25/1...
+Extraídos 100 registro da página 25 (100 novos)
+Processando página 26/1...
+Extraídos 100 registro da página 26 (100 novos)
+Processando página 27/1...
+Extraídos 100 registro da página 27 (100 novos)
+Processando página 28/1...
+Extraídos 100 registro da página 28 (100 novos)
+Processando página 29/1...
+Extraídos 100 registro da página 29 (100 novos)
+Processando página 30/1...
+Extraídos 68 registro da página 30 (68 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 2968
+Páginas processadas: 29
+
+📅 Janela (contas a pagar): 2025-12-23 → 2026-12-18
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 100 registro da página 2 (100 novos)
+Processando página 3/1...
+Extraídos 100 registro da página 3 (100 novos)
+Processando página 4/1...
+Extraídos 100 registro da página 4 (100 novos)
+Processando página 5/1...
+Extraídos 100 registro da página 5 (100 novos)
+Processando página 6/1...
+Extraídos 100 registro da página 6 (100 novos)
+Processando página 7/1...
+Extraídos 100 registro da página 7 (100 novos)
+Processando página 8/1...
+Extraídos 100 registro da página 8 (100 novos)
+Processando página 9/1...
+Extraídos 10 registro da página 9 (10 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 810
+Páginas processadas: 8
+
+📅 Janela (contas a pagar): 2026-12-19 → 2027-01-29
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 38 registro da página 1 (38 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 38
+Páginas processadas: 0
+
+📊 EXTRAÇÃO CONCLUÍDA:
+⏱️ Tempo de extração: 0:01:00.368274
+📈 Contas extraídas: 6327
+🚀 Velocidade: 104.8 contas/segundo
+
+📝 Preparando dados para salvamento...
+
+💾 Iniciando salvamento inteligente...
+🔍 Buscando registros existentes para comparação...
+   📋 Tabela: raw.contas_pagar_raw
+📋 6325 registros existentes carregados em 0:00:02.662581
+🔍 Comparando 6327 registros...
+Processados 1000/6327 registros...
+Processados 2000/6327 registros...
+Processados 3000/6327 registros...
+Processados 4000/6327 registros...
+Processados 5000/6327 registros...
+Processados 6000/6327 registros...
+✅ Comparação concluída em 0:00:00.067260
+
+📊 CLASSIFICAÇÃO DOS REGISTROS:
+   • 🆕 Novos (inserir): 2
+   • 🔄 Diferentes (atualizar): 0
+   • ⏭️ Idênticos (tocar data): 6325
+
+💾 Inserindo 2 registros novos...
+✅ Inserções concluídas em 0:00:00.203977
+
+🕐 Atualizando data_ingestao em 6325 registros idênticos...
+   📋 Tabela alvo: raw.contas_pagar_raw
+✅ Datas atualizadas em 0:00:01.053355
+   ✅ CORREÇÃO APLICADA: Registros idênticos NÃO são marcados como 'pendente'!
+
+🎉 SALVAMENTO CONCLUÍDO!
+📊 Estatísticas detalhadas:
+   • 🆕 Registros inseridos: 2
+   • 🔄 Registros atualizados: 0
+   • ⏭️ Registros idênticos (data atualizada): 6325
+   • 📈 Total processado: 6327
+   • 💾 Operações de escrita: 6327
+   • ✅ CORREÇÃO ATIVA: data_ingestao sempre atualizada na tabela raw.contas_pagar_raw!
+
+🧹 LIMPANDO REGISTROS ÓRFÃOS DA RAW...
+   📋 Registros na RAW: 6325
+   📥 Registros da API: 6327
+   ✅ Nenhum registro órfão detectado
+
+🏁 EXECUÇÃO COMPLETA!
+⏱️ Tempo total: 0:01:04.549002
+⏱️ Tempo de salvamento: 0:00:04.178771
+🚀 Performance geral: 98.0 contas/segundo
+⚡ Eficiência: 100.0% dos registros eram idênticos (evitou escritas desnecessárias)
+
+🎉 Script de contas a pagar executado com sucesso!
+
+======================================================================
+✅ CONCLUÍDO: 💰 💵 CONTAS A PAGAR (Lista)
+======================================================================
+⏱️  Tempo: 1.08 minutos (64.55s)
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 💰 🔍 CONTAS A PAGAR (Detalhes + Categoria)
+======================================================================
+
+🔍 EXTRATOR DE DETALHES COMPLETOS DE CONTAS A PAGAR (Empresa ID: 1)
+======================================================================
+Este processo busca os detalhes de CADA conta individualmente
+para obter a categoria (categoria.id).
+✅ RETOMADA AUTOMÁTICA: Continua de onde parou em caso de erro
+======================================================================
+
+======================================================================
+🔄 ITERAÇÃO 1 - Verificando contas pendentes...
+📋 2 contas pendentes neste lote
+
+📊 SITUAÇÃO INICIAL:
+   • Total de contas: 6327
+   • Já com categoria: 6314
+   • Pendentes: 13
+   ⏱️  Tempo estimado: ~0.1 minutos
+
+======================================================================
+🔄 PROCESSANDO LOTE 1...
+
+   💾 Lote 1 finalizado e salvo no banco!
+   ⏱️  Tempo do lote: 0:00:02.111107
+   ✅ 2 contas processadas neste lote
+
+======================================================================
+🔄 ITERAÇÃO 2 - Verificando contas pendentes...
+✅ Nenhuma conta pendente encontrada!
+
+======================================================================
+🎉 EXTRAÇÃO DE DETALHES CONCLUÍDA!
+======================================================================
+
+⏱️  TEMPOS:
+   • Tempo total: 0:00:02.959153
+   • Tempo de processamento: 0:00:02.959228
+
+📊 ESTATÍSTICAS:
+   • Contas processadas nesta execução: 2
+   • Contas atualizadas: 2
+   • Contas com categoria: 2
+   • Contas sem categoria: 0
+   • Contas não encontradas (404): 0
+   • Erros: 0
+
+📈 RESUMO:
+   • Total de contas no banco: 6327
+   • Já tinham categoria: 6314
+   • Contas com categoria agora: 6316
+   • Taxa de contas com categoria (nesta execução): 100.0%
+
+🚀 Performance: 0.68 contas/segundo
+
+4️⃣ VALIDAÇÃO FINAL...
+✅ Validação:
+   • Total de contas: 6327
+   • Com categoria: 6316 (99.8%)
+   • Processadas sem categoria: 11
+   • Ainda pendentes: 2
+
+⚠️  ATENÇÃO:
+   • 11 contas ainda SEM categoria
+   • 6316 contas COM categoria (99.8%)
+
+💡 Execute novamente para tentar buscar as categorias faltantes
+
+📋 STATUS:
+   • 2 contas com status='pendente' (aguardando transformação)
+   • Isto é NORMAL - execute a transformação para processar
+
+======================================================================
+✅ CONCLUÍDO: 💰 🔍 CONTAS A PAGAR (Detalhes + Categoria)
+======================================================================
+⏱️  Tempo: 3.28s
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 💰 💸 CONTAS A RECEBER (Lista)
+======================================================================
+
+💵 EXTRAÇÃO: CONTAS A RECEBER (Empresa ID: 1)
+============================================================
+Extraindo todas as contas a receber da API...
+
+📅 Janela (contas a receber): 2024-01-01 → 2024-12-26
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 100 registro da página 2 (100 novos)
+Processando página 3/1...
+Extraídos 100 registro da página 3 (100 novos)
+Processando página 4/1...
+Extraídos 100 registro da página 4 (100 novos)
+Processando página 5/1...
+Extraídos 100 registro da página 5 (100 novos)
+Processando página 6/1...
+Extraídos 100 registro da página 6 (100 novos)
+Processando página 7/1...
+Extraídos 100 registro da página 7 (100 novos)
+Processando página 8/1...
+Extraídos 100 registro da página 8 (100 novos)
+Processando página 9/1...
+Extraídos 100 registro da página 9 (100 novos)
+Processando página 10/1...
+Extraídos 100 registro da página 10 (100 novos)
+Processando página 11/1...
+Extraídos 100 registro da página 11 (100 novos)
+Processando página 12/1...
+Extraídos 100 registro da página 12 (100 novos)
+Processando página 13/1...
+Extraídos 100 registro da página 13 (100 novos)
+Processando página 14/1...
+Extraídos 100 registro da página 14 (100 novos)
+Processando página 15/1...
+Extraídos 100 registro da página 15 (100 novos)
+Processando página 16/1...
+Extraídos 100 registro da página 16 (100 novos)
+Processando página 17/1...
+Extraídos 100 registro da página 17 (100 novos)
+Processando página 18/1...
+Extraídos 100 registro da página 18 (100 novos)
+Processando página 19/1...
+Extraídos 100 registro da página 19 (100 novos)
+Processando página 20/1...
+Extraídos 100 registro da página 20 (100 novos)
+Processando página 21/1...
+Extraídos 100 registro da página 21 (100 novos)
+Processando página 22/1...
+Extraídos 100 registro da página 22 (100 novos)
+Processando página 23/1...
+Extraídos 100 registro da página 23 (100 novos)
+Processando página 24/1...
+Extraídos 100 registro da página 24 (100 novos)
+Processando página 25/1...
+Extraídos 100 registro da página 25 (100 novos)
+Processando página 26/1...
+Extraídos 100 registro da página 26 (100 novos)
+Processando página 27/1...
+Extraídos 100 registro da página 27 (100 novos)
+Processando página 28/1...
+Extraídos 100 registro da página 28 (100 novos)
+Processando página 29/1...
+Extraídos 100 registro da página 29 (100 novos)
+Processando página 30/1...
+Extraídos 100 registro da página 30 (100 novos)
+Processando página 31/1...
+Extraídos 100 registro da página 31 (100 novos)
+Processando página 32/1...
+Extraídos 100 registro da página 32 (100 novos)
+Processando página 33/1...
+Extraídos 100 registro da página 33 (100 novos)
+Processando página 34/1...
+Extraídos 100 registro da página 34 (100 novos)
+Processando página 35/1...
+Extraídos 100 registro da página 35 (100 novos)
+Processando página 36/1...
+Extraídos 100 registro da página 36 (100 novos)
+Processando página 37/1...
+Extraídos 100 registro da página 37 (100 novos)
+Processando página 38/1...
+Extraídos 100 registro da página 38 (100 novos)
+Processando página 39/1...
+Extraídos 100 registro da página 39 (100 novos)
+Processando página 40/1...
+Extraídos 100 registro da página 40 (100 novos)
+Processando página 41/1...
+Extraídos 100 registro da página 41 (100 novos)
+Processando página 42/1...
+Extraídos 100 registro da página 42 (100 novos)
+Processando página 43/1...
+Extraídos 60 registro da página 43 (60 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 4260
+Páginas processadas: 42
+
+📅 Janela (contas a receber): 2024-12-27 → 2025-12-22
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 100 registro da página 2 (100 novos)
+Processando página 3/1...
+Extraídos 100 registro da página 3 (100 novos)
+Processando página 4/1...
+Extraídos 100 registro da página 4 (100 novos)
+Processando página 5/1...
+Extraídos 100 registro da página 5 (100 novos)
+Processando página 6/1...
+Extraídos 100 registro da página 6 (100 novos)
+Processando página 7/1...
+Extraídos 100 registro da página 7 (100 novos)
+Processando página 8/1...
+Extraídos 100 registro da página 8 (100 novos)
+Processando página 9/1...
+Extraídos 100 registro da página 9 (100 novos)
+Processando página 10/1...
+Extraídos 100 registro da página 10 (100 novos)
+Processando página 11/1...
+Extraídos 100 registro da página 11 (100 novos)
+Processando página 12/1...
+Extraídos 100 registro da página 12 (100 novos)
+Processando página 13/1...
+Extraídos 100 registro da página 13 (100 novos)
+Processando página 14/1...
+Extraídos 100 registro da página 14 (100 novos)
+Processando página 15/1...
+Extraídos 100 registro da página 15 (100 novos)
+Processando página 16/1...
+Extraídos 100 registro da página 16 (100 novos)
+Processando página 17/1...
+Extraídos 100 registro da página 17 (100 novos)
+Processando página 18/1...
+Extraídos 100 registro da página 18 (100 novos)
+Processando página 19/1...
+Extraídos 100 registro da página 19 (100 novos)
+Processando página 20/1...
+Extraídos 100 registro da página 20 (100 novos)
+Processando página 21/1...
+Extraídos 100 registro da página 21 (100 novos)
+Processando página 22/1...
+Extraídos 100 registro da página 22 (100 novos)
+Processando página 23/1...
+Extraídos 100 registro da página 23 (100 novos)
+Processando página 24/1...
+Extraídos 100 registro da página 24 (100 novos)
+Processando página 25/1...
+Extraídos 100 registro da página 25 (100 novos)
+Processando página 26/1...
+Extraídos 100 registro da página 26 (100 novos)
+Processando página 27/1...
+Extraídos 100 registro da página 27 (100 novos)
+Processando página 28/1...
+Extraídos 100 registro da página 28 (100 novos)
+Processando página 29/1...
+Extraídos 100 registro da página 29 (100 novos)
+Processando página 30/1...
+Extraídos 100 registro da página 30 (100 novos)
+Processando página 31/1...
+Extraídos 100 registro da página 31 (100 novos)
+Processando página 32/1...
+Extraídos 100 registro da página 32 (100 novos)
+Processando página 33/1...
+Extraídos 100 registro da página 33 (100 novos)
+Processando página 34/1...
+Extraídos 100 registro da página 34 (100 novos)
+Processando página 35/1...
+Extraídos 100 registro da página 35 (100 novos)
+Processando página 36/1...
+Extraídos 100 registro da página 36 (100 novos)
+Processando página 37/1...
+Extraídos 100 registro da página 37 (100 novos)
+Processando página 38/1...
+Extraídos 4 registro da página 38 (4 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 3704
+Páginas processadas: 37
+
+📅 Janela (contas a receber): 2025-12-23 → 2026-01-29
+Iniciando extração paginada...
+Configurações: delay=0.35s, max_tentativas=3
+Processando página 1...
+Total informado pela API: N/A
+Total de páginas informado: N/A
+Total de páginas: 1
+Total de registros: 0
+Extraídos 100 registro da página 1 (100 novos)
+Processando página 2/1...
+Extraídos 100 registro da página 2 (100 novos)
+Processando página 3/1...
+Extraídos 100 registro da página 3 (100 novos)
+Processando página 4/1...
+Extraídos 92 registro da página 4 (92 novos)
+Última página oficial (1) processada e com menos que 100 registros. Finalizando.
+Extração finalizada com sucesso. Total de registro coletados: 392
+Páginas processadas: 3
+
+📊 EXTRAÇÃO CONCLUÍDA:
+⏱️ Tempo de extração: 0:04:54.637104
+📈 Contas extraídas: 8356
+🚀 Velocidade: 28.4 contas/segundo
+
+📝 Preparando dados para salvamento...
+
+💾 Iniciando salvamento inteligente...
+🔍 Buscando registros existentes para comparação...
+   📋 Tabela: raw.contas_receber_raw
+📋 8356 registros existentes carregados em 0:00:01.784207
+🔍 Comparando 8356 registros...
+Processados 1000/8356 registros...
+Processados 2000/8356 registros...
+Processados 3000/8356 registros...
+Processados 4000/8356 registros...
+Processados 5000/8356 registros...
+Processados 6000/8356 registros...
+Processados 7000/8356 registros...
+Processados 8000/8356 registros...
+✅ Comparação concluída em 0:00:00.230383
+
+📊 CLASSIFICAÇÃO DOS REGISTROS:
+   • 🆕 Novos (inserir): 0
+   • 🔄 Diferentes (atualizar): 0
+   • ⏭️ Idênticos (tocar data): 8356
+
+🕐 Atualizando data_ingestao em 8356 registros idênticos...
+   📋 Tabela alvo: raw.contas_receber_raw
+✅ Datas atualizadas em 0:00:03.078120
+   ✅ CORREÇÃO APLICADA: Registros idênticos NÃO são marcados como 'pendente'!
+
+🎉 SALVAMENTO CONCLUÍDO!
+📊 Estatísticas detalhadas:
+   • 🆕 Registros inseridos: 0
+   • 🔄 Registros atualizados: 0
+   • ⏭️ Registros idênticos (data atualizada): 8356
+   • 📈 Total processado: 8356
+   • 💾 Operações de escrita: 8356
+   • ✅ CORREÇÃO ATIVA: data_ingestao sempre atualizada na tabela raw.contas_receber_raw!
+
+🧹 LIMPANDO REGISTROS ÓRFÃOS DA RAW...
+   📋 Registros na RAW: 8356
+   📥 Registros da API: 8356
+   ✅ Nenhum registro órfão detectado
+
+🏁 EXECUÇÃO COMPLETA!
+⏱️ Tempo total: 0:04:59.935892
+⏱️ Tempo de salvamento: 0:00:05.291193
+🚀 Performance geral: 27.9 contas/segundo
+⚡ Eficiência: 100.0% dos registros eram idênticos (evitou escritas desnecessárias)
+
+🎉 Script de contas a receber executado com sucesso!
+
+======================================================================
+✅ CONCLUÍDO: 💰 💸 CONTAS A RECEBER (Lista)
+======================================================================
+⏱️  Tempo: 5.00 minutos (299.94s)
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 💰 📄 NFe (Entrada + Saída)
+======================================================================
+
+📄 EXTRAÇÃO: NOTAS FISCAIS ELETRÔNICAS (NFe) (Empresa ID: 1)
+============================================================
+⚡ MODO: Comparação inteligente (apenas campos-chave)
+
+📤 EXTRAINDO NOTAS DE SAÍDA...
+------------------------------------------------------------
+
+📅 Janela NFe SAÍDA: 2024-01-01 00:00:00 → 2024-12-25 23:59:59
+Extraindo NFe de SAÍDA (tipo=1)...
+   Processando página 1...
+   ✅ Página 1: 100 registros (100 novos)
+   Processando página 2...
+   ✅ Página 2: 100 registros (100 novos)
+   Processando página 3...
+   ✅ Página 3: 100 registros (100 novos)
+   Processando página 4...
+   ✅ Página 4: 100 registros (100 novos)
+   Processando página 5...
+   ✅ Página 5: 100 registros (100 novos)
+   Processando página 6...
+   ✅ Página 6: 100 registros (100 novos)
+   Processando página 7...
+   ✅ Página 7: 100 registros (100 novos)
+   Processando página 8...
+   ✅ Página 8: 100 registros (100 novos)
+   Processando página 9...
+   ✅ Página 9: 100 registros (100 novos)
+   Processando página 10...
+   ✅ Página 10: 100 registros (100 novos)
+   Processando página 11...
+   ✅ Página 11: 100 registros (100 novos)
+   Processando página 12...
+   ✅ Página 12: 100 registros (100 novos)
+   Processando página 13...
+   ✅ Página 13: 100 registros (100 novos)
+   Processando página 14...
+   ✅ Página 14: 100 registros (100 novos)
+   Processando página 15...
+   ✅ Página 15: 100 registros (100 novos)
+   Processando página 16...
+   ✅ Página 16: 100 registros (100 novos)
+   Processando página 17...
+   ✅ Página 17: 100 registros (100 novos)
+   Processando página 18...
+   ✅ Página 18: 100 registros (100 novos)
+   Processando página 19...
+   ✅ Página 19: 100 registros (100 novos)
+   Processando página 20...
+   ✅ Página 20: 100 registros (100 novos)
+   Processando página 21...
+   ✅ Página 21: 100 registros (100 novos)
+   Processando página 22...
+   ✅ Página 22: 100 registros (100 novos)
+   Processando página 23...
+   ✅ Página 23: 100 registros (100 novos)
+   Processando página 24...
+   ✅ Página 24: 100 registros (100 novos)
+   Processando página 25...
+   ✅ Página 25: 100 registros (100 novos)
+   Processando página 26...
+   ✅ Página 26: 100 registros (100 novos)
+   Processando página 27...
+   ✅ Página 27: 100 registros (100 novos)
+   Processando página 28...
+   ✅ Página 28: 100 registros (100 novos)
+   Processando página 29...
+   ✅ Página 29: 100 registros (100 novos)
+   Processando página 30...
+   ✅ Página 30: 100 registros (100 novos)
+   Processando página 31...
+   ✅ Página 31: 100 registros (100 novos)
+   Processando página 32...
+   ✅ Página 32: 100 registros (100 novos)
+   Processando página 33...
+   ✅ Página 33: 50 registros (50 novos)
+   Processando página 34...
+   ✅ Página 34: 0 registros (0 novos)
+   🎉 SAÍDA: 3250 notas extraídas
+
+📅 Janela NFe SAÍDA: 2024-12-26 00:00:00 → 2025-12-20 23:59:59
+Extraindo NFe de SAÍDA (tipo=1)...
+   Processando página 1...
+   ✅ Página 1: 100 registros (100 novos)
+   Processando página 2...
+   ✅ Página 2: 100 registros (100 novos)
+   Processando página 3...
+   ✅ Página 3: 100 registros (100 novos)
+   Processando página 4...
+   ✅ Página 4: 100 registros (100 novos)
+   Processando página 5...
+   ✅ Página 5: 100 registros (100 novos)
+   Processando página 6...
+   ✅ Página 6: 100 registros (100 novos)
+   Processando página 7...
+   ✅ Página 7: 100 registros (100 novos)
+   Processando página 8...
+   ✅ Página 8: 100 registros (100 novos)
+   Processando página 9...
+   ✅ Página 9: 100 registros (100 novos)
+   Processando página 10...
+   ✅ Página 10: 100 registros (100 novos)
+   Processando página 11...
+   ✅ Página 11: 100 registros (100 novos)
+   Processando página 12...
+   ✅ Página 12: 100 registros (100 novos)
+   Processando página 13...
+   ✅ Página 13: 100 registros (100 novos)
+   Processando página 14...
+   ✅ Página 14: 100 registros (100 novos)
+   Processando página 15...
+   ✅ Página 15: 100 registros (100 novos)
+   Processando página 16...
+   ✅ Página 16: 100 registros (100 novos)
+   Processando página 17...
+   ✅ Página 17: 100 registros (100 novos)
+   Processando página 18...
+   ✅ Página 18: 100 registros (100 novos)
+   Processando página 19...
+   ✅ Página 19: 100 registros (100 novos)
+   Processando página 20...
+   ✅ Página 20: 100 registros (100 novos)
+   Processando página 21...
+   ✅ Página 21: 100 registros (100 novos)
+   Processando página 22...
+   ✅ Página 22: 100 registros (100 novos)
+   Processando página 23...
+   ✅ Página 23: 100 registros (100 novos)
+   Processando página 24...
+   ✅ Página 24: 51 registros (51 novos)
+   Processando página 25...
+   ✅ Página 25: 0 registros (0 novos)
+   🎉 SAÍDA: 2351 notas extraídas
+
+📅 Janela NFe SAÍDA: 2025-12-21 00:00:00 → 2026-01-29 16:49:29
+Extraindo NFe de SAÍDA (tipo=1)...
+   Processando página 1...
+   ✅ Página 1: 100 registros (100 novos)
+   Processando página 2...
+   ✅ Página 2: 100 registros (100 novos)
+   Processando página 3...
+   ✅ Página 3: 100 registros (100 novos)
+   Processando página 4...
+   ✅ Página 4: 100 registros (100 novos)
+   Processando página 5...
+   ✅ Página 5: 6 registros (6 novos)
+   Processando página 6...
+   ✅ Página 6: 0 registros (0 novos)
+   🎉 SAÍDA: 406 notas extraídas
+
+📥 EXTRAINDO NOTAS DE ENTRADA...
+------------------------------------------------------------
+
+📅 Janela NFe ENTRADA: 2024-01-01 00:00:00 → 2024-12-25 23:59:59
+Extraindo NFe de ENTRADA (tipo=0)...
+   Processando página 1...
+   ✅ Página 1: 100 registros (100 novos)
+   Processando página 2...
+   ✅ Página 2: 100 registros (100 novos)
+   Processando página 3...
+   ✅ Página 3: 46 registros (46 novos)
+   Processando página 4...
+   ✅ Página 4: 0 registros (0 novos)
+   🎉 ENTRADA: 246 notas extraídas
+
+📅 Janela NFe ENTRADA: 2024-12-26 00:00:00 → 2025-12-20 23:59:59
+Extraindo NFe de ENTRADA (tipo=0)...
+   Processando página 1...
+   ✅ Página 1: 100 registros (100 novos)
+   Processando página 2...
+   ✅ Página 2: 100 registros (100 novos)
+   Processando página 3...
+   ✅ Página 3: 100 registros (100 novos)
+   Processando página 4...
+   ✅ Página 4: 100 registros (100 novos)
+   Processando página 5...
+   ✅ Página 5: 85 registros (85 novos)
+   Processando página 6...
+   ✅ Página 6: 0 registros (0 novos)
+   🎉 ENTRADA: 485 notas extraídas
+
+📅 Janela NFe ENTRADA: 2025-12-21 00:00:00 → 2026-01-29 16:49:29
+Extraindo NFe de ENTRADA (tipo=0)...
+   Processando página 1...
+   ✅ Página 1: 90 registros (90 novos)
+   Processando página 2...
+   ✅ Página 2: 0 registros (0 novos)
+   🎉 ENTRADA: 90 notas extraídas
+
+============================================================
+📊 EXTRAÇÃO CONCLUÍDA
+============================================================
+⏱️ Tempo de extração: 0:02:33.097012
+📤 NFe SAÍDA: 6007
+📥 NFe ENTRADA: 821
+📈 TOTAL: 6828
+🚀 Velocidade: 44.6 notas/segundo
+
+📝 Preparando dados para salvamento...
+
+💾 Iniciando salvamento inteligente (comparação especializada)...
+🔍 Buscando registros existentes...
+📋 19029 registros carregados em 0:00:04.954174
+🔍 Comparando 6828 registros...
+   Processados 1000/6828...
+   Processados 2000/6828...
+   Processados 3000/6828...
+   Processados 4000/6828...
+   Processados 5000/6828...
+   Processados 6000/6828...
+
+📊 CLASSIFICAÇÃO:
+   • 🆕 Novos: 0
+   • 🔄 Alterados: 0
+   • ✓ Idênticos: 6828
+
+🏁 EXECUÇÃO COMPLETA!
+⏱️ Tempo total: 0:02:38.277872
+⏱️ Tempo de salvamento: 0:00:05.177267
+🚀 Performance: 43.1 notas/segundo
+⚡ Eficiência: 100.0% idênticos (evitou reprocessamento)
+
+📊 ESTATÍSTICAS DAS NFe:
+------------------------------------------------------------
+   • Total de NFe: 6828
+
+   • Distribuição por tipo:
+      - Entrada: 821 (12.0%)
+      - Saída: 6007 (88.0%)
+
+   • Distribuição por situação:
+      - Situação 1: 3
+      - Situação 5: 316
+      - Situação 6: 6203
+      - Situação 7: 306
+
+💡 RELACIONAMENTO:
+   • NFe → Pedidos via vendas_raw.notaFiscal.id
+
+🎉 Script de NFe executado com sucesso!
+
+======================================================================
+✅ CONCLUÍDO: 💰 📄 NFe (Entrada + Saída)
+======================================================================
+⏱️  Tempo: 2.64 minutos (158.28s)
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 💰 🔍 NFe (Detalhes + Enriquecimento)
+======================================================================
+
+💎 ENRIQUECIMENTO COMPLETO DE NFe (Empresa ID: 1)
+======================================================================
+Este processo adiciona 'valorNota' em TODAS as NFe
+======================================================================
+
+⚠️  ATENÇÃO:
+   • Este processo vai buscar TODAS as NFe do banco
+   • Vai levar várias horas para completar
+   • Você pode interromper (Ctrl+C) e continuar depois
+   • O progresso é salvo automaticamente
+
+1️⃣ BUSCANDO TODAS AS NFe DO BANCO...
+✅ 19029 NFe encontradas no banco
+
+2️⃣ VERIFICANDO QUAIS NFe JÁ TÊM valorNota...
+✅ 19029 NFe já têm valorNota
+🔄 0 NFe precisam ser enriquecidas
+
+🎉 Todas as NFe já têm valorNota!
+
+======================================================================
+✅ CONCLUÍDO: 💰 🔍 NFe (Detalhes + Enriquecimento)
+======================================================================
+⏱️  Tempo: 4.51s
+======================================================================
+
+
+======================================================================
+✅ EXTRAÇÃO COMPLETA FINALIZADA
+======================================================================
+⏱️  Tempo total da EXTRAÇÃO: 17.90 minutos (1073.83s)
+
+📊 RESUMO DOS RESULTADOS:
+
+🐌 TOP 5 ENDPOINTS MAIS LENTOS:
+----------------------------------------------------------------------
+1. ✅ 📊 🏭 PRODUTOS
+   ⏱️  Tempo: 5.20 minutos (311.75s) (29.0% do total)
+2. ✅ 💰 💸 CONTAS A RECEBER (Lista)
+   ⏱️  Tempo: 5.00 minutos (299.94s) (27.9% do total)
+3. ✅ 💰 📄 NFe (Entrada + Saída)
+   ⏱️  Tempo: 2.64 minutos (158.28s) (14.7% do total)
+4. ✅ 📊 💰 VENDAS (Lista)
+   ⏱️  Tempo: 1.95 minutos (117.18s) (10.9% do total)
+5. ✅ 📊 👥 CONTATOS
+   ⏱️  Tempo: 1.66 minutos (99.77s) (9.3% do total)
+
+🎯 ESTATÍSTICAS FINAIS DA EXTRAÇÃO:
+✅ Sucessos: 12/12
+❌ Erros: 0/12
+======================================================================
+
+
+======================================================================
+✅ EXTRAÇÃO CONCLUÍDA SEM ERROS
+======================================================================
+🔄 Prosseguindo com transformação...
+
+======================================================================
+🔄 FASE 2: TRANSFORMAÇÃO DOS DADOS
+======================================================================
+📌 Empresa ID: 1
+📊 PARTE COMERCIAL + 💰 PARTE FINANCEIRA
+======================================================================
+
+▶️  Modo incremental: processando apenas registros 'pendente'...
+
+📊 VERIFICANDO REGISTROS PENDENTES (EMPRESA 1)...
+----------------------------------------------------------------------
+📊 PARTE COMERCIAL:
+   • Contatos pendentes: 2
+   • Produtos pendentes: 0
+   • Vendas pendentes: 1
+
+💰 PARTE FINANCEIRA:
+   • Formas de Pagamento: 13
+   • Categorias: 102
+   • Natureza de Operação: 12
+   • Contas a Pagar pendentes: 2
+   • Contas a Receber pendentes: 0
+   • NFe: 19,029
+
+======================================================================
+▶️  INICIANDO: 📊 👥 CONTATOS
+======================================================================
+
+1️⃣ EXTRAINDO DADOS DE RAW.CONTATOS_RAW (empresa_id=1)...
+✅ 2 registros extraídos (status = 'pendente')
+
+2️⃣ EXPANDINDO JSON EM COLUNAS...
+✅ JSON expandido! 55 colunas disponíveis
+
+3️⃣ APLICANDO LIMPEZAS E TRANSFORMAÇÕES...
+   • Removendo colunas desnecessárias...
+   • Renomeando colunas...
+   • Adicionando empresa_id=1...
+   • Convertendo strings vazias para NaN...
+   • Limpando e padronizando nomes...
+   • Determinando tipo de pessoa...
+   • Padronizando CEP...
+   • Padronizando telefone...
+   • Padronizando estado...
+   • Adicionando metadados de processamento...
+✅ Todas as limpezas aplicadas com sucesso!
+
+4️⃣ PREPARANDO DADOS PARA EXPORTAÇÃO...
+✅ Dados preparados! 2 registros x 12 colunas
+
+5️⃣ EXECUTANDO VALIDAÇÕES DE QUALIDADE...
+
+   📊 ESTATÍSTICAS DE QUALIDADE:
+      • Total: 2
+      • Com nome: 2 (100.0%)
+      • Com CPF/CNPJ: 2 (100.0%)
+      • Com cidade: 0 (0.0%)
+      • Com telefone: 0 (0.0%)
+
+   ✅ Nenhuma duplicata encontrada
+
+6️⃣ EXPORTANDO PARA PROCESSED.DIM_CONTATOS (empresa_id=1)...
+🔍 Buscando registros existentes para comparação...
+📋 22273 registros existentes carregados em 0:00:01.835006
+🔍 Comparando registros...
+✅ Comparação concluída em 0:00:00.649908
+
+📊 CLASSIFICAÇÃO DOS REGISTROS:
+   • 🆕 Novos (inserir): 2
+   • 🔄 Diferentes (atualizar): 0
+   • ⏭️ Idênticos (ignorar): 0
+
+💾 Inserindo 2 registros novos...
+✅ Inserções concluídas
+
+🎉 EXPORTAÇÃO CONCLUÍDA!
+   • Total na tabela (empresa 1): 22275
+   • Economia: 0 atualizações desnecessárias evitadas!
+
+7️⃣ ATUALIZANDO STATUS NA TABELA RAW...
+✅ 2 registros marcados como 'processado'
+
+======================================================================
+🎉 TRANSFORMAÇÃO CONCLUÍDA!
+======================================================================
+
+   📊 RESUMO:
+      • Registros processados: 2
+      • Registros exportados: 2
+      • Colunas: 12
+
+======================================================================
+✅ CONCLUÍDO: 📊 👥 CONTATOS
+======================================================================
+⏱️  Tempo: 6.10s
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 📊 🏭 PRODUTOS
+======================================================================
+
+1️⃣ EXTRAINDO DADOS DE RAW.PRODUTOS_RAW (Empresa ID: 1)...
+✅ 0 registros extraídos (status = 'pendente')
+
+✅ Nenhum registro pendente
+
+======================================================================
+✅ CONCLUÍDO: 📊 🏭 PRODUTOS
+======================================================================
+⏱️  Tempo: 1.88s
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 💰 💳 FORMAS DE PAGAMENTO
+======================================================================
+
+1️⃣ EXTRAINDO DADOS DE RAW.FORMAS_PAGAMENTOS_RAW...
+✅ 13 registros extraídos (empresa_id = 1)
+
+2️⃣ EXPANDINDO JSON EM COLUNAS...
+✅ JSON expandido! 13 colunas disponíveis
+
+3️⃣ APLICANDO TRANSFORMAÇÕES...
+   • Removendo colunas desnecessárias...
+   • Renomeando colunas...
+   • Convertendo strings vazias para NaN...
+   • Padronizando forma de pagamento...
+   • Adicionando metadados de processamento...
+✅ Todas as transformações aplicadas com sucesso!
+
+4️⃣ PREPARANDO DADOS PARA EXPORTAÇÃO...
+✅ 13 registros prontos para exportação
+   Colunas selecionadas: ['forma_pagamento_id', 'empresa_id', 'forma_pagamento', 'data_ingestao', 'data_processamento']
+
+5️⃣ VALIDANDO DADOS...
+✅ Validação concluída! 13 registros válidos
+
+6️⃣ EXPORTANDO PARA PROCESSED.DIM_FORMAS_PAGAMENTO...
+
+✅ EXPORTAÇÃO CONCLUÍDA:
+   • Inseridos: 0
+   • Atualizados: 13
+   • Idênticos (ignorados): 0
+   • Total processado: 13
+   • Economia: 0 atualizações desnecessárias evitadas!
+
+======================================================================
+🎉 TRANSFORMAÇÃO CONCLUÍDA!
+======================================================================
+
+======================================================================
+✅ CONCLUÍDO: 💰 💳 FORMAS DE PAGAMENTO
+======================================================================
+⏱️  Tempo: 5.26s
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 💰 📂 CATEGORIAS
+======================================================================
+
+1️⃣ EXTRAINDO DADOS DE RAW.CATEGORIAS_CONTAS_PAGAR_RAW...
+✅ 102 registros extraídos (empresa_id = 1)
+
+2️⃣ EXPANDINDO JSON EM COLUNAS...
+✅ JSON expandido! 8 colunas disponíveis
+
+3️⃣ APLICANDO TRANSFORMAÇÕES...
+   • Removendo colunas desnecessárias...
+   • Renomeando colunas...
+   • Mapeando tipo de categoria...
+      ✅ Tipos mapeados com sucesso
+   • Convertendo strings vazias para NaN...
+   • Padronizando categoria...
+   • Adicionando metadados de processamento...
+✅ Todas as transformações aplicadas com sucesso!
+
+4️⃣ PREPARANDO DADOS PARA EXPORTAÇÃO...
+✅ 102 registros prontos para exportação
+   Colunas selecionadas: ['categoria_id', 'bling_categoria_id', 'empresa_id', 'tipo_categoria', 'categoria', 'data_ingestao', 'data_processamento']
+
+5️⃣ VALIDANDO DADOS...
+✅ Validação concluída! 102 registros válidos
+
+6️⃣ EXPORTANDO PARA PROCESSED.DIM_CATEGORIAS_CONTAS_PAGAR...
+   📦 Total de registros a processar: 102
+
+   🔍 Analisando registros existentes...
+
+======================================================================
+📊 ESTATÍSTICAS:
+   • Registros INSERIDOS:          0 (novos)
+   • Registros ATUALIZADOS:      102 (modificados)
+   • Registros IDÊNTICOS:          0 (sem alteração)
+   ──────────────────────────────────────────────────
+   • TOTAL PROCESSADO:           102
+======================================================================
+
+   🔄 Processando registros...
+   ✅ Processamento concluído!
+
+======================================================================
+✅ EXPORTAÇÃO CONCLUÍDA COM SUCESSO!
+======================================================================
+
+
+======================================================================
+🎉 TRANSFORMAÇÃO CONCLUÍDA!
+======================================================================
+
+======================================================================
+✅ CONCLUÍDO: 💰 📂 CATEGORIAS
+======================================================================
+⏱️  Tempo: 50.44s
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 💰 🌿 NATUREZA DE OPERAÇÃO
+======================================================================
+
+🔄 TRANSFORMAÇÃO: NATUREZA DE OPERAÇÃO → DW
+======================================================================
+
+1️⃣ EXTRAINDO DADOS DE natureza_operacao_raw...
+✅ 12 registros extraídos (empresa_id = 1)
+
+2️⃣ TRANSFORMANDO DADOS...
+✅ 12 registros transformados
+📋 Colunas finais: ['natureza_operacao_id', 'bling_natureza_operacao_id', 'empresa_id', 'natureza_operacao', 'data_ingestao']
+
+3️⃣ CARREGANDO DADOS NO DW...
+✅ Dados carregados com sucesso!
+
+4️⃣ VALIDANDO DADOS NO DW...
+📊 Total de registros (empresa_id=1): 12
+📊 IDs únicos: 12
+
+📋 Primeiros 5 registros:
+   • ID 1 (Bling: 3793254689): Venda de mercadorias
+   • ID 2 (Bling: 3793254761): Compra de mercadorias
+   • ID 3 (Bling: 5722116058): Devolução de Mercadoria Indsutrializada fora do Estado
+   • ID 4 (Bling: 5722119403): Devolução de Mercadoria fora do Estado
+   • ID 5 (Bling: 5991360857): Devolução de Mercadoria fora do Estado
+
+======================================================================
+✅ TRANSFORMAÇÃO CONCLUÍDA!
+======================================================================
+
+⏱️  Tempo total: 0:00:06.194214
+
+📊 ESTATÍSTICAS:
+   • Registros processados: 12
+   • Erros: 0
+
+💡 PRÓXIMOS PASSOS:
+   1. Usar esta dimensão nas transformações de NFe
+   2. Fazer JOIN: nfe_raw.natureza_operacao_id = dim_natureza_operacao.bling_natureza_operacao_id
+      (filtrando por empresa_id)
+
+======================================================================
+✅ CONCLUÍDO: 💰 🌿 NATUREZA DE OPERAÇÃO
+======================================================================
+⏱️  Tempo: 6.39s
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 📊 💰 VENDAS
+======================================================================
+
+1️⃣ EXTRAINDO DADOS DE RAW.VENDAS_RAW (empresa_id=1)...
+✅ 1 registros extraídos (status = 'pendente')
+
+2️⃣ EXPANDINDO JSON EM COLUNAS...
+✅ JSON expandido! 54 colunas disponíveis
+
+3️⃣ APLICANDO TRANSFORMAÇÕES...
+   • Removendo colunas desnecessárias...
+   • Renomeando colunas...
+   • Adicionando empresa_id=1...
+   • Convertendo data_pedido...
+   🔧 1 pedidos com canal=0 convertidos para NULL
+   🔧 1 pedidos SEM canal → mapeando para 'OUTROS'
+   ✅ Pedidos mapeados para canal OUTROS (ID: -1000001)
+   • Extraindo métricas de itens...
+   • Limpando strings vazias...
+   • Convertendo situacao para Integer...
+   • Buscando cliente_id na dim_contatos...
+   ✅ 1 clientes mapeados
+   • Adicionando metadados...
+✅ Todas as transformações aplicadas!
+
+4️⃣ PREPARANDO DADOS PARA EXPORTAÇÃO...
+✅ Dados preparados! 1 registros x 15 colunas
+
+5️⃣ EXECUTANDO VALIDAÇÕES...
+
+   📊 ESTATÍSTICAS DE QUALIDADE:
+      • Total após filtros: 1
+      • Com número pedido: 1 (100.0%)
+      • Com cliente: 1 (100.0%)
+      • Com canal: 1 (100.0%)
+      • Com situação: 1 (100.0%)
+
+   ✅ Nenhuma duplicata encontrada
+
+6️⃣ EXPORTANDO PARA PROCESSED.FATO_PEDIDOS (empresa_id=1)...
+🔍 Buscando registros existentes para comparação...
+📋 22632 registros existentes carregados em 0:00:00.720375
+🔍 Comparando registros...
+✅ Comparação concluída em 0:00:00.498383
+
+📊 CLASSIFICAÇÃO DOS REGISTROS:
+   • 🆕 Novos (inserir): 1
+   • 🔄 Diferentes (atualizar): 0
+   • ⏭️ Idênticos (ignorar): 0
+
+💾 Inserindo 1 registros novos...
+✅ Inserções concluídas
+
+🎉 EXPORTAÇÃO CONCLUÍDA!
+   • Total na tabela (empresa 1): 22633
+   • Economia: 0 atualizações desnecessárias evitadas!
+
+7️⃣ ATUALIZANDO STATUS NA TABELA RAW...
+✅ 1 registros marcados como 'processado'
+
+======================================================================
+🎉 TRANSFORMAÇÃO CONCLUÍDA!
+======================================================================
+
+   📊 RESUMO:
+      • Registros processados: 1
+      • Registros exportados: 1
+
+======================================================================
+✅ CONCLUÍDO: 📊 💰 VENDAS
+======================================================================
+⏱️  Tempo: 6.47s
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 📊 🛒 ITENS
+======================================================================
+
+======================================================================
+🔄 TRANSFORMAÇÃO: ITENS DE PEDIDOS → FATO_ITENS_PEDIDOS
+======================================================================
+
+1️⃣ EXTRAINDO VENDAS COM ITENS DE RAW.VENDAS_RAW...
+✅ 9482 pedidos com itens encontrados (empresa_id = 1)
+
+2️⃣ EXPLODINDO ARRAY DE ITENS...
+✅ 14059 itens extraídos de 9482 pedidos
+   Média de 1.5 itens por pedido
+
+3️⃣ MAPEANDO PRODUTO_ID NA DIM_PRODUTOS...
+   ✅ 11772 produtos mapeados
+   ⚠️  2287 produtos não encontrados na dim_produtos
+      Estes itens ficarão com produto_id = NULL
+
+4️⃣ CALCULANDO MÉTRICAS FINANCEIRAS...
+✅ Métricas calculadas
+   Valor total dos itens: R$ 6,907,849.34
+
+5️⃣ PREPARANDO DADOS PARA EXPORTAÇÃO...
+✅ 14059 itens prontos para exportação
+
+6️⃣ VALIDANDO DADOS...
+
+   📊 ESTATÍSTICAS DE QUALIDADE:
+      • Total de itens: 14059
+      • Com produto_id: 11772 (83.7%)
+      • Com quantidade > 0: 13987 (99.5%)
+      • Com preço > 0: 10508 (74.7%)
+
+   ⚠️  ATENÇÃO: Menos de 90% dos itens têm produto_id!
+      Verifique se dim_produtos está completa
+
+   ⚠️  72 itens com quantidade zero ou inválida
+
+7️⃣ EXPORTANDO PARA PROCESSED.FATO_ITENS_PEDIDOS...
+🔍 Buscando itens existentes para comparação...
+📋 37641 itens existentes carregados em 0:00:01.034738
+🔍 Identificando itens novos...
+
+📊 CLASSIFICAÇÃO:
+   • 🆕 Novos (inserir): 1
+   • ⏭️  Já existentes (ignorar): 14058
+
+💾 Inserindo 1 itens novos...
+   ✅ 1/1 itens inseridos...
+✅ Todas as inserções concluídas
+
+🎉 EXPORTAÇÃO CONCLUÍDA!
+   • Total na tabela (empresa_id=1): 37642
+   • Economia: 14058 duplicatas evitadas!
+
+======================================================================
+🎉 TRANSFORMAÇÃO CONCLUÍDA COM SUCESSO!
+⏱️  Tempo total: 0:00:05.119696
+======================================================================
+
+📊 RESUMO FINAL:
+   • Pedidos processados: 9482
+   • Itens extraídos: 14059
+   • Itens inseridos: 1
+
+======================================================================
+✅ CONCLUÍDO: 📊 🛒 ITENS
+======================================================================
+⏱️  Tempo: 5.13s
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 💰 💵 CONTAS A PAGAR
+======================================================================
+
+======================================================================
+🚀 INICIANDO TRANSFORMAÇÃO COMPLETA
+   Empresa ID: 1
+======================================================================
+
+🗑️  SINCRONIZANDO DELEÇÕES...
+   ✅ Nenhum registro deletado (banco sincronizado)
+   📊 RAW: 6327 registros | PROCESSED: 6325 registros
+
+🔄 PREPARANDO REGISTROS PARA REAVALIAÇÃO...
+   ⚡ 27 contas marcadas para reavaliação
+      • 27 por mudança de data
+
+1️⃣ EXTRAINDO DADOS DE RAW.CONTAS_PAGAR_RAW...
+✅ 29 registros pendentes extraídos (empresa_id = 1)
+
+2️⃣ EXPANDINDO JSON EM COLUNAS...
+✅ JSON expandido! 25 colunas disponíveis
+
+3️⃣ APLICANDO TRANSFORMAÇÕES...
+   • Removendo colunas desnecessárias...
+   • Renomeando colunas...
+   • Convertendo data de vencimento...
+   • Convertendo strings vazias para NaN...
+   • Mapeando situação...
+      ✅ Situações mapeadas com sucesso
+   • Aplicando regra de negócio para contas 'Em aberto'...
+      ✅ Regra aplicada para 29 contas 'Em aberto':
+         • 25 → Atrasada
+         • 4 → Vencendo hoje
+         • 0 → Em aberto
+   • Validando e convertendo IDs BIGINT...
+      ℹ️  ID Forma Pagamento: 2 valores NULL
+      ℹ️  ID Categoria: 3 valores NULL
+   • Adicionando metadados de processamento...
+✅ Todas as transformações aplicadas com sucesso!
+
+4️⃣ PREPARANDO DADOS PARA EXPORTAÇÃO...
+   • Convertendo NaN/NA para None...
+   • Convertendo IDs para tipos numéricos seguros...
+✅ 29 registros prontos para exportação
+
+5️⃣ VALIDANDO DADOS...
+✅ Validação concluída! 29 registros válidos
+
+🔍 VALIDANDO FOREIGN KEYS...
+   • Validando bling_categoria_id...
+      ⚠️  2 registros com bling_categoria_id INVÁLIDA!
+      🔧 Convertendo para NULL...
+   • Validando forma_pagamento_id...
+      ✅ Todas as 27 formas de pagamento são válidas
+   • Validando data_vencimento...
+      ✅ Todas as datas existem na dim_tempo
+
+   📊 Registros após validação: 29 de 29
+✅ Validação de Foreign Keys concluída!
+
+
+6️⃣ EXPORTANDO PARA PROCESSED.FATO_CONTAS_PAGAR...
+   📦 Total de registros a processar: 29
+   🔍 Buscando registros existentes no banco...
+
+   🔍 Analisando registros existentes...
+
+======================================================================
+📊 ESTATÍSTICAS:
+   • Registros INSERIDOS:          2 (novos)
+   • Registros ATUALIZADOS:        0 (modificados)
+   • Registros IDÊNTICOS:         27 (sem alteração)
+   ──────────────────────────────────────────────────
+   • TOTAL PROCESSADO:            29
+
+💡 ECONOMIA:
+   • 27 registros idênticos serão pulados!
+   • 93.1% não precisam ser atualizados
+======================================================================
+
+   🔄 Processando registros...
+      • Processados: 2/29 (7%)
+      • Processados: 4/29 (14%)
+      • Processados: 6/29 (21%)
+      • Processados: 8/29 (28%)
+      • Processados: 10/29 (34%)
+      • Processados: 12/29 (41%)
+      • Processados: 14/29 (48%)
+      • Processados: 16/29 (55%)
+      • Processados: 18/29 (62%)
+      • Processados: 20/29 (69%)
+      • Processados: 22/29 (76%)
+      • Processados: 24/29 (83%)
+      • Processados: 26/29 (90%)
+      • Processados: 28/29 (97%)
+      • Processados: 29/29 (100%)
+
+   💾 Salvando alterações finais no banco de dados...
+   ✅ Commit final realizado com sucesso!
+
+======================================================================
+✅ EXPORTAÇÃO CONCLUÍDA COM SUCESSO!
+======================================================================
+
+
+7️⃣ ATUALIZANDO STATUS...
+✅ 29 registros atualizados
+
+======================================================================
+🎉 TRANSFORMAÇÃO CONCLUÍDA COM SUCESSO!
+   • Empresa ID: 1
+   • Registros processados: 29
+======================================================================
+
+======================================================================
+✅ CONCLUÍDO: 💰 💵 CONTAS A PAGAR
+======================================================================
+⏱️  Tempo: 6.75s
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 💰 💸 CONTAS A RECEBER
+======================================================================
+
+======================================================================
+🚀 INICIANDO TRANSFORMAÇÃO COMPLETA
+   Empresa ID: 1
+======================================================================
+
+🗑️  SINCRONIZANDO DELEÇÕES...
+   ✅ Nenhum registro deletado (banco sincronizado)
+   📊 RAW: 8356 registros | PROCESSED: 8356 registros
+
+1️⃣ EXTRAINDO DADOS DE RAW.CONTAS_RECEBER_RAW...
+✅ 0 registros extraídos (empresa_id = 1)
+
+✅ Nenhum registro pendente para empresa_id = 1
+
+======================================================================
+🎉 TRANSFORMAÇÃO CONCLUÍDA (NADA A FAZER)
+======================================================================
+
+======================================================================
+✅ CONCLUÍDO: 💰 💸 CONTAS A RECEBER
+======================================================================
+⏱️  Tempo: 1.99s
+======================================================================
+
+
+======================================================================
+▶️  INICIANDO: 💰 📄 NFe
+======================================================================
+
+======================================================================
+🔄 TRANSFORMAÇÃO: NFE_RAW → FATO_NFE
+======================================================================
+
+1️⃣ EXTRAINDO DADOS DE RAW.NFE_RAW...
+✅ 19029 NFe extraídas (empresa_id = 1)
+   • Importando dados de vendas para relacionamento...
+   ✅ 5960 vendas com NFe vinculada importadas
+
+2️⃣ EXPANDINDO JSON EM COLUNAS...
+✅ JSON expandido! 50 colunas disponíveis
+
+3️⃣ APLICANDO TRANSFORMAÇÕES...
+   • Removendo colunas desnecessárias...
+   • Renomeando colunas...
+   • Convertendo formatos de data e valores...
+   • Mapeando situação da NFe...
+      ✅ Situação mapeada com sucesso
+   • Mapeando tipo da NFe...
+      ✅ Tipos mapeados com sucesso
+   • Relacionando NFe com Pedidos (método híbrido)...
+      • Método 1 (ecommerce): 20162 pedidos com numero_pedido_lv
+      • Método 2 (notaFiscal): 5960 vendas com notaFiscal.id
+      ✅ Relacionamento concluído (híbrido)!
+      • NFe com pedido: 15818
+      • NFe sem pedido: 3334
+   • Convertendo strings vazias para NaN...
+   • Adicionando metadados de processamento...
+✅ Todas as transformações aplicadas com sucesso!
+
+4️⃣ SELECIONANDO COLUNAS FINAIS E CONVERTENDO TIPOS...
+   • Convertendo NaN para None (compatibilidade PostgreSQL BIGINT)...
+   • Convertendo NaN para None (compatibilidade PostgreSQL NUMERIC)...
+   • Normalizando colunas de data (DATE)...
+   • Convertendo NaT para None (compatibilidade PostgreSQL TIMESTAMP)...
+✅ 16 colunas selecionadas e tipos convertidos
+
+📊 ESTATÍSTICAS:
+   • Total de NFe: 19152
+
+   • Por tipo:
+      - Saida: 17178
+      - Entrada: 1974
+
+   • Por situação:
+      - Emitida DANFE: 17661
+      - Registrada: 1084
+      - Autorizada: 396
+      - Rejeitada: 8
+      - Pendente: 3
+
+5️⃣ COMPARANDO COM DADOS EXISTENTES (COMPARAÇÃO ROBUSTA)...
+   • Registros existentes (empresa_id=1): 19029
+   • Criando índice de registros existentes...
+   • Índice criado: 19029 registros
+   • Comparando registros (usando função robusta)...
+
+   📊 ANÁLISE:
+      • 🆕 Novos: 0
+      • 🔄 Alterados: 123
+      • ✓ Sem alteração: 19029
+
+   🔄 Atualizando 123 registros alterados...
+      • Lote 1/2: 100 registros... ✅
+      • Lote 2/2: 23 registros... ✅
+
+   ✅ Salvamento concluído!
+
+======================================================================
+📊 RESULTADO FINAL
+======================================================================
+   ➕ Inseridos: 0
+   🔄 Atualizados: 123
+   ✓ Sem alteração: 19029
+   📈 Total processado: 19152
+   ⚡ Eficiência: 99.4% sem alteração (evitou reprocessamento)
+======================================================================
+
+======================================================================
+✅ CONCLUÍDO: 💰 📄 NFe
+======================================================================
+⏱️  Tempo: 39.86s
+======================================================================
+
+
+======================================================================
+✅ TRANSFORMAÇÃO COMPLETA FINALIZADA
+======================================================================
+⏱️  Tempo total da TRANSFORMAÇÃO: 2.34 minutos (140.16s)
+
+📊 RESUMO DOS RESULTADOS:
+
+🐌 TOP 5 TRANSFORMAÇÕES MAIS LENTAS:
+----------------------------------------------------------------------
+1. ✅ 💰 📂 CATEGORIAS
+   ⏱️  Tempo: 50.44s (36.0% do total)
+2. ✅ 💰 📄 NFe
+   ⏱️  Tempo: 39.86s (28.4% do total)
+3. ✅ 💰 💵 CONTAS A PAGAR
+   ⏱️  Tempo: 6.75s (4.8% do total)
+4. ✅ 📊 💰 VENDAS
+   ⏱️  Tempo: 6.47s (4.6% do total)
+5. ✅ 💰 🌿 NATUREZA DE OPERAÇÃO
+   ⏱️  Tempo: 6.39s (4.6% do total)
+
+🎯 ESTATÍSTICAS FINAIS DA TRANSFORMAÇÃO:
+✅ Sucessos: 10/10
+❌ Erros: 0/10
+======================================================================
+
+
+======================================================================
+🏁 PIPELINE COMPLETO FINALIZADO
+======================================================================
+⏱️  Tempo total do pipeline: 20.23 minutos (1213.99s)
+
+📊 BREAKDOWN DE TEMPO:
+----------------------------------------------------------------------
+🔵 EXTRAÇÃO:      17.90 minutos (1073.83s) ( 88.5%)
+🟢 TRANSFORMAÇÃO: 2.17 minutos (130.27s) ( 10.7%)
+🟡 OVERHEAD:                     9.89s (  0.8%)
+
+📊 RESUMO GERAL:
+   • Extração: 12/12 sucessos
+   • Transformação: 10/10 sucessos
+
+🔍 ANÁLISE DE GARGALOS:
+----------------------------------------------------------------------
+
+🐌 TOP 10 PROCESSOS MAIS LENTOS:
+======================================================================
+ 1. ✅ 📊 🏭 PRODUTOS
+    ⏱️  5.20 minutos (311.75s) |  25.7% do total
+ 2. ✅ 💰 💸 CONTAS A RECEBER (Lista)
+    ⏱️  5.00 minutos (299.94s) |  24.7% do total
+ 3. ✅ 💰 📄 NFe (Entrada + Saída)
+    ⏱️  2.64 minutos (158.28s) |  13.0% do total
+ 4. ✅ 📊 💰 VENDAS (Lista)
+    ⏱️  1.95 minutos (117.18s) |   9.7% do total
+ 5. ✅ 📊 👥 CONTATOS
+    ⏱️  1.66 minutos (99.77s) |   8.2% do total
+ 6. ✅ 💰 💵 CONTAS A PAGAR (Lista)
+    ⏱️  1.08 minutos (64.55s) |   5.3% do total
+ 7. ✅ 💰 📂 CATEGORIAS
+    ⏱️                50.44s |   4.2% do total
+ 8. ✅ 💰 📄 NFe
+    ⏱️                39.86s |   3.3% do total
+ 9. ✅ 💰 💵 CONTAS A PAGAR
+    ⏱️                 6.75s |   0.6% do total
+10. ✅ 💰 🌿 NATUREZA DE OPERAÇÃO
+    ⏱️                 6.63s |   0.5% do total
+
+📈 ESTATÍSTICAS DO DATA WAREHOUSE (EMPRESA 1):
+----------------------------------------------------------------------
+   • dim_contatos: 22,275 registros
+   • dim_produtos: 39,504 registros
+   • fato_pedidos: 22,633 registros
+   • fato_itens_pedidos: 37,642 registros
+   • fato_contas_pagar: 6,327 registros
+   • fato_contas_receber: 8,356 registros
+   • fato_nfe: 19,029 registros
+
+🎉 TODOS OS PROCESSOS EXECUTADOS COM SUCESSO!
+
+💡 PRÓXIMOS PASSOS:
+   1. DW sincronizado com a Bling (Empresa 1)
+   2. Power BI pode ser atualizado
+   3. Para adicionar outras empresas, crie main_pipeline_2.py, etc.
+
+================================================================================
+🏁 LOG FINALIZADO: 2026-01-29 16:54:34
+================================================================================

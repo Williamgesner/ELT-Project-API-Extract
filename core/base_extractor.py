@@ -263,7 +263,7 @@ class BaseExtractor:
 # SEMPRE atualiza data_ingestao - VERSÃO DEFINITIVA CORRIGIDA
 # =============================================================
 
-    def salvar_dados_postgres_bulk(self, lista_dados):
+    def salvar_dados_postgres_bulk(self, lista_dados, limpar_orfaos=True):
         """
         Salva dados usando comparação inteligente OTIMIZADA:
         - Novos registros: INSERT
@@ -478,65 +478,71 @@ class BaseExtractor:
             if len(registros_para_tocar_data) > 0:
                 print(f"   • ✅ CORREÇÃO ATIVA: data_ingestao sempre atualizada na tabela {full_table_name}!")
             
-            # ⚠️ NOVO: LIMPAR REGISTROS ÓRFÃOS DA RAW
-            # Remove registros que não vieram da API (foram deletados no Bling)
-            print(f"\n🧹 LIMPANDO REGISTROS ÓRFÃOS DA RAW...")
-            print(f"   📋 Registros na RAW: {len(registros_existentes)}")
-            print(f"   📥 Registros da API: {len(lista_dados)}")
-            
-            # IDs que vieram da API
-            ids_da_api = {dados['bling_id'] for dados in lista_dados}
-            
-            # IDs que estão na RAW mas NÃO vieram da API = órfãos (deletados no Bling)
-            ids_orfaos = set(registros_existentes.keys()) - ids_da_api
-            
-            if len(ids_orfaos) > 0:
-                print(f"   ⚠️  {len(ids_orfaos)} registro(s) órfão(s) detectado(s)")
-                print(f"   🗑️  Estes registros foram DELETADOS no Bling")
+            # ⚠️ LIMPEZA DE ÓRFÃOS (APENAS EM MODO FULL)
+            if limpar_orfaos:
+                # Remove registros que não vieram da API (foram deletados no Bling)
+                print(f"\n🧹 LIMPANDO REGISTROS ÓRFÃOS DA RAW...")
+                print(f"   📋 Registros na RAW: {len(registros_existentes)}")
+                print(f"   📥 Registros da API: {len(lista_dados)}")
                 
-                # Agrupar por empresa_id para deletar
-                # Primeiro, buscar empresa_id dos órfãos
-                query_orfaos = f"""
-                    SELECT bling_id, empresa_id
-                    FROM {full_table_name}
-                    WHERE bling_id = ANY(:bling_ids)
-                """
-                orfaos_result = session.execute(text(query_orfaos), {
-                    "bling_ids": list(ids_orfaos)
-                }).fetchall()
+                # IDs que vieram da API
+                ids_da_api = {dados['bling_id'] for dados in lista_dados}
                 
-                # Agrupar por empresa
-                orfaos_por_empresa = {}
-                for bling_id, empresa_id in orfaos_result:
-                    if empresa_id not in orfaos_por_empresa:
-                        orfaos_por_empresa[empresa_id] = []
-                    orfaos_por_empresa[empresa_id].append(bling_id)
+                # IDs que estão na RAW mas NÃO vieram da API = órfãos (deletados no Bling)
+                ids_orfaos = set(registros_existentes.keys()) - ids_da_api
                 
-                # Deletar por empresa
-                total_deletados = 0
-                for empresa_id, ids in orfaos_por_empresa.items():
-                    query_delete = f"""
-                        DELETE FROM {full_table_name}
+                if len(ids_orfaos) > 0:
+                    print(f"   ⚠️  {len(ids_orfaos)} registro(s) órfão(s) detectado(s)")
+                    print(f"   🗑️  Estes registros foram DELETADOS no Bling")
+                    
+                    # Agrupar por empresa_id para deletar
+                    # Primeiro, buscar empresa_id dos órfãos
+                    query_orfaos = f"""
+                        SELECT bling_id, empresa_id
+                        FROM {full_table_name}
                         WHERE bling_id = ANY(:bling_ids)
-                        AND empresa_id = :empresa_id
                     """
-                    resultado = session.execute(text(query_delete), {
-                        "bling_ids": ids,
-                        "empresa_id": empresa_id
-                    })
-                    total_deletados += resultado.rowcount
-                    print(f"   🗑️  Empresa {empresa_id}: {resultado.rowcount} órfãos removidos")
-                
-                session.commit()
-                print(f"   ✅ Total removido: {total_deletados} registros órfãos")
-                
-                # Mostrar alguns IDs removidos (auditoria)
-                if len(ids_orfaos) <= 10:
-                    print(f"   📋 IDs removidos: {sorted(list(ids_orfaos))}")
+                    orfaos_result = session.execute(text(query_orfaos), {
+                        "bling_ids": list(ids_orfaos)
+                    }).fetchall()
+                    
+                    # Agrupar por empresa
+                    orfaos_por_empresa = {}
+                    for bling_id, empresa_id in orfaos_result:
+                        if empresa_id not in orfaos_por_empresa:
+                            orfaos_por_empresa[empresa_id] = []
+                        orfaos_por_empresa[empresa_id].append(bling_id)
+                    
+                    # Deletar por empresa
+                    total_deletados = 0
+                    for empresa_id, ids in orfaos_por_empresa.items():
+                        query_delete = f"""
+                            DELETE FROM {full_table_name}
+                            WHERE bling_id = ANY(:bling_ids)
+                            AND empresa_id = :empresa_id
+                        """
+                        resultado = session.execute(text(query_delete), {
+                            "bling_ids": ids,
+                            "empresa_id": empresa_id
+                        })
+                        total_deletados += resultado.rowcount
+                        print(f"   🗑️  Empresa {empresa_id}: {resultado.rowcount} órfãos removidos")
+                    
+                    session.commit()
+                    print(f"   ✅ Total removido: {total_deletados} registros órfãos")
+                    
+                    # Mostrar alguns IDs removidos (auditoria)
+                    if len(ids_orfaos) <= 10:
+                        print(f"   📋 IDs removidos: {sorted(list(ids_orfaos))}")
+                    else:
+                        print(f"   📋 Primeiros 10 IDs: {sorted(list(ids_orfaos))[:10]}")
                 else:
-                    print(f"   📋 Primeiros 10 IDs: {sorted(list(ids_orfaos))[:10]}")
+                    print(f"   ✅ Nenhum registro órfão detectado")
             else:
-                print(f"   ✅ Nenhum registro órfão detectado")
+                print(f"\n🛡️  LIMPEZA DE ÓRFÃOS DESABILITADA (Modo Incremental)")
+                print(f"   📋 Registros na RAW: {len(registros_existentes)}")
+                print(f"   📥 Registros da API: {len(lista_dados)}")
+                print(f"   ✅ Segurança: Dados históricos preservados")
             
             return stats
             
