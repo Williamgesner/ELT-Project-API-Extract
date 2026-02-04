@@ -1,4 +1,6 @@
-# Responsável por: extrair contatos completos - INSERIR APENAS NOVOS (SEM COMPARAÇÃO)
+# Responsável por: extrair contatos completos da API Bling
+# VERSÃO OTIMIZADA: Suporta modo FULL e INCREMENTAL
+# ESTRATÉGIA: Inserir apenas novos (SEM comparação de JSON)
 
 from datetime import datetime, timedelta
 import time
@@ -8,20 +10,34 @@ from models.contact_raw import ContatoRaw
 from config.settings import endpoints
 from config.database import Session
 from sqlalchemy import text
+from config.extraction_mode import ExtractionMode
 
 # =============================================================
-# 1. CRIANDO A CLASSE PARA EXTRAÇÃO DE CLIENTES + ENDEREÇOS
+# 1. CRIANDO A CLASSE PARA EXTRAÇÃO DE CONTATOS COMPLETOS
 # =============================================================
 
 class ContatosCompletoExtractor(BaseExtractor):
     """
-    Extrator otimizado que INSERE APENAS NOVOS contatos
-    SEM comparação de dados existentes
-    MUDANÇA: Não usa salvar_dados_postgres_bulk() igual os contatos e vendas.
+    Extrator otimizado para contatos da API Bling
+    
+    MODOS DE EXTRAÇÃO:
+    - FULL: Extrai desde 2024-01-01 usando dataInclusao + Limpeza de órfãos ATIVA
+    - INCREMENTAL: Extrai últimos 7 dias usando dataAlteracao + Limpeza DESABILITADA
+    
+    ESTRATÉGIA OTIMIZADA:
+    - Filtra apenas novos ANTES de buscar detalhes (economia de requests)
+    - Inserção direta SEM comparação de JSON (mais rápido)
+    - Busca detalhes completos incluindo endereços
+    
+    IMPORTANTE: Contatos possui filtro de dataAlteração na API Bling!
+    Isso permite capturar mudanças em contatos antigos (ex: contato de 2023 
+    com telefone alterado hoje será capturado no incremental).
     """
     
     def __init__(self, api_key, empresa_id):
         """
+        Inicializa o extrator de contatos
+        
         Args:
             api_key: Token de autenticação da API Bling
             empresa_id: ID da empresa na tabela dim_empresas
@@ -36,50 +52,105 @@ class ContatosCompletoExtractor(BaseExtractor):
             "Accept": "application/json",
         }
     
-    def executar_extracao_completa(self):
+    def executar_extracao_completa(self, extraction_mode=ExtractionMode.FULL):
         """
         Processo otimizado: inserir apenas novos (SEM COMPARAÇÃO)
+        
+        Args:
+            extraction_mode: ExtractionMode.FULL ou ExtractionMode.INCREMENTAL
+                - FULL: dataInclusao desde 2024-01-01 + Remove órfãos
+                - INCREMENTAL: dataAlteracao últimos 7 dias (sem remoção)
         """
         try:
-            print(f"🚀 EXTRAÇÃO: CONTATOS COMPLETOS (Empresa ID: {self.empresa_id})")
-            print("⚡ Estratégia: Inserir apenas novos (SEM comparação de JSON)")
-            print("=" * 60)
             inicio_total = datetime.now()
             
-            # ETAPA 1: Extrair lista básica de contatos
+            # =====================================================
+            # DEFINIR JANELA DE EXTRAÇÃO BASEADA NO MODO
+            # =====================================================
+            if extraction_mode == ExtractionMode.INCREMENTAL:
+                # MODO INCREMENTAL: Contatos ALTERADOS nos últimos 7 dias
+                print(f"\n⚡ MODO INCREMENTAL: Contatos")
+                print(f"📅 Período: Alterados nos últimos 7 dias")
+                print(f"🔍 Filtro API: dataAlteracao")
+                print(f"🛡️ Limpeza de órfãos: DESABILITADA")
+                print(f"⚡ Estratégia: Inserir apenas novos (sem comparação)")
+                
+                data_inicial = datetime.now() - timedelta(days=7)
+                usar_filtro_alteracao = True
+                limpar_orfaos = False
+                
+            else:
+                # MODO FULL: Todos os contatos desde 2024 (sincronização completa)
+                print(f"\n📊 MODO FULL: Contatos")
+                print(f"📅 Período: Desde 2024-01-01")
+                print(f"🔍 Filtro API: dataInclusao")
+                print(f"🧹 Limpeza de órfãos: ATIVA")
+                print(f"⚡ Estratégia: Inserir apenas novos (sem comparação)")
+                
+                data_inicial = datetime(2024, 1, 1, 0, 0, 0)
+                usar_filtro_alteracao = False
+                limpar_orfaos = True
+            
+            print(f"\n👥 EXTRAÇÃO: CONTATOS COMPLETOS (Empresa ID: {self.empresa_id})")
+            print("=" * 60)
+            
+            # =====================================================
+            # ETAPA 1: EXTRAIR LISTA BÁSICA DE CONTATOS
+            # =====================================================
             print("\n1️⃣ EXTRAINDO LISTA BÁSICA DE CONTATOS...")
             inicio_lista = datetime.now()
 
-            # Filtro correto conforme OpenAPI do Bling (GET /contatos):
-            # - dataInclusaoInicial / dataInclusaoFinal (format: "YYYY-MM-DD HH:MM:SS")
+            # API Bling aceita dois filtros de data:
+            # - dataInclusaoInicial/Final: quando o contato foi criado
+            # - dataAlteracaoInicial/Final: quando o contato foi modificado
+            # Formato: "YYYY-MM-DD HH:MM:SS"
             #
-            # Observação: o Bling costuma limitar intervalo de datas; para evitar 400
-            # quando o período é grande (ex.: 2024 → hoje), fazemos em janelas.
-            data_inclusao_inicial = datetime(2024, 1, 1, 0, 0, 0)
-            data_inclusao_final = datetime.now()
-            janela_dias = 360  # margem de segurança (< 365) para evitar limite de 1 ano
+            # Janelas de 360 dias evitam erro de intervalo (máx 365 dias)
+            
+            data_final = datetime.now()
+            janela_dias = 360  # Margem de segurança (< 365)
 
             lista_contatos = []
             ids_vistos = set()
 
-            inicio_janela = data_inclusao_inicial
-            while inicio_janela <= data_inclusao_final:
+            inicio_janela = data_inicial
+            
+            while inicio_janela <= data_final:
+                # Calcula fim da janela (máximo 360 dias ou até data_final)
                 fim_janela = min(
                     inicio_janela + timedelta(days=janela_dias) - timedelta(seconds=1),
-                    data_inclusao_final,
+                    data_final,
                 )
 
-                filtros_adicionais = {
-                    "criterio": 1,  # "Todos" (mais seguro quando usando filtros de data)
-                    "dataInclusaoInicial": inicio_janela.strftime("%Y-%m-%d %H:%M:%S"),
-                    "dataInclusaoFinal": fim_janela.strftime("%Y-%m-%d %H:%M:%S"),
-                }
+                # =====================================================
+                # FILTROS DIFERENTES POR MODO
+                # =====================================================
+                if usar_filtro_alteracao:
+                    # INCREMENTAL: Contatos ALTERADOS (pega mudanças em contatos antigos)
+                    filtros_adicionais = {
+                        "criterio": 1,  # "Todos" (mais seguro com filtros de data)
+                        "dataAlteracaoInicial": inicio_janela.strftime("%Y-%m-%d %H:%M:%S"),
+                        "dataAlteracaoFinal": fim_janela.strftime("%Y-%m-%d %H:%M:%S"),
+                    }
+                    print(
+                        f"\n📅 Janela ALTERAÇÃO: "
+                        f"{filtros_adicionais['dataAlteracaoInicial']} → "
+                        f"{filtros_adicionais['dataAlteracaoFinal']}"
+                    )
+                else:
+                    # FULL: Contatos INCLUÍDOS (extração completa do período)
+                    filtros_adicionais = {
+                        "criterio": 1,  # "Todos" (mais seguro com filtros de data)
+                        "dataInclusaoInicial": inicio_janela.strftime("%Y-%m-%d %H:%M:%S"),
+                        "dataInclusaoFinal": fim_janela.strftime("%Y-%m-%d %H:%M:%S"),
+                    }
+                    print(
+                        f"\n📅 Janela INCLUSÃO: "
+                        f"{filtros_adicionais['dataInclusaoInicial']} → "
+                        f"{filtros_adicionais['dataInclusaoFinal']}"
+                    )
 
-                print(
-                    f"\n📅 Janela de inclusão: "
-                    f"{filtros_adicionais['dataInclusaoInicial']} → {filtros_adicionais['dataInclusaoFinal']}"
-                )
-
+                # Extração paginada desta janela
                 contatos_janela = self.extract_dados_bling_paginado(
                     limite_por_pagina=100,
                     delay_entre_requests=0.35,
@@ -88,6 +159,7 @@ class ContatosCompletoExtractor(BaseExtractor):
                     filtros_adicionais=filtros_adicionais,
                 )
 
+                # Deduplica registros (evita duplicatas entre janelas)
                 for contato in contatos_janela:
                     contato_id = contato.get("id")
                     if contato_id is None or contato_id in ids_vistos:
@@ -95,19 +167,31 @@ class ContatosCompletoExtractor(BaseExtractor):
                     ids_vistos.add(contato_id)
                     lista_contatos.append(contato)
 
-                # Próxima janela (evita sobreposição)
+                # Próxima janela (evita sobreposição - +1 segundo)
                 inicio_janela = fim_janela + timedelta(seconds=1)
             
             fim_lista = datetime.now()
             tempo_lista = fim_lista - inicio_lista
             
+            # =====================================================
+            # VALIDAÇÃO DOS DADOS EXTRAÍDOS
+            # =====================================================
             if not lista_contatos:
-                print("❌ Nenhum contato extraído da API")
+                if extraction_mode == ExtractionMode.INCREMENTAL:
+                    print("✨ Nenhum contato alterado nos últimos 7 dias.")
+                    print("   Isso é normal no modo incremental.")
+                else:
+                    print("⚠️ Nenhum contato foi extraído.")
+                    print("   Possíveis causas:")
+                    print("   • Não há contatos no período especificado")
+                    print("   • Problema de conectividade com a API")
                 return
             
             print(f"✅ {len(lista_contatos)} contatos extraídos em {tempo_lista}")
             
-            # ETAPA 2: Identificar apenas novos (1 query única e rápida)
+            # =====================================================
+            # ETAPA 2: IDENTIFICAR APENAS NOVOS (OTIMIZAÇÃO)
+            # =====================================================
             print(f"\n2️⃣ IDENTIFICANDO CONTATOS NOVOS...")
             inicio_filtro = datetime.now()
             
@@ -118,11 +202,22 @@ class ContatosCompletoExtractor(BaseExtractor):
             if not contatos_novos:
                 print(f"✅ Nenhum contato novo encontrado. Base já atualizada!")
                 print(f"⏱️  Tempo de verificação: {fim_filtro - inicio_filtro}")
+                
+                # ⚠️ CRÍTICO: Mesmo sem novos, precisa limpar órfãos no FULL
+                if limpar_orfaos:
+                    print(f"\n🧹 EXECUTANDO LIMPEZA DE ÓRFÃOS (MODO FULL)...")
+                    self._limpar_orfaos_contatos(
+                        ids_da_api=set(c['id'] for c in lista_contatos),
+                        data_inicial=data_inicial
+                    )
+                
                 return
             
             print(f"✅ {len(contatos_novos)} contatos novos identificados em {fim_filtro - inicio_filtro}")
             
-            # ETAPA 3: Buscar detalhes apenas dos novos
+            # =====================================================
+            # ETAPA 3: BUSCAR DETALHES APENAS DOS NOVOS
+            # =====================================================
             print(f"\n3️⃣ BUSCANDO DETALHES DOS NOVOS CONTATOS...")
             inicio_detalhes = datetime.now()
             
@@ -133,17 +228,32 @@ class ContatosCompletoExtractor(BaseExtractor):
             
             print(f"✅ Detalhes coletados em {tempo_detalhes}")
             
-            # ETAPA 4: Salvar apenas novos (SEM COMPARAÇÃO - DIRETO)
+            # =====================================================
+            # ETAPA 4: SALVAR APENAS NOVOS (INSERT DIRETO)
+            # =====================================================
             print(f"\n4️⃣ SALVANDO NOVOS CONTATOS (INSERT DIRETO)...")
             inicio_salvamento = datetime.now()
             
-            # ⚡ FUNÇÃO OTIMIZADA - NÃO USA salvar_dados_postgres_bulk()
+            # Função otimizada - NÃO usa salvar_dados_postgres_bulk()
             stats = self._salvar_novos_direto(contatos_completos)
             
             fim_salvamento = datetime.now()
+            
+            # =====================================================
+            # ETAPA 5: LIMPEZA DE ÓRFÃOS (APENAS MODO FULL)
+            # =====================================================
+            if limpar_orfaos:
+                print(f"\n5️⃣ LIMPEZA DE ÓRFÃOS (MODO FULL)...")
+                self._limpar_orfaos_contatos(
+                    ids_da_api=set(c['id'] for c in lista_contatos),
+                    data_inicial=data_inicial
+                )
+            
             fim_total = datetime.now()
             
+            # =====================================================
             # RELATÓRIO FINAL
+            # =====================================================
             print(f"\n🎉 EXTRAÇÃO CONCLUÍDA COM SUCESSO!")
             print(f"=" * 60)
             print(f"\n⏱️  TEMPOS:")
@@ -163,7 +273,6 @@ class ContatosCompletoExtractor(BaseExtractor):
             print(f"   • Erros durante inserção: {stats['erros']}")
             
             print(f"\n📈 RESUMO DO BANCO:")
-            # Consulta total no banco após inserção
             total_no_banco = self._contar_total_no_banco()
             print(f"   • Total de contatos no banco agora: {total_no_banco}")
             
@@ -176,10 +285,15 @@ class ContatosCompletoExtractor(BaseExtractor):
                 print(f"\n⚡ ECONOMIA:")
                 print(f"   • {economia_operacoes} inserções duplicadas evitadas")
             
-            print(f"\n✨ Estratégia otimizada executada com sucesso!")
+            print(f"\n✅ Contatos extraídos e salvos com sucesso!")
             
+        except KeyboardInterrupt:
+            print("\n⚠️  Execução interrompida pelo usuário")
+            print("💾 Dados processados até este ponto foram preservados")
         except Exception as e:
             print(f"\n❌ ERRO CRÍTICO: {e}")
+            import traceback
+            traceback.print_exc()
             raise
     
     def _filtrar_apenas_novos(self, lista_contatos):
@@ -231,9 +345,81 @@ class ContatosCompletoExtractor(BaseExtractor):
         finally:
             session.close()
     
+    def _limpar_orfaos_contatos(self, ids_da_api, data_inicial):
+        """
+        Remove contatos órfãos (existem no banco mas não vieram da API)
+        CRÍTICO: Aplica APENAS no escopo de data definido (ex: 2024+)
+        
+        Isso garante que se você mudar o filtro de 2024+ para 2025+,
+        os dados de 2024 NÃO serão apagados.
+        
+        Args:
+            ids_da_api: Set com IDs que vieram da API
+            data_inicial: Data inicial do período de extração (para filtro)
+        """
+        session = Session()
+        
+        try:
+            print(f"\n🧹 LIMPANDO REGISTROS ÓRFÃOS...")
+            print(f"   📅 Período de limpeza: {data_inicial.strftime('%Y-%m-%d')} → hoje")
+            
+            # Buscar IDs que existem no banco DENTRO DO ESCOPO DE DATA
+            query = text("""
+                SELECT bling_id
+                FROM raw.contatos_raw
+                WHERE empresa_id = :empresa_id
+                AND (dados_json->>'dataInclusao')::timestamp >= :data_inicial
+            """)
+            
+            resultado = session.execute(query, {
+                "empresa_id": self.empresa_id,
+                "data_inicial": data_inicial
+            })
+            ids_no_banco = set(row.bling_id for row in resultado)
+            
+            print(f"   📋 Registros na RAW (período filtrado): {len(ids_no_banco)}")
+            print(f"   📥 Registros da API: {len(ids_da_api)}")
+            
+            # IDs que estão no banco mas NÃO vieram da API = órfãos (deletados no Bling)
+            ids_orfaos = ids_no_banco - ids_da_api
+            
+            if len(ids_orfaos) > 0:
+                print(f"   ⚠️  {len(ids_orfaos)} contato(s) órfão(s) detectado(s)")
+                print(f"   🗑️  Estes contatos foram DELETADOS no Bling")
+                
+                # Deletar órfãos
+                query_delete = text("""
+                    DELETE FROM raw.contatos_raw
+                    WHERE bling_id = ANY(:bling_ids)
+                    AND empresa_id = :empresa_id
+                """)
+                
+                resultado_delete = session.execute(query_delete, {
+                    "bling_ids": list(ids_orfaos),
+                    "empresa_id": self.empresa_id
+                })
+                
+                session.commit()
+                print(f"   ✅ Total removido: {resultado_delete.rowcount} registros órfãos")
+                
+                # Mostrar alguns IDs removidos (auditoria)
+                if len(ids_orfaos) <= 10:
+                    print(f"   📋 IDs removidos: {sorted(list(ids_orfaos))}")
+                else:
+                    print(f"   📋 Primeiros 10 IDs: {sorted(list(ids_orfaos))[:10]}")
+            else:
+                print(f"   ✅ Nenhum registro órfão detectado")
+                
+        except Exception as e:
+            session.rollback()
+            print(f"❌ Erro ao limpar órfãos: {e}")
+            raise
+        finally:
+            session.close()
+    
     def _salvar_novos_direto(self, contatos_completos):
         """
-        NOVA FUNÇÃO OTIMIZADA: Salva direto sem comparação
+        Salva novos contatos direto no banco (sem comparação de JSON)
         
         - Sem SELECT de registros existentes
         - Sem comparação de JSON  

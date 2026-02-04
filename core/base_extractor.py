@@ -209,7 +209,7 @@ class BaseExtractor:
                         time.sleep(delay_entre_requests)
                     else:
                         print(f"ERRO CRÍTICO: Erro não recuperável na página {pagina_atual}")
-                        print("INTERROMPINDO EXTRAÇÃO para análise do erro")
+                        print("INTERROMPENDO EXTRAÇÃO para análise do erro")
                         raise Exception(f"Erro não recuperável após {max_tentativas} tentativas: {e}")
             
             if not sucesso:
@@ -263,14 +263,15 @@ class BaseExtractor:
 # SEMPRE atualiza data_ingestao - VERSÃO DEFINITIVA CORRIGIDA
 # =============================================================
 
-    def salvar_dados_postgres_bulk(self, lista_dados):
+    def salvar_dados_postgres_bulk(self, lista_dados, limpar_orfaos=True):
         """
         Salva dados usando comparação inteligente OTIMIZADA:
         - Novos registros: INSERT
-        - Registros existentes idênticos: UPDATE data_ingestao (CORREÇÃO!)
+        - Registros existentes idênticos: UPDATE data_ingestao
         - Registros existentes diferentes: UPDATE completo
         
-        CORREÇÃO CRÍTICA: Nome da tabela é obtido DINAMICAMENTE do model_class
+        ✅ CORREÇÃO APLICADA: Suporta campo de data customizado por endpoint
+        Configure self.campo_data_filtro no extrator para definir qual campo usar
         """
         if not lista_dados:
             print("Nenhum dado para salvar.")
@@ -289,18 +290,49 @@ class BaseExtractor:
             print(f"   📋 Tabela: {full_table_name}")
             inicio_busca = datetime.now()
 
-            # 🔴 ÚNICA MUDANÇA: Filtrar por empresa_id
+            # Obter empresa_id e data_inicial_extracao
             empresa_id = lista_dados[0].get('empresa_id') if lista_dados else None
+            data_inicial_extracao = getattr(self, 'data_inicial_extracao', None)
             
             registros_existentes = {}
             if empresa_id is not None:
-                # Buscar APENAS desta empresa
-                existing_records = session.query(
-                    self.model_class.bling_id,
-                    self.model_class.dados_json
-                ).filter(
-                    self.model_class.empresa_id == empresa_id  # 🔴 FILTRO ADICIONADO!
-                ).all()
+                # 🆕 Se tem filtro de data e limpeza ativa, buscar apenas do período
+                if data_inicial_extracao is not None and limpar_orfaos:
+                    # ✅ CORREÇÃO CRÍTICA: Usar campo de data customizado por endpoint
+                    campo_data = getattr(self, 'campo_data_filtro', 'dataInclusao')
+                    print(f"   📅 Filtrando registros >= {data_inicial_extracao.strftime('%Y-%m-%d')} (período de extração)")
+                    
+                    # ✅ NOVO: Se campo_data é None, busca TODOS (sem filtro de data)
+                    # Usado por extractors que não têm campo de data confiável no JSONB (ex: produtos)
+                    if campo_data is None:
+                        print(f"   ⚠️  Campo de data: None (buscando TODOS os registros da empresa)")
+                        existing_records = session.query(
+                            self.model_class.bling_id,
+                            self.model_class.dados_json
+                        ).filter(
+                            self.model_class.empresa_id == empresa_id
+                        ).all()
+                    else:
+                        print(f"   🏷️  Campo de data usado: '{campo_data}'")
+                        query = text(f"""
+                            SELECT bling_id, dados_json
+                            FROM {full_table_name}
+                            WHERE empresa_id = :empresa_id
+                            AND (dados_json->>'{campo_data}')::timestamp >= :data_inicial
+                        """)
+                        result = session.execute(query, {
+                            "empresa_id": empresa_id,
+                            "data_inicial": data_inicial_extracao
+                        })
+                        existing_records = [(r.bling_id, r.dados_json) for r in result]
+                else:
+                    # Buscar APENAS desta empresa (comportamento original)
+                    existing_records = session.query(
+                        self.model_class.bling_id,
+                        self.model_class.dados_json
+                    ).filter(
+                        self.model_class.empresa_id == empresa_id
+                    ).all()
             else:
                 # Fallback: buscar todos (comportamento original)
                 existing_records = session.query(
@@ -309,10 +341,13 @@ class BaseExtractor:
                 ).all()
 
             for record in existing_records:
-                registros_existentes[record.bling_id] = record.dados_json
+                registros_existentes[record.bling_id if hasattr(record, 'bling_id') else record[0]] = record.dados_json if hasattr(record, 'dados_json') else record[1]
             
             fim_busca = datetime.now()
-            print(f"📋 {len(registros_existentes)} registros existentes carregados em {fim_busca - inicio_busca}")
+            if data_inicial_extracao is not None and limpar_orfaos:
+                print(f"📋 {len(registros_existentes)} registros existentes (período filtrado) carregados em {fim_busca - inicio_busca}")
+            else:
+                print(f"📋 {len(registros_existentes)} registros existentes carregados em {fim_busca - inicio_busca}")
 
             # Classificar os dados
             registros_novos = []
@@ -478,65 +513,78 @@ class BaseExtractor:
             if len(registros_para_tocar_data) > 0:
                 print(f"   • ✅ CORREÇÃO ATIVA: data_ingestao sempre atualizada na tabela {full_table_name}!")
             
-            # ⚠️ NOVO: LIMPAR REGISTROS ÓRFÃOS DA RAW
-            # Remove registros que não vieram da API (foram deletados no Bling)
-            print(f"\n🧹 LIMPANDO REGISTROS ÓRFÃOS DA RAW...")
-            print(f"   📋 Registros na RAW: {len(registros_existentes)}")
-            print(f"   📥 Registros da API: {len(lista_dados)}")
-            
-            # IDs que vieram da API
-            ids_da_api = {dados['bling_id'] for dados in lista_dados}
-            
-            # IDs que estão na RAW mas NÃO vieram da API = órfãos (deletados no Bling)
-            ids_orfaos = set(registros_existentes.keys()) - ids_da_api
-            
-            if len(ids_orfaos) > 0:
-                print(f"   ⚠️  {len(ids_orfaos)} registro(s) órfão(s) detectado(s)")
-                print(f"   🗑️  Estes registros foram DELETADOS no Bling")
-                
-                # Agrupar por empresa_id para deletar
-                # Primeiro, buscar empresa_id dos órfãos
-                query_orfaos = f"""
-                    SELECT bling_id, empresa_id
-                    FROM {full_table_name}
-                    WHERE bling_id = ANY(:bling_ids)
-                """
-                orfaos_result = session.execute(text(query_orfaos), {
-                    "bling_ids": list(ids_orfaos)
-                }).fetchall()
-                
-                # Agrupar por empresa
-                orfaos_por_empresa = {}
-                for bling_id, empresa_id in orfaos_result:
-                    if empresa_id not in orfaos_por_empresa:
-                        orfaos_por_empresa[empresa_id] = []
-                    orfaos_por_empresa[empresa_id].append(bling_id)
-                
-                # Deletar por empresa
-                total_deletados = 0
-                for empresa_id, ids in orfaos_por_empresa.items():
-                    query_delete = f"""
-                        DELETE FROM {full_table_name}
-                        WHERE bling_id = ANY(:bling_ids)
-                        AND empresa_id = :empresa_id
-                    """
-                    resultado = session.execute(text(query_delete), {
-                        "bling_ids": ids,
-                        "empresa_id": empresa_id
-                    })
-                    total_deletados += resultado.rowcount
-                    print(f"   🗑️  Empresa {empresa_id}: {resultado.rowcount} órfãos removidos")
-                
-                session.commit()
-                print(f"   ✅ Total removido: {total_deletados} registros órfãos")
-                
-                # Mostrar alguns IDs removidos (auditoria)
-                if len(ids_orfaos) <= 10:
-                    print(f"   📋 IDs removidos: {sorted(list(ids_orfaos))}")
+            # ⚠️ LIMPEZA DE ÓRFÃOS (APENAS EM MODO FULL)
+            if limpar_orfaos:
+                # Remove registros que não vieram da API (foram deletados no Bling)
+                print(f"\n🧹 LIMPANDO REGISTROS ÓRFÃOS DA RAW...")
+                if data_inicial_extracao is not None:
+                    print(f"   📅 Período de limpeza: {data_inicial_extracao.strftime('%Y-%m-%d')} → hoje")
+                    print(f"   📋 Registros na RAW (período filtrado): {len(registros_existentes)}")
                 else:
-                    print(f"   📋 Primeiros 10 IDs: {sorted(list(ids_orfaos))[:10]}")
+                    print(f"   📋 Registros na RAW: {len(registros_existentes)}")
+                print(f"   📥 Registros da API: {len(lista_dados)}")
+                
+                # IDs que vieram da API
+                ids_da_api = {dados['bling_id'] for dados in lista_dados}
+                
+                # IDs que estão na RAW mas NÃO vieram da API = órfãos (deletados no Bling)
+                ids_orfaos = set(registros_existentes.keys()) - ids_da_api
+                
+                if len(ids_orfaos) > 0:
+                    print(f"   ⚠️  {len(ids_orfaos)} registro(s) órfão(s) detectado(s)")
+                    if data_inicial_extracao is not None:
+                        print(f"   🗑️  Estes registros foram DELETADOS no Bling (dentro do período {data_inicial_extracao.strftime('%Y-%m-%d')}+)")
+                    else:
+                        print(f"   🗑️  Estes registros foram DELETADOS no Bling")
+                    
+                    # Agrupar por empresa_id para deletar
+                    # Primeiro, buscar empresa_id dos órfãos
+                    query_orfaos = f"""
+                        SELECT bling_id, empresa_id
+                        FROM {full_table_name}
+                        WHERE bling_id = ANY(:bling_ids)
+                    """
+                    orfaos_result = session.execute(text(query_orfaos), {
+                        "bling_ids": list(ids_orfaos)
+                    }).fetchall()
+                    
+                    # Agrupar por empresa
+                    orfaos_por_empresa = {}
+                    for bling_id, empresa_id in orfaos_result:
+                        if empresa_id not in orfaos_por_empresa:
+                            orfaos_por_empresa[empresa_id] = []
+                        orfaos_por_empresa[empresa_id].append(bling_id)
+                    
+                    # Deletar por empresa
+                    total_deletados = 0
+                    for empresa_id, ids in orfaos_por_empresa.items():
+                        query_delete = f"""
+                            DELETE FROM {full_table_name}
+                            WHERE bling_id = ANY(:bling_ids)
+                            AND empresa_id = :empresa_id
+                        """
+                        resultado = session.execute(text(query_delete), {
+                            "bling_ids": ids,
+                            "empresa_id": empresa_id
+                        })
+                        total_deletados += resultado.rowcount
+                        print(f"   🗑️  Empresa {empresa_id}: {resultado.rowcount} órfãos removidos")
+                    
+                    session.commit()
+                    print(f"   ✅ Total removido: {total_deletados} registros órfãos")
+                    
+                    # Mostrar alguns IDs removidos (auditoria)
+                    if len(ids_orfaos) <= 10:
+                        print(f"   📋 IDs removidos: {sorted(list(ids_orfaos))}")
+                    else:
+                        print(f"   📋 Primeiros 10 IDs: {sorted(list(ids_orfaos))[:10]}")
+                else:
+                    print(f"   ✅ Nenhum registro órfão detectado")
             else:
-                print(f"   ✅ Nenhum registro órfão detectado")
+                print(f"\n🛡️  LIMPEZA DE ÓRFÃOS DESABILITADA (Modo Incremental)")
+                print(f"   📋 Registros na RAW: {len(registros_existentes)}")
+                print(f"   📥 Registros da API: {len(lista_dados)}")
+                print(f"   ✅ Segurança: Dados históricos preservados")
             
             return stats
             

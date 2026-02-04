@@ -1,25 +1,20 @@
-# Responsável por: extrair contas a receber da API Bling
+# Responsável por: extrair contas a receber da API Bling - VERSÃO OTIMIZADA
 
 from datetime import datetime, timedelta
 from core.base_extractor import BaseExtractor
 from models.accounts_receivable_raw import ContasReceberRaw
 from config.settings import endpoints
-
-# =====================================================
-# 1. CRIANDO A CLASSE PARA EXTRAÇÃO DE CONTAS A RECEBER
-# =====================================================
+from config.extraction_mode import ExtractionMode
 
 class ContasReceberExtractor(BaseExtractor):
-    
     """
-    Extrator específico para contas a receber da API Bling
-    Herda toda a lógica comum da BaseExtractor e adiciona só o que é específico
+    Extrator específico para contas a receber da API Bling - VERSÃO OTIMIZADA
+    Suporta modo FULL e INCREMENTAL
     """
     
     def __init__(self, api_key, empresa_id):
         """
         Inicializa o extrator de contas a receber
-        Passa para a classe pai (BaseExtractor) a URL e modelo específicos
         
         Args:
             api_key: Token de autenticação da API Bling
@@ -28,33 +23,41 @@ class ContasReceberExtractor(BaseExtractor):
         super().__init__(endpoints['contas_receber'], ContasReceberRaw)
         self.empresa_id = empresa_id
         
-        # Sobrescrever headers do base_extractor com a API key específica
         self.headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
     
-    def executar_extracao_completa(self):
+    def executar_extracao_completa(self, extraction_mode=ExtractionMode.INCREMENTAL):
         """
         Executa o processo completo de extração de contas a receber
+        
+        Args:
+            extraction_mode: ExtractionMode.FULL ou ExtractionMode.INCREMENTAL
         """
         try:
-            print(f"\n💵 EXTRAÇÃO: CONTAS A RECEBER (Empresa ID: {self.empresa_id})")
-            print("=" * 60)
             inicio_extracao = datetime.now()
+            
+            # Definir janela de extração baseada no modo
+            if extraction_mode == ExtractionMode.INCREMENTAL:
+                print(f"🔄 MODO INCREMENTAL: Extraindo contas dos últimos 120 dias (Empresa ID: {self.empresa_id})...")
+                data_inicial = (datetime.now() - timedelta(days=120)).date()
+                limpar_orfaos = False
+            else:
+                print(f"📊 MODO FULL: Extraindo todas as contas desde 2024 (Empresa ID: {self.empresa_id})...")
+                data_inicial = datetime(2024, 1, 1).date()
+                limpar_orfaos = True
 
-            # Extrai TODOS os dados da API usando paginação
-            print("Extraindo todas as contas a receber da API...")
-            # Filtro correto conforme OpenAPI do Bling (GET /contas/receber):
-            # - tipoFiltroData (E=Emissão, V=Vencimento, R=Recebimento)
-            # - dataInicial / dataFinal (format: "YYYY-MM-DD")
-            #
-            # Observação: para evitar erro de intervalo (ex.: > 1 ano),
-            # extraímos em janelas de datas.
-            data_inicial = datetime(2024, 1, 1).date()
+            # 🆕 CRÍTICO: Informar período de extração ao base_extractor
+            self.data_inicial_extracao = datetime.combine(data_inicial, datetime.min.time()) if limpar_orfaos else None
+            
+            # ✅ CORREÇÃO CRÍTICA: Campo de data no JSONB usado para filtrar registros existentes
+            # Contas a Receber usa 'vencimento' (NÃO 'dataInclusao')
+            self.campo_data_filtro=None
+
             data_final = datetime.now().date()
-            janela_dias = 360  # margem de segurança (< 365)
+            janela_dias = 360
 
             todas_contas = []
             ids_vistos = set()
@@ -64,7 +67,7 @@ class ContasReceberExtractor(BaseExtractor):
                 fim_janela = min(inicio_janela + timedelta(days=janela_dias), data_final)
 
                 filtros_adicionais = {
-                    "tipoFiltroData": "E",  # Data de emissão
+                    "tipoFiltroData": "E",
                     "dataInicial": inicio_janela.strftime("%Y-%m-%d"),
                     "dataFinal": fim_janela.strftime("%Y-%m-%d"),
                 }
@@ -75,10 +78,10 @@ class ContasReceberExtractor(BaseExtractor):
                 )
 
                 contas_janela = self.extract_dados_bling_paginado(
-                    limite_por_pagina=100,       # Máximo permitido pela API
-                    delay_entre_requests=0.35,   # Delay mínimo, com margem de segurança
-                    max_paginas=1000,            # Limite de segurança
-                    max_tentativas=3,            # 3 tentativas antes de parar tudo
+                    limite_por_pagina=100,
+                    delay_entre_requests=0.35,
+                    max_paginas=1000,
+                    max_tentativas=3,
                     filtros_adicionais=filtros_adicionais,
                 )
 
@@ -89,7 +92,6 @@ class ContasReceberExtractor(BaseExtractor):
                     ids_vistos.add(conta_id)
                     todas_contas.append(conta)
 
-                # Próxima janela (evita sobreposição)
                 inicio_janela = fim_janela + timedelta(days=1)
 
             fim_extracao = datetime.now()
@@ -104,7 +106,6 @@ class ContasReceberExtractor(BaseExtractor):
             print(f"📈 Contas extraídas: {len(todas_contas)}")
             print(f"🚀 Velocidade: {len(todas_contas)/tempo_extracao.total_seconds():.1f} contas/segundo")
 
-            # Preparar dados - APENAS JSON PURO
             print("\n📝 Preparando dados para salvamento...")
             dados_para_salvar = []
             
@@ -112,27 +113,24 @@ class ContasReceberExtractor(BaseExtractor):
                 dados_formatados = {
                     'bling_id': conta['id'],
                     'empresa_id': self.empresa_id, 
-                    'dados_json': conta  # JSON completo e puro
+                    'dados_json': conta
                 }
                 dados_para_salvar.append(dados_formatados)
 
-            # Salvamento inteligente
             print(f"\n💾 Iniciando salvamento inteligente...")
             inicio_salvamento = datetime.now()
             
-            stats = self.salvar_dados_postgres_bulk(dados_para_salvar)
+            stats = self.salvar_dados_postgres_bulk(dados_para_salvar, limpar_orfaos=limpar_orfaos)
             
             fim_salvamento = datetime.now()
             tempo_salvamento = fim_salvamento - inicio_salvamento
             tempo_total = fim_salvamento - inicio_extracao
 
-            # Relatório final de performance
             print(f"\n🏁 EXECUÇÃO COMPLETA!")
             print(f"⏱️ Tempo total: {tempo_total}")
             print(f"⏱️ Tempo de salvamento: {tempo_salvamento}")
             print(f"🚀 Performance geral: {len(todas_contas)/tempo_total.total_seconds():.1f} contas/segundo")
             
-            # Eficiência do algoritmo
             if stats['total'] > 0:
                 eficiencia = (stats['ignorados'] / stats['total']) * 100
                 print(f"⚡ Eficiência: {eficiencia:.1f}% dos registros eram idênticos (evitou escritas desnecessárias)")

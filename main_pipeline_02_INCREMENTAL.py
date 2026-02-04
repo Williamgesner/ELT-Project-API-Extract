@@ -1,15 +1,16 @@
-# Responsável por: executar TODOS os extratores E transformadores em sequência em Empresa ID - 3
-# Este script mantém o DW sincronizado com a Bling - VERSÃO COMPLETA
+# Responsável por: executar TODOS os extratores E transformadores em sequência em Empresa ID - 2
+# Este script mantém o DW sincronizado com a Bling - VERSÃO INCREMENTAL
 # Inclui: Parte COMERCIAL + Parte FINANCEIRA
-# Na fase de gerar os fluxos de trabalho (workflows), esse script será executado a cada 2 horas ou mais (Solicitação do cliente)
+# MODO INCREMENTAL: Executa extração otimizada SEM limpeza de órfãos
 
 """
 ========================================
-PIPELINE COMPLETO - EMPRESA 3
+PIPELINE COMPLETO - EMPRESA 2
+MODO INCREMENTAL
 ========================================
 
 Responsável por: executar TODOS os extratores E transformadores em sequência
-VERSÃO MULTI-CNPJ: empresa_id=3
+VERSÃO MULTI-CNPJ: empresa_id=2
 
 Este script mantém o DW sincronizado com a Bling
 Inclui: Parte COMERCIAL + Parte FINANCEIRA
@@ -19,14 +20,26 @@ Executar a cada 2 horas (Solicitação do cliente)
    • Se extração falhar → transformação NÃO roda
    • Evita deleção de dados se API Key expirar
    • Garante integridade dos dados
+
+⚡ MODO INCREMENTAL:
+   • Contacts: últimos 7 dias (dataAlteracaoInicial/Final)
+   • Products: últimos 7 dias (dataAlteracaoInicial/Final)
+   • Sales: últimos 7 dias (dataAlteracaoInicial/Final)
+   • Accounts Payable: últimos 120 dias (janela)
+   • Accounts Receivable: últimos 120 dias (janela)
+   • NFe: últimos 120 dias (janela)
+   • Limpeza de órfãos DESABILITADA
 """
 
 import os
+import time
 from datetime import datetime
 from dotenv import load_dotenv
 from sqlalchemy import text
 from config.database import create_schema_raw, create_schema_processed, create_all_tables, Session
-from config.auth_manager import obter_token_para_empresa #IMPORTAR O GERENCIADOR DE TOKENS
+from config.auth_manager import obter_token_para_empresa
+from config.logger import setup_logging, close_logging
+from config.extraction_mode import ExtractionMode
 
 # =====================================================
 # IMPORTAÇÕES - PARTE COMERCIAL
@@ -66,72 +79,94 @@ from transform.nfe_dw import NFeTransformer
 load_dotenv()
 
 # Empresa ID
-EMPRESA_ID = 3
+EMPRESA_ID = 2
 
 # OBTER TOKEN VÁLIDO AUTOMATICAMENTE (renova se necessário)
-print("\n🔑 Obtendo token válido para Empresa 03...")
-API_KEY_EMPRESA_3 = obter_token_para_empresa(EMPRESA_ID)
+print("\n🔑 Obtendo token válido para Empresa 02...")
+API_KEY_EMPRESA_2 = obter_token_para_empresa(EMPRESA_ID)
 print(f"✅ Token obtido e validado!\n")
 
 # =====================================================
-# 1. EXECUÇÃO COMPLETA - EXTRAÇÃO
+# FUNÇÃO AUXILIAR
+# =====================================================
+
+def formatar_tempo(segundos):
+    """Formata segundos em formato legível"""
+    if segundos < 60:
+        return f"{segundos:.2f}s"
+    elif segundos < 3600:
+        minutos = segundos / 60
+        return f"{minutos:.2f} minutos ({segundos:.2f}s)"
+    else:
+        horas = segundos / 3600
+        return f"{horas:.2f} horas ({segundos:.2f}s)"
+
+# =====================================================
+# 1. EXECUÇÃO COMPLETA - EXTRAÇÃO (MODO INCREMENTAL)
 # =====================================================
 
 def executar_extracao_completa():
     """
     Executa a extração de todos os endpoints em sequência
-    TODOS os extractors recebem empresa_id=3
+    MODO INCREMENTAL: Extração otimizada
     """
     print("\n🚀 FASE 1: EXTRAÇÃO COMPLETA DE TODOS OS ENDPOINTS")
     print("=" * 70)
     print(f"📌 Empresa ID: {EMPRESA_ID}")
+    print("⚡ MODO INCREMENTAL: Extração otimizada SEM limpeza")
     print("📊 PARTE COMERCIAL + 💰 PARTE FINANCEIRA")
     print("=" * 70)
     
-    inicio_extracao = datetime.now()
+    inicio_extracao = time.time()
     
-    # Lista dos extratores (COM EMPRESA_ID!)
+    # Lista dos extratores (MODO INCREMENTAL)
     extratores = [
         # === PARTE COMERCIAL ===
-        ("📊 👥 CONTATOS", ContatosCompletoExtractor, 
-         {'api_key': API_KEY_EMPRESA_3, 'empresa_id': EMPRESA_ID}, {}),
+        ("📊 👥 CONTATOS ⚡", ContatosCompletoExtractor, 
+         {'api_key': API_KEY_EMPRESA_2, 'empresa_id': EMPRESA_ID}, 
+         {'extraction_mode': ExtractionMode.INCREMENTAL}),
         
-        ("📊 🏭 PRODUTOS", ProdutosExtractor,
-         {'api_key': API_KEY_EMPRESA_3, 'empresa_id': EMPRESA_ID}, {}),
+        ("📊 🏭 PRODUTOS ⚡", ProdutosExtractor,
+         {'api_key': API_KEY_EMPRESA_2, 'empresa_id': EMPRESA_ID}, 
+         {'extraction_mode': ExtractionMode.INCREMENTAL}),
         
-        ("📊 💰 VENDAS (Lista)", VendasExtractor,
-         {'api_key': API_KEY_EMPRESA_3, 'empresa_id': EMPRESA_ID}, {}),
+        ("📊 💰 VENDAS ⚡ (Lista)", VendasExtractor,
+         {'api_key': API_KEY_EMPRESA_2, 'empresa_id': EMPRESA_ID}, 
+         {'extraction_mode': ExtractionMode.INCREMENTAL}),
         
         ("📊 🛒 VENDAS (Detalhes + Itens)", VendasDetalhesExtractor,
-         {'api_key': API_KEY_EMPRESA_3, 'empresa_id': EMPRESA_ID},
+         {'api_key': API_KEY_EMPRESA_2, 'empresa_id': EMPRESA_ID},
          {'delay_entre_requests': 0.4, 'batch_size': 100}),
         
         # === PARTE FINANCEIRA - TABELAS DE APOIO ===
         ("💰 💳 FORMAS DE PAGAMENTO", FormasPagamentosExtractor,
-         {'api_key': API_KEY_EMPRESA_3, 'empresa_id': EMPRESA_ID}, {}),
+         {'api_key': API_KEY_EMPRESA_2, 'empresa_id': EMPRESA_ID}, {}),
         
         ("💰 📂 CATEGORIAS (Receitas/Despesas)", CategoriasExtractor,
-         {'api_key': API_KEY_EMPRESA_3, 'empresa_id': EMPRESA_ID}, {}),
+         {'api_key': API_KEY_EMPRESA_2, 'empresa_id': EMPRESA_ID}, {}),
         
         ("💰 🌿 NATUREZA DE OPERAÇÃO", NaturezaOperacaoExtractor,
-         {'api_key': API_KEY_EMPRESA_3, 'empresa_id': EMPRESA_ID}, {}),
+         {'api_key': API_KEY_EMPRESA_2, 'empresa_id': EMPRESA_ID}, {}),
         
         # === PARTE FINANCEIRA - DADOS PRINCIPAIS ===
-        ("💰 💵 CONTAS A PAGAR (Lista)", ContasPagarExtractor,
-         {'api_key': API_KEY_EMPRESA_3, 'empresa_id': EMPRESA_ID}, {}),
+        ("💰 💵 CONTAS A PAGAR ⚡ (Lista)", ContasPagarExtractor,
+         {'api_key': API_KEY_EMPRESA_2, 'empresa_id': EMPRESA_ID}, 
+         {'extraction_mode': ExtractionMode.INCREMENTAL}),
         
         ("💰 🔍 CONTAS A PAGAR (Detalhes + Categoria)", ContasPagarDetalhesExtractor,
-         {'api_key': API_KEY_EMPRESA_3, 'empresa_id': EMPRESA_ID},
+         {'api_key': API_KEY_EMPRESA_2, 'empresa_id': EMPRESA_ID},
          {'delay_entre_requests': 0.35, 'batch_size': 100}),
         
-        ("💰 💸 CONTAS A RECEBER (Lista)", ContasReceberExtractor,
-         {'api_key': API_KEY_EMPRESA_3, 'empresa_id': EMPRESA_ID}, {}),
+        ("💰 💸 CONTAS A RECEBER ⚡ (Lista)", ContasReceberExtractor,
+         {'api_key': API_KEY_EMPRESA_2, 'empresa_id': EMPRESA_ID}, 
+         {'extraction_mode': ExtractionMode.INCREMENTAL}),
         
-        ("💰 📄 NFe (Entrada + Saída)", NFeExtractor,
-         {'api_key': API_KEY_EMPRESA_3, 'empresa_id': EMPRESA_ID}, {}),
+        ("💰 📄 NFe ⚡ (Entrada + Saída)", NFeExtractor,
+         {'api_key': API_KEY_EMPRESA_2, 'empresa_id': EMPRESA_ID}, 
+         {'extraction_mode': ExtractionMode.INCREMENTAL}),
         
         ("💰 🔍 NFe (Detalhes + Enriquecimento)", NFeDetalhesExtractor,
-         {'api_key': API_KEY_EMPRESA_3, 'empresa_id': EMPRESA_ID},
+         {'api_key': API_KEY_EMPRESA_2, 'empresa_id': EMPRESA_ID},
          {'delay_entre_requests': 0.35, 'batch_size': 100})
     ]
     
@@ -142,9 +177,9 @@ def executar_extracao_completa():
             print(f"\n{nome_endpoint}")
             print("-" * 70)
             
-            inicio_endpoint = datetime.now()
+            inicio_endpoint = time.time()
             
-            # Criar extrator COM empresa_id
+            # Criar extrator
             extrator = ExtractorClass(**init_params)
             
             # Verificar se precisa de parâmetros especiais
@@ -157,12 +192,12 @@ def executar_extracao_completa():
                 elif ExtractorClass == NFeDetalhesExtractor:
                     extrator.executar_enriquecimento_completo(**exec_params)
                 else:
-                    extrator.executar_extracao_completa()
+                    extrator.executar_extracao_completa(**exec_params)
             else:
                 # Executar normalmente
                 extrator.executar_extracao_completa()
             
-            fim_endpoint = datetime.now()
+            fim_endpoint = time.time()
             tempo_endpoint = fim_endpoint - inicio_endpoint
             
             resultados_extracao.append({
@@ -171,10 +206,10 @@ def executar_extracao_completa():
                 'tempo': tempo_endpoint
             })
             
-            print(f"✅ {nome_endpoint} concluído em {tempo_endpoint}")
+            print(f"✅ {nome_endpoint} concluído em {formatar_tempo(tempo_endpoint)}")
             
         except Exception as e:
-            fim_endpoint = datetime.now()
+            fim_endpoint = time.time()
             tempo_endpoint = fim_endpoint - inicio_endpoint
             
             resultados_extracao.append({
@@ -188,12 +223,12 @@ def executar_extracao_completa():
             print("Continuando com próximo endpoint...")
     
     # Relatório extração
-    fim_extracao = datetime.now()
+    fim_extracao = time.time()
     tempo_extracao = fim_extracao - inicio_extracao
     
     print(f"\n✅ EXTRAÇÃO COMPLETA FINALIZADA")
     print("=" * 70)
-    print(f"⏱️ Tempo total: {tempo_extracao}")
+    print(f"⏱️ Tempo total: {formatar_tempo(tempo_extracao)}")
     print("\n📊 RESUMO DOS RESULTADOS:")
     
     sucessos = sum(1 for r in resultados_extracao if r['status'] == 'SUCCESS')
@@ -201,7 +236,7 @@ def executar_extracao_completa():
     
     for resultado in resultados_extracao:
         status_emoji = "✅" if resultado['status'] == 'SUCCESS' else "❌"
-        print(f"{status_emoji} {resultado['endpoint']}: {resultado['tempo']}")
+        print(f"{status_emoji} {resultado['endpoint']}: {formatar_tempo(resultado['tempo'])}")
         
         if resultado['status'] == 'ERROR':
             print(f"   └── Erro: {resultado.get('erro', 'N/A')}")
@@ -219,7 +254,6 @@ def executar_extracao_completa():
 def executar_transformacao_completa():
     """
     Executa a transformação de todos os dados RAW para DW
-    TODOS os transformers recebem empresa_id=3
     """
     print(f"\n{'='*70}")
     print("🔄 FASE 2: TRANSFORMAÇÃO DOS DADOS")
@@ -228,7 +262,7 @@ def executar_transformacao_completa():
     print("📊 PARTE COMERCIAL + 💰 PARTE FINANCEIRA")
     print(f"{'='*70}")
     
-    inicio_transformacao = datetime.now()
+    inicio_transformacao = time.time()
     
     # Modo incremental - processar apenas registros 'pendente'
     print("\n▶️  Modo incremental: processando apenas registros 'pendente'...")
@@ -236,7 +270,7 @@ def executar_transformacao_completa():
     session = Session()
     try:
         # Verificar quantos registros pendentes existem
-        print("\n📊 VERIFICANDO REGISTROS PENDENTES (EMPRESA 3)...")
+        print("\n📊 VERIFICANDO REGISTROS PENDENTES (EMPRESA 2)...")
         print("-" * 70)
         
         # Parte Comercial
@@ -302,7 +336,7 @@ def executar_transformacao_completa():
     finally:
         session.close()
     
-    # Executar transformações (COM EMPRESA_ID!)
+    # Executar transformações
     transformadores = [
         # === PARTE COMERCIAL - DIMENSÕES ===
         ("📊 👥 CONTATOS", ContatosTransformer, {'empresa_id': EMPRESA_ID}),
@@ -330,13 +364,13 @@ def executar_transformacao_completa():
             print(f"\n{nome}")
             print("-" * 70)
             
-            inicio_transform = datetime.now()
+            inicio_transform = time.time()
             
-            # Criar transformer COM empresa_id
+            # Criar transformer
             transformer = TransformerClass(**init_params)
             transformer.executar_transformacao_completa()
             
-            fim_transform = datetime.now()
+            fim_transform = time.time()
             tempo_transform = fim_transform - inicio_transform
             
             resultados_transformacao.append({
@@ -345,10 +379,10 @@ def executar_transformacao_completa():
                 'tempo': tempo_transform
             })
             
-            print(f"✅ {nome} transformado em {tempo_transform}")
+            print(f"✅ {nome} transformado em {formatar_tempo(tempo_transform)}")
             
         except Exception as e:
-            fim_transform = datetime.now()
+            fim_transform = time.time()
             tempo_transform = fim_transform - inicio_transform
             
             resultados_transformacao.append({
@@ -362,12 +396,12 @@ def executar_transformacao_completa():
             print("⚠️  Continuando com próximo transformer...")
     
     # Relatório transformação
-    fim_transformacao = datetime.now()
+    fim_transformacao = time.time()
     tempo_transformacao = fim_transformacao - inicio_transformacao
     
     print(f"\n✅ TRANSFORMAÇÃO COMPLETA FINALIZADA")
     print("=" * 70)
-    print(f"⏱️ Tempo total: {tempo_transformacao}")
+    print(f"⏱️ Tempo total: {formatar_tempo(tempo_transformacao)}")
     print("\n📊 RESUMO DOS RESULTADOS:")
     
     sucessos = sum(1 for r in resultados_transformacao if r['status'] == 'SUCCESS')
@@ -375,7 +409,7 @@ def executar_transformacao_completa():
     
     for resultado in resultados_transformacao:
         status_emoji = "✅" if resultado['status'] == 'SUCCESS' else "❌"
-        print(f"{status_emoji} {resultado['transformador']}: {resultado['tempo']}")
+        print(f"{status_emoji} {resultado['transformador']}: {formatar_tempo(resultado['tempo'])}")
         
         if resultado['status'] == 'ERROR':
             print(f"   └── Erro: {resultado.get('erro', 'N/A')}")
@@ -393,25 +427,26 @@ def executar_transformacao_completa():
 def executar_pipeline_completo():
     """
     Executa o pipeline completo: Extração + Transformação
-    VERSÃO MULTI-CNPJ para EMPRESA 3
-
+    MODO INCREMENTAL: Extração otimizada sem limpeza
+    
     🛡️ PROTEÇÃO IMPLEMENTADA:
        • Verifica se extração foi bem-sucedida
        • Se houver erros críticos, ABORTA transformação
        • Evita perda de dados por API Key expirada ou erros de conexão
     """
     print("\n" + "=" * 70)
-    print("🔄 PIPELINE COMPLETO: EMPRESA 3")
+    print("🔄 PIPELINE COMPLETO - MODO INCREMENTAL: EMPRESA 2")
     print("=" * 70)
     print(f"📌 Empresa ID: {EMPRESA_ID}")
     print("📊 PARTE COMERCIAL: Contatos, Produtos, Vendas, Itens")
     print("💰 PARTE FINANCEIRA: Contas a Pagar, Receber, NFe")
     print("🛡️ PROTEÇÃO: Aborta transformação se extração falhar")
+    print("⚡ MODO INCREMENTAL: Extração otimizada SEM limpeza")
     print("Executar a cada 2 horas")
     print("=" * 70)
     
-    inicio_pipeline = datetime.now()
-
+    inicio_pipeline = time.time()
+    
     # =====================================================
     # FASE 1: EXTRAÇÃO
     # =====================================================
@@ -461,63 +496,32 @@ def executar_pipeline_completo():
     print(f"✅ EXTRAÇÃO CONCLUÍDA SEM ERROS")
     print(f"{'='*70}")
     print(f"🔄 Prosseguindo com transformação...")
-
+    
     resultados_transformacao = executar_transformacao_completa()
     
     # =====================================================
     # RELATÓRIO FINAL CONSOLIDADO
     # =====================================================
-    
-    fim_pipeline = datetime.now()
+
+    fim_pipeline = time.time()
     tempo_total = fim_pipeline - inicio_pipeline
     
     print(f"\n{'='*70}")
     print(f"🏁 PIPELINE COMPLETO FINALIZADO")
     print(f"{'='*70}")
-    print(f"⏱️  Tempo total do pipeline: {tempo_total}")
-    
-    # Estatísticas consolidadas
-    total_extracao = len(resultados_extracao)
+    print(f"⏱️  Tempo total do pipeline: {formatar_tempo(tempo_total)}")
+
     sucesso_extracao = sum(1 for r in resultados_extracao if r['status'] == 'SUCCESS')
-    
-    total_transformacao = len(resultados_transformacao)
+    total_extracao = len(resultados_extracao)
     sucesso_transformacao = sum(1 for r in resultados_transformacao if r['status'] == 'SUCCESS')
-    
-    print(f"\n📊 RESUMO GERAL:")
-    print(f"   • Extração: {sucesso_extracao}/{total_extracao} sucessos")
-    print(f"   • Transformação: {sucesso_transformacao}/{total_transformacao} sucessos")
-    
-    # Estatísticas do DW (apenas empresa 3)
-    print(f"\n📈 ESTATÍSTICAS DO DATA WAREHOUSE (EMPRESA 3):")
-    print("-" * 70)
-    session = Session()
-    try:
-        # Contatos
-        query = text("SELECT COUNT(*) FROM processed.dim_contatos WHERE empresa_id = :emp_id")
-        total_contatos = session.execute(query, {'emp_id': EMPRESA_ID}).scalar()
-        print(f"   • dim_contatos: {total_contatos:,} registros")
-        
-        # Produtos
-        query = text("SELECT COUNT(*) FROM processed.dim_produtos WHERE empresa_id = :emp_id")
-        total_produtos = session.execute(query, {'emp_id': EMPRESA_ID}).scalar()
-        print(f"   • dim_produtos: {total_produtos:,} registros")
-        
-        # Pedidos
-        query = text("SELECT COUNT(*) FROM processed.fato_pedidos WHERE empresa_id = :emp_id")
-        total_pedidos = session.execute(query, {'emp_id': EMPRESA_ID}).scalar()
-        print(f"   • fato_pedidos: {total_pedidos:,} registros")
-        
-    except Exception as e:
-        print(f"   ⚠️  Erro ao coletar estatísticas: {e}")
-    finally:
-        session.close()
-    
+    total_transformacao = len(resultados_transformacao)
+
     if sucesso_extracao == total_extracao and sucesso_transformacao == total_transformacao:
         print(f"\n🎉 TODOS OS PROCESSOS EXECUTADOS COM SUCESSO!")
         print(f"\n💡 PRÓXIMOS PASSOS:")
-        print(f"   1. DW sincronizado com a Bling (Empresa 3)")
+        print(f"   1. DW atualizado com dados incrementais (Empresa 2)")
         print(f"   2. Power BI pode ser atualizado")
-        print(f"   3. Para adicionar outras empresas, crie main_pipeline_4.py, etc.")
+        print(f"   3. Execute pipeline FULL semanalmente para sincronização completa")
     else:
         print(f"\n⚠️  Alguns processos falharam. Verifique os logs acima.")
 
@@ -526,6 +530,8 @@ def executar_pipeline_completo():
 # =====================================================
 
 if __name__ == "__main__":
+    log_file = setup_logging(empresa_id=EMPRESA_ID)
+    
     try:
         # Cria os schemas se não existirem
         create_schema_raw()
@@ -536,7 +542,7 @@ if __name__ == "__main__":
 
         # Executar pipeline completo
         executar_pipeline_completo()
-        
+
     except KeyboardInterrupt:
         print("\n⚠️ Execução interrompida pelo usuário")
         print("💾 Dados processados até este ponto foram preservados")
@@ -545,3 +551,6 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         raise
+    finally:
+        close_logging()
+        print(f"\n📁 Log completo salvo em: {log_file}")

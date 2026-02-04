@@ -1,22 +1,31 @@
-# Responsável por: executar TODOS os pipelines de TODAS as empresas
-# Este é o ORQUESTRADOR PRINCIPAL que executa os 6 pipelines em sequência
+# Responsável por: executar TODOS os pipelines FULL de TODAS as empresas
+# Este é o ORQUESTRADOR PRINCIPAL FULL que executa os 6 pipelines em sequência
+# MODO FULL: Extração completa + Limpeza de órfãos (RODAR SOMENTE AOS FINAIS DE SEMANAS)
 
 """
 ========================================
 PIPELINE COMPLETO - TODAS AS EMPRESAS
+MODO FULL
 ========================================
 
-ORQUESTRADOR PRINCIPAL
-Executa os 6 pipelines em sequência:
-- Empresa 1 (main_pipeline_01)
-- Empresa 2 (main_pipeline_02)
-- Empresa 3 (main_pipeline_03)
-- Empresa 4 (main_pipeline_04)
-- Empresa 5 (main_pipeline_05)
-- Empresa 6 (main_pipeline_06)
+ORQUESTRADOR PRINCIPAL - MODO FULL
+Executa os 6 pipelines FULL em sequência:
+- Empresa 1 (main_pipeline_01_FULL)
+- Empresa 2 (main_pipeline_02_FULL)
+- Empresa 3 (main_pipeline_03_FULL)
+- Empresa 4 (main_pipeline_04_FULL)
+- Empresa 5 (main_pipeline_05_FULL)
+- Empresa 6 (main_pipeline_06_FULL)
 
 Inclui: Parte COMERCIAL + Parte FINANCEIRA de todas as empresas
 
+⚡ MODO FULL:
+   • Extração completa desde 2024
+   • Limpeza de órfãos ATIVA
+   • Sincronização completa com Bling
+   • Executar SEMANALMENTE (finais de semana)
+
+🔐 SEGURANÇA:
    • Gera API Keys automaticamente antes de executar
    • Verifica credenciais OAuth (CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN)
    • Mantém segurança: ABORTA se faltar credenciais
@@ -24,6 +33,7 @@ Inclui: Parte COMERCIAL + Parte FINANCEIRA de todas as empresas
 
 import os
 import sys
+import time
 from datetime import datetime
 from dotenv import load_dotenv
 from sqlalchemy import text
@@ -40,14 +50,14 @@ load_dotenv()
 # Lista de empresas para processar (adicione/remova conforme necessário)
 EMPRESAS_ATIVAS = [1, 2, 3, 4, 5, 6]
 
-# Mapeamento de módulos de pipeline por empresa
+# Mapeamento de módulos de pipeline por empresa (MODO FULL)
 PIPELINE_MODULES = {
-    1: 'main_pipeline_01',
-    2: 'main_pipeline_02',
-    3: 'main_pipeline_03',
-    4: 'main_pipeline_04',
-    5: 'main_pipeline_05',
-    6: 'main_pipeline_06'
+    1: 'main_pipeline_01_FULL',
+    2: 'main_pipeline_02_FULL',
+    3: 'main_pipeline_03_FULL',
+    4: 'main_pipeline_04_FULL',
+    5: 'main_pipeline_05_FULL',
+    6: 'main_pipeline_06_FULL'
 }
 
 # =====================================================
@@ -216,16 +226,23 @@ def obter_tokens_empresas():
 
 def executar_pipeline_empresa(empresa_id):
     """
-    Executa o pipeline de uma empresa específica
+    Executa o pipeline FULL de uma empresa específica
     Retorna um dicionário com os resultados
     """
     print(f"\n{'='*70}")
-    print(f"🚀 INICIANDO PIPELINE DA EMPRESA {empresa_id}")
+    print(f"🚀 INICIANDO PIPELINE FULL DA EMPRESA {empresa_id}")
     print(f"{'='*70}")
     
     inicio = datetime.now()
+    inicio_timestamp = time.time()
     
     try:
+        # 🔑 Renovar token desta empresa ANTES de importar o pipeline
+        # Garante que .env e memória tenham token fresco (evita 401 na Empresa 3, etc.)
+        print(f"\n🔑 Renovando token da Empresa {empresa_id:02d} antes de executar pipeline...")
+        obter_token_para_empresa(empresa_id)
+        print(f"✅ Token da Empresa {empresa_id:02d} validado.\n")
+
         # Importar o módulo do pipeline dinamicamente
         module_name = PIPELINE_MODULES[empresa_id]
         pipeline_module = __import__(module_name)
@@ -234,21 +251,26 @@ def executar_pipeline_empresa(empresa_id):
         pipeline_module.executar_pipeline_completo()
         
         fim = datetime.now()
+        fim_timestamp = time.time()
+        tempo_total_segundos = fim_timestamp - inicio_timestamp
         tempo_total = fim - inicio
         
         return {
             'empresa_id': empresa_id,
             'status': 'SUCCESS',
             'tempo': tempo_total,
+            'tempo_segundos': tempo_total_segundos,
             'inicio': inicio,
             'fim': fim
         }
         
     except Exception as e:
         fim = datetime.now()
+        fim_timestamp = time.time()
+        tempo_total_segundos = fim_timestamp - inicio_timestamp
         tempo_total = fim - inicio
         
-        print(f"\n❌ ERRO ao executar pipeline da Empresa {empresa_id}: {e}")
+        print(f"\n❌ ERRO ao executar pipeline FULL da Empresa {empresa_id}: {e}")
         import traceback
         traceback.print_exc()
         
@@ -256,10 +278,22 @@ def executar_pipeline_empresa(empresa_id):
             'empresa_id': empresa_id,
             'status': 'ERROR',
             'tempo': tempo_total,
+            'tempo_segundos': tempo_total_segundos,
             'inicio': inicio,
             'fim': fim,
             'erro': str(e)
         }
+
+def formatar_tempo(segundos):
+    """Formata segundos em formato legível"""
+    if segundos < 60:
+        return f"{segundos:.2f}s"
+    elif segundos < 3600:
+        minutos = segundos / 60
+        return f"{minutos:.2f} minutos ({segundos:.2f}s)"
+    else:
+        horas = segundos / 3600
+        return f"{horas:.2f} horas ({segundos:.2f}s)"
 
 def coletar_estatisticas_finais():
     """Coleta estatísticas consolidadas de todas as empresas do DW"""
@@ -287,6 +321,10 @@ def coletar_estatisticas_finais():
             query = text("SELECT COUNT(*) FROM processed.fato_pedidos WHERE empresa_id = :emp_id")
             total_pedidos = session.execute(query, {'emp_id': empresa_id}).scalar() or 0
             
+            # Itens
+            query = text("SELECT COUNT(*) FROM processed.fato_itens_pedidos WHERE empresa_id = :emp_id")
+            total_itens = session.execute(query, {'emp_id': empresa_id}).scalar() or 0
+            
             # Contas a Pagar
             query = text("SELECT COUNT(*) FROM processed.fato_contas_pagar WHERE empresa_id = :emp_id")
             total_contas_pagar = session.execute(query, {'emp_id': empresa_id}).scalar() or 0
@@ -303,6 +341,7 @@ def coletar_estatisticas_finais():
             print(f"      • Contatos: {total_contatos:,}")
             print(f"      • Produtos: {total_produtos:,}")
             print(f"      • Pedidos: {total_pedidos:,}")
+            print(f"      • Itens de Pedidos: {total_itens:,}")
             
             print(f"   💰 FINANCEIRO:")
             print(f"      • Contas a Pagar: {total_contas_pagar:,}")
@@ -313,6 +352,7 @@ def coletar_estatisticas_finais():
                 'contatos': total_contatos,
                 'produtos': total_produtos,
                 'pedidos': total_pedidos,
+                'itens': total_itens,
                 'contas_pagar': total_contas_pagar,
                 'contas_receber': total_contas_receber,
                 'nfe': total_nfe
@@ -326,6 +366,7 @@ def coletar_estatisticas_finais():
         total_geral_contatos = sum(e['contatos'] for e in estatisticas.values())
         total_geral_produtos = sum(e['produtos'] for e in estatisticas.values())
         total_geral_pedidos = sum(e['pedidos'] for e in estatisticas.values())
+        total_geral_itens = sum(e['itens'] for e in estatisticas.values())
         total_geral_contas_pagar = sum(e['contas_pagar'] for e in estatisticas.values())
         total_geral_contas_receber = sum(e['contas_receber'] for e in estatisticas.values())
         total_geral_nfe = sum(e['nfe'] for e in estatisticas.values())
@@ -334,6 +375,7 @@ def coletar_estatisticas_finais():
         print(f"   • Total de Contatos: {total_geral_contatos:,}")
         print(f"   • Total de Produtos: {total_geral_produtos:,}")
         print(f"   • Total de Pedidos: {total_geral_pedidos:,}")
+        print(f"   • Total de Itens: {total_geral_itens:,}")
         
         print(f"\n💰 FINANCEIRO:")
         print(f"   • Total de Contas a Pagar: {total_geral_contas_pagar:,}")
@@ -353,7 +395,7 @@ def coletar_estatisticas_finais():
 
 def executar_todos_pipelines():
     """
-    Executa todos os pipelines em sequência
+    Executa todos os pipelines FULL em sequência
     
     🔐 SEGURANÇA:
        • Verifica credenciais OAuth antes de começar
@@ -361,11 +403,13 @@ def executar_todos_pipelines():
        • ABORTA se faltar credenciais ou tokens falharem
     """
     print("\n" + "=" * 70)
-    print("🌐 PIPELINE COMPLETO - TODAS AS EMPRESAS")
+    print("🌐 PIPELINE COMPLETO - TODAS AS EMPRESAS - MODO FULL")
     print("=" * 70)
     print(f"📅 Data/Hora: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
     print(f"🏢 Empresas ativas: {len(EMPRESAS_ATIVAS)}")
     print(f"📋 IDs: {', '.join(str(e) for e in EMPRESAS_ATIVAS)}")
+    print(f"⚡ MODO: FULL (Extração completa + Limpeza de órfãos)")
+    print(f"📅 PROGRAMAÇÃO: Executar SEMANALMENTE (finais de semana)")
     print("=" * 70)
     
     # =====================================================
@@ -400,11 +444,12 @@ def executar_todos_pipelines():
         return
     
     # =====================================================
-    # 🚀 PASSO 4: EXECUTAR PIPELINES
+    # 🚀 PASSO 4: EXECUTAR PIPELINES FULL
     # =====================================================
     
     # Registrar início geral
     inicio_geral = datetime.now()
+    inicio_geral_timestamp = time.time()
     
     # Executar cada pipeline
     resultados = []
@@ -416,12 +461,13 @@ def executar_todos_pipelines():
         # Pequena pausa entre empresas para não sobrecarregar
         if empresa_id != EMPRESAS_ATIVAS[-1]:  # Não pausar após a última
             print("\n⏸️  Aguardando 5 segundos antes da próxima empresa...")
-            import time
             time.sleep(5)
     
     # Registrar fim geral
     fim_geral = datetime.now()
+    fim_geral_timestamp = time.time()
     tempo_total_geral = fim_geral - inicio_geral
+    tempo_total_geral_segundos = fim_geral_timestamp - inicio_geral_timestamp
     
     # =====================================================
     # 📊 PASSO 5: COLETAR ESTATÍSTICAS
@@ -433,9 +479,9 @@ def executar_todos_pipelines():
     # =====================================================
     
     print(f"\n{'='*70}")
-    print(f"🏁 EXECUÇÃO COMPLETA FINALIZADA")
+    print(f"🏁 EXECUÇÃO COMPLETA FINALIZADA - MODO FULL")
     print(f"{'='*70}")
-    print(f"⏱️  Tempo total: {tempo_total_geral}")
+    print(f"⏱️  Tempo total: {formatar_tempo(tempo_total_geral_segundos)}")
     print(f"📅 Início: {inicio_geral.strftime('%d/%m/%Y %H:%M:%S')}")
     print(f"📅 Fim: {fim_geral.strftime('%d/%m/%Y %H:%M:%S')}")
     
@@ -449,11 +495,11 @@ def executar_todos_pipelines():
     for resultado in resultados:
         empresa_id = resultado['empresa_id']
         status = resultado['status']
-        tempo = resultado['tempo']
+        tempo_segundos = resultado['tempo_segundos']
         
         status_emoji = "✅" if status == 'SUCCESS' else "❌"
         
-        print(f"{status_emoji} Empresa {empresa_id}: {status} - Tempo: {tempo}")
+        print(f"{status_emoji} Empresa {empresa_id}: {status} - Tempo: {formatar_tempo(tempo_segundos)}")
         
         if status == 'SUCCESS':
             sucessos += 1
@@ -470,11 +516,12 @@ def executar_todos_pipelines():
     
     # Mensagem final
     if sucessos == len(EMPRESAS_ATIVAS):
-        print(f"\n🎉 TODOS OS PIPELINES EXECUTADOS COM SUCESSO!")
+        print(f"\n🎉 TODOS OS PIPELINES FULL EXECUTADOS COM SUCESSO!")
         print(f"\n💡 PRÓXIMOS PASSOS:")
-        print(f"   1. DW sincronizado com a Bling (Todas as {len(EMPRESAS_ATIVAS)} empresas)")
-        print(f"   2. Power BI pode ser atualizado")
-        print(f"   3. Sistema pronto para análises consolidadas")
+        print(f"   1. DW sincronizado COMPLETAMENTE com a Bling (Todas as {len(EMPRESAS_ATIVAS)} empresas)")
+        print(f"   2. Limpeza de órfãos executada em todas as empresas")
+        print(f"   3. Power BI pode ser atualizado")
+        print(f"   4. Execute pipeline INCREMENTAL durante a semana")
     elif sucessos > 0:
         print(f"\n⚠️  EXECUÇÃO PARCIAL:")
         print(f"   • {sucessos} empresa(s) processada(s) com sucesso")
@@ -497,17 +544,26 @@ if __name__ == "__main__":
         print("""
         ╔═══════════════════════════════════════════════════════════════╗
         ║                                                               ║
-        ║           🌐 ORQUESTRADOR PRINCIPAL - MULTI EMPRESA           ║
+        ║      🌐 ORQUESTRADOR PRINCIPAL - MULTI EMPRESA - FULL         ║
         ║                                                               ║
-        ║   Este script executa TODOS os pipelines em sequência:        ║
+        ║   Este script executa TODOS os pipelines FULL em sequência:   ║
         ║   • Empresa 1, 2, 3, 4, 5 e 6                                 ║
         ║   • Parte Comercial + Financeira                              ║
-        ║   • Extração + Transformação completas                        ║
+        ║   • Extração COMPLETA + Transformação                         ║
+        ║   • Limpeza de órfãos ATIVA                                   ║
+        ║                                                               ║
+        ║   ⚡ MODO FULL:                                               ║
+        ║   • Extrai TUDO desde 2024                                    ║
+        ║   • Remove registros órfãos do DW                             ║
+        ║   • Sincronização COMPLETA com Bling                          ║
         ║                                                               ║
         ║   🔐 SEGURANÇA:                                               ║ 
         ║   • Verifica credenciais antes de começar                     ║
         ║   • Gera tokens automaticamente                               ║
         ║   • Aborta se faltar credenciais ou tokens                    ║
+        ║                                                               ║
+        ║   📅 PROGRAMAÇÃO RECOMENDADA:                                 ║
+        ║   • Executar SEMANALMENTE (finais de semana)                  ║
         ║                                                               ║
         ╚═══════════════════════════════════════════════════════════════╝
         """)
@@ -522,7 +578,7 @@ if __name__ == "__main__":
         sys.exit(0)
         
     except Exception as e:
-        print(f"\n❌ ERRO CRÍTICO NO ORQUESTRADOR: {e}")
+        print(f"\n❌ ERRO CRÍTICO NO ORQUESTRADOR FULL: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
