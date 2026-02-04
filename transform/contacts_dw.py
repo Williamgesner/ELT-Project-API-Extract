@@ -220,7 +220,7 @@ class ContatosTransformer:
             return np.nan
 
         nome = str(nome).strip()
-        nome = re.sub(r"[^a-zA-Z0-9\s\-]", " ", nome)
+        # nome = re.sub(r"[^a-zA-Z0-9\s\-]", " ", nome) # Remove caracteres especiais
         nome = " ".join(nome.split())
         nome = nome.title()
 
