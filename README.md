@@ -421,10 +421,8 @@ Este projeto é proprietário e de uso restrito.
 
 ## 👤 Autor
 
-**Seu Nome**  
-📧 william.gesner@outlook.com
-🔗 [LinkedIn](https://www.linkedin.com/in/william-gesner/)  
-🔗 [GitHub](https://github.com/Williamgesner)
+**William Gesner**  
+📧 william.gesner@outlook.com · 🔗 [LinkedIn](https://www.linkedin.com/in/william-gesner/) · 🔗 [GitHub](https://github.com/Williamgesner)
 
 ---
 
