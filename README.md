@@ -396,7 +396,7 @@ tail -f logs/pipeline_$(date +%Y%m%d).log
 ![Image](https://github.com/user-attachments/assets/593fb7ef-9111-4a7c-bb05-e1dd657d99b2)
 ![Image](https://github.com/user-attachments/assets/0ff2e333-3133-4a6b-b55c-5ecd8dca85d1)
 
-   * Obs.: TODOS OS DADOS ACIMA SÃO FICTÍCIOS, APENAS PARA ILUSTRAÇÃO.
+   * Obs.: TODOS OS DADOS APRESENTADOS ACIMA SÃO FICTÍCIOS, APENAS PARA ILUSTRAÇÃO.
 
 ---
 
