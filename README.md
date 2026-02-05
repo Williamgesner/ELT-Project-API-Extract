@@ -20,6 +20,7 @@
 - [Estrutura do Projeto](#-estrutura-do-projeto)
 - [Como Executar](#-como-executar)
 - [Dashboards](#-dashboards)
+- [Resultados](#-resultados)
 - [Próximos Passos](#-próximos-passos)
 
 ---
