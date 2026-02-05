@@ -211,7 +211,7 @@ Delay máximo para casos extremos: 6 dias (aceitável para dados históricos)
 ## 📁 Estrutura do Projeto
 
 ```
-PROJETO-DIAS-BIKE/
+PROJETO-ETL-ECOMMERCE/
 
 │
 ├── config/                               # Configurações centralizadas
@@ -278,8 +278,8 @@ PROJETO-DIAS-BIKE/
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/seu-usuario/projeto-dias-bike.git
-cd projeto-dias-bike
+git clone https://github.com/Williamgesner/ELT-Project-API-Extract.git
+cd ELT-Project-API-Extract
 
 # 2. Crie ambiente virtual
 python -m venv venv
@@ -306,8 +306,8 @@ REFRESH_TOKEN_01=seu_refresh_token_empresa_01
 
 # PostgreSQL (AWS RDS ou local)
 postgres_host=seu-rds-endpoint.us-east-1.rds.amazonaws.com
-postgres_database=database-diasbike
-postgres_username=dias_bike
+postgres_database=database-nome-database
+postgres_username=e-commerce
 postgres_password=sua_senha_segura
 postgres_port=5432
 ```
@@ -388,16 +388,16 @@ tail -f logs/pipeline_$(date +%Y%m%d).log
 ## 📸 Resultados
 
 ### Dashboard Comercial
-![Image](https://github.com/user-attachments/assets/368c678c-fe56-4f46-b7f8-464cdaf01879)
-![Image](https://github.com/user-attachments/assets/b12fd6e6-bab5-412c-89c5-ce95bcdd393f)
-![Image](https://github.com/user-attachments/assets/7533841e-374b-4541-9b8c-3a4e082d8f9f)
+![Image](https://github.com/user-attachments/assets/aaf0ec58-20b3-46a6-9bcd-0aefea17f57a)
+![Image](https://github.com/user-attachments/assets/238f63bb-6874-4e07-9fbb-2c3d447c7b42)
+![Image](https://github.com/user-attachments/assets/2fe0114a-be11-4e43-b947-80e6ae350b30)
 
 ### Dashboard Financeiro  
-![Image](https://github.com/user-attachments/assets/be23ee3e-e350-4a0f-9382-c25e49e5e64a)
-![Image](https://github.com/user-attachments/assets/593fb7ef-9111-4a7c-bb05-e1dd657d99b2)
-![Image](https://github.com/user-attachments/assets/0ff2e333-3133-4a6b-b55c-5ecd8dca85d1)
+![Image](https://github.com/user-attachments/assets/b4325dfe-92df-4738-8388-ca3b3a0e81b3)
+![Image](https://github.com/user-attachments/assets/44550491-80a8-4df4-9fd3-ca7f18100cc0)
+![Image](https://github.com/user-attachments/assets/bc5215d0-eb82-4354-996c-8932cbf60777)
 
-   * Obs.: TODOS OS DADOS APRESENTADOS ACIMA SÃO FICTÍCIOS, APENAS PARA ILUSTRAÇÃO.
+   * Obs.: TODOS OS DADOS APRESENTADOS ACIMA SÃO FICTÍCIOS E AS IDENTIDADE DOS CLIENTES FORAM MANTIDAS EM SIGILO
 
 ---
 
