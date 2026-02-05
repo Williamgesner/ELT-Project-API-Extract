@@ -355,11 +355,7 @@ tail -f logs/pipeline_$(date +%Y%m%d).log
    - Dia da semana com mais vendas
    - Mapa interativo do Brasil
 
-<<<<<<< HEAD
    Todas as páginas possuem filtros para que possam ser feitas consultas personalizadas por: PERÍODO, CNPJ, CANAIS e SITUAÇÃO
-=======
-   Todas páginas com filtros para que possam serem feitas consultas personalizadas por: PERÍODO, CNPJ, CANAIS e SITUAÇÃO
->>>>>>> a73e37daafcee72003671c9f54a5a50b0d7859e3
 
 ---
 
