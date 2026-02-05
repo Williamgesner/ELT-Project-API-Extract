@@ -39,6 +39,7 @@ from dotenv import load_dotenv
 from sqlalchemy import text
 from config.database import create_schema_raw, create_schema_processed, create_all_tables, Session
 from config.auth_manager import obter_token_para_empresa
+import importlib # para importar os módulos dos pipelines
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -244,8 +245,8 @@ def executar_pipeline_empresa(empresa_id):
         print(f"✅ Token da Empresa {empresa_id:02d} validado.\n")
 
         # Importar o módulo do pipeline dinamicamente
-        module_name = PIPELINE_MODULES[empresa_id]
-        pipeline_module = __import__(module_name)
+        module_name = f"main.pipeline_complete_FULL.{PIPELINE_MODULES[empresa_id]}"
+        pipeline_module = importlib.import_module(module_name)
         
         # Executar a função principal do pipeline
         pipeline_module.executar_pipeline_completo()
