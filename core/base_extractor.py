@@ -265,13 +265,12 @@ class BaseExtractor:
 
     def salvar_dados_postgres_bulk(self, lista_dados, limpar_orfaos=True):
         """
-        Salva dados usando comparação inteligente OTIMIZADA:
+        Salva dados usando comparação inteligente OTIMIZADA COM CHUNKS:
         - Novos registros: INSERT
         - Registros existentes idênticos: UPDATE data_ingestao
         - Registros existentes diferentes: UPDATE completo
         
-        ✅ CORREÇÃO APLICADA: Suporta campo de data customizado por endpoint
-        Configure self.campo_data_filtro no extrator para definir qual campo usar
+        🚀 OTIMIZAÇÃO: Processa em chunks de 5.000 para economizar memória
         """
         if not lista_dados:
             print("Nenhum dado para salvar.")
@@ -281,78 +280,117 @@ class BaseExtractor:
         stats = {"inseridos": 0, "atualizados": 0, "ignorados": 0, "total": len(lista_dados)}
 
         try:
-            # ⚠️ CORREÇÃO: Obter nome da tabela DINAMICAMENTE
+            # Obter nome da tabela DINAMICAMENTE
             schema = self.model_class.__table__.schema
             table_name = self.model_class.__tablename__
             full_table_name = f"{schema}.{table_name}"
             
-            print(f"🔍 Buscando registros existentes para comparação...")
-            print(f"   📋 Tabela: {full_table_name}")
-            inicio_busca = datetime.now()
-
+            print(f"💾 Iniciando salvamento inteligente...")
+            print(f"🔄 Modo: {'FULL (com limpeza de órfãos)' if limpar_orfaos else 'INCREMENTAL (sem limpeza)'}")
+            
             # Obter empresa_id e data_inicial_extracao
             empresa_id = lista_dados[0].get('empresa_id') if lista_dados else None
             data_inicial_extracao = getattr(self, 'data_inicial_extracao', None)
             
+            # 🚀 OTIMIZAÇÃO: Buscar registros existentes em CHUNKS
+            print(f"🔍 Buscando registros existentes para comparação...")
+            print(f"   📋 Tabela: {full_table_name}")
+            inicio_busca = datetime.now()
+            
             registros_existentes = {}
+            chunk_size = 5000  # 🚀 Processar 5k por vez
+            
             if empresa_id is not None:
-                # 🆕 Se tem filtro de data e limpeza ativa, buscar apenas do período
+                # Determinar query base
                 if data_inicial_extracao is not None and limpar_orfaos:
-                    # ✅ CORREÇÃO CRÍTICA: Usar campo de data customizado por endpoint
                     campo_data = getattr(self, 'campo_data_filtro', 'dataInclusao')
                     print(f"   📅 Filtrando registros >= {data_inicial_extracao.strftime('%Y-%m-%d')} (período de extração)")
                     
-                    # ✅ NOVO: Se campo_data é None, busca TODOS (sem filtro de data)
-                    # Usado por extractors que não têm campo de data confiável no JSONB (ex: produtos)
                     if campo_data is None:
                         print(f"   ⚠️  Campo de data: None (buscando TODOS os registros da empresa)")
-                        existing_records = session.query(
+                        base_query = session.query(
                             self.model_class.bling_id,
                             self.model_class.dados_json
                         ).filter(
                             self.model_class.empresa_id == empresa_id
-                        ).all()
+                        )
                     else:
                         print(f"   🏷️  Campo de data usado: '{campo_data}'")
-                        query = text(f"""
+                        # Usar query text para filtro de data no JSONB
+                        query_sql = f"""
                             SELECT bling_id, dados_json
                             FROM {full_table_name}
                             WHERE empresa_id = :empresa_id
                             AND (dados_json->>'{campo_data}')::timestamp >= :data_inicial
-                        """)
-                        result = session.execute(query, {
-                            "empresa_id": empresa_id,
-                            "data_inicial": data_inicial_extracao
-                        })
-                        existing_records = [(r.bling_id, r.dados_json) for r in result]
+                            ORDER BY bling_id
+                            LIMIT :chunk_size OFFSET :offset
+                        """
+                        
+                        offset = 0
+                        while True:
+                            result = session.execute(text(query_sql), {
+                                "empresa_id": empresa_id,
+                                "data_inicial": data_inicial_extracao,
+                                "chunk_size": chunk_size,
+                                "offset": offset
+                            })
+                            chunk = result.fetchall()
+                            
+                            if not chunk:
+                                break
+                            
+                            for record in chunk:
+                                registros_existentes[record.bling_id] = record.dados_json
+                            
+                            if len(chunk) < chunk_size:
+                                break
+                            
+                            offset += chunk_size
+                            print(f"   📦 Carregados {offset} registros...")
+                        
+                        # Pular para o fim (já processamos)
+                        base_query = None
                 else:
                     # Buscar APENAS desta empresa (comportamento original)
-                    existing_records = session.query(
+                    base_query = session.query(
                         self.model_class.bling_id,
                         self.model_class.dados_json
                     ).filter(
                         self.model_class.empresa_id == empresa_id
-                    ).all()
+                    )
             else:
                 # Fallback: buscar todos (comportamento original)
-                existing_records = session.query(
+                base_query = session.query(
                     self.model_class.bling_id,
                     self.model_class.dados_json
-                ).all()
-
-            for record in existing_records:
-                registros_existentes[record.bling_id if hasattr(record, 'bling_id') else record[0]] = record.dados_json if hasattr(record, 'dados_json') else record[1]
+                )
+            
+            # 🚀 PROCESSAR EM CHUNKS (se não foi processado acima)
+            if base_query is not None:
+                offset = 0
+                while True:
+                    chunk = base_query.order_by(self.model_class.bling_id).limit(chunk_size).offset(offset).all()
+                    
+                    if not chunk:
+                        break
+                    
+                    for record in chunk:
+                        registros_existentes[record.bling_id] = record.dados_json
+                    
+                    if len(chunk) < chunk_size:
+                        break
+                    
+                    offset += chunk_size
+                    if offset % 10000 == 0:
+                        print(f"   📦 Carregados {offset} registros...")
             
             fim_busca = datetime.now()
-            if data_inicial_extracao is not None and limpar_orfaos:
-                print(f"📋 {len(registros_existentes)} registros existentes (período filtrado) carregados em {fim_busca - inicio_busca}")
-            else:
-                print(f"📋 {len(registros_existentes)} registros existentes carregados em {fim_busca - inicio_busca}")
+            print(f"📋 {len(registros_existentes)} registros existentes carregados em {fim_busca - inicio_busca}")
 
-            # Classificar os dados
+            # 🚀 OTIMIZAÇÃO: Comparar em CHUNKS
             registros_novos = []
             registros_para_atualizar = []
-            registros_para_tocar_data = []  # ⚠️ NOVO
+            registros_para_tocar_data = []
             
             print(f"🔍 Comparando {len(lista_dados)} registros...")
             inicio_comparacao = datetime.now()
@@ -379,13 +417,12 @@ class BaseExtractor:
                     # Registro existe → comparar conteúdo
                     json_existente = registros_existentes[bling_id]
                     
-                    # USAR A FUNÇÃO OTIMIZADA (compara apenas campos comuns)
                     if comparar_jsons(json_existente, novo_json):
                         # Conteúdo diferente → UPDATE completo
                         registros_para_atualizar.append(dados)
                         stats["atualizados"] += 1
                     else:
-                        # ⚠️ CORREÇÃO: Conteúdo idêntico → UPDATE apenas data_ingestao
+                        # Conteúdo idêntico → UPDATE apenas data_ingestao
                         registros_para_tocar_data.append({
                             'bling_id': bling_id,
                             'empresa_id': dados.get('empresa_id')
@@ -401,15 +438,23 @@ class BaseExtractor:
             print(f"   • 🔄 Diferentes (atualizar): {stats['atualizados']}")
             print(f"   • ⏭️ Idênticos (tocar data): {stats['ignorados']}")
             
-            # BULK INSERT
+            # 🚀 OTIMIZAÇÃO: BULK INSERT em CHUNKS
             if registros_novos:
                 print(f"\n💾 Inserindo {len(registros_novos)} registros novos...")
                 inicio_insert = datetime.now()
-                session.bulk_insert_mappings(self.model_class, registros_novos)
+                
+                for i in range(0, len(registros_novos), chunk_size):
+                    chunk = registros_novos[i:i+chunk_size]
+                    session.bulk_insert_mappings(self.model_class, chunk)
+                    session.commit()
+                    
+                    if len(registros_novos) > chunk_size:
+                        print(f"   📦 Inseridos {min(i+chunk_size, len(registros_novos))}/{len(registros_novos)}...")
+                
                 fim_insert = datetime.now()
                 print(f"✅ Inserções concluídas em {fim_insert - inicio_insert}")
 
-            # UPDATE COMPLETO
+            # UPDATE COMPLETO (mantém lógica original)
             if registros_para_atualizar:
                 print(f"\n🔄 Atualizando {len(registros_para_atualizar)} registros diferentes...")
                 inicio_update = datetime.now()
@@ -426,9 +471,7 @@ class BaseExtractor:
                         status_processamento='pendente'
                     )
 
-                    # Regra especial para vendas:
-                    # - Não substituir o JSON completo pelo payload "lista"
-                    # - Fazer merge (preserva campos de detalhes já enriquecidos)
+                    # Regra especial para vendas
                     if table_name == 'vendas_raw':
                         dados_json_update = self.model_class.dados_json.op('||')(stmt.excluded.dados_json)
                     else:
@@ -445,16 +488,15 @@ class BaseExtractor:
                     
                     session.execute(stmt)
                 
+                session.commit()
                 fim_update = datetime.now()
                 print(f"✅ Atualizações concluídas em {fim_update - inicio_update}")
 
-            # ✅ CORREÇÃO APLICADA: UPDATE apenas data_ingestao
+            # UPDATE apenas data_ingestao (mantém lógica original)
             if registros_para_tocar_data:
                 print(f"\n🕐 Atualizando data_ingestao em {len(registros_para_tocar_data)} registros idênticos...")
-                print(f"   📋 Tabela alvo: {full_table_name}")
                 inicio_touch = datetime.now()
                 
-                # Agrupar por empresa_id
                 por_empresa = {}
                 for r in registros_para_tocar_data:
                     emp_id = r['empresa_id']
@@ -462,45 +504,31 @@ class BaseExtractor:
                         por_empresa[emp_id] = []
                     por_empresa[emp_id].append(r['bling_id'])
                 
-                # Update por empresa em lote
+                tabelas_sem_status = [
+                    'formas_pagamentos_raw',
+                    'categorias_contas_pagar_raw',
+                    'natureza_operacao_raw'
+                ]
+                
                 for empresa_id, bling_ids in por_empresa.items():
-                    # Tabelas que NÃO têm status_processamento
-                    tabelas_sem_status = [
-                        'formas_pagamentos_raw',
-                        'categorias_contas_pagar_raw',
-                        'natureza_operacao_raw'
-                    ]
-                    
-                    if table_name in tabelas_sem_status:
-                        # ✅ CORRETO: SÓ atualizar data_ingestao
-                        query_update = f"""
-                            UPDATE {full_table_name}
-                            SET data_ingestao = CURRENT_TIMESTAMP
-                            WHERE bling_id = ANY(:bling_ids)
-                            AND empresa_id = :empresa_id
-                        """
-                    else:
-                        # ✅ CORREÇÃO: SÓ atualizar data_ingestao (SEM status_processamento!)
-                        query_update = f"""
-                            UPDATE {full_table_name}
-                            SET data_ingestao = CURRENT_TIMESTAMP
-                            WHERE bling_id = ANY(:bling_ids)
-                            AND empresa_id = :empresa_id
-                        """
+                    query_update = f"""
+                        UPDATE {full_table_name}
+                        SET data_ingestao = CURRENT_TIMESTAMP
+                        WHERE bling_id = ANY(:bling_ids)
+                        AND empresa_id = :empresa_id
+                    """
                     
                     session.execute(text(query_update), {
                         "bling_ids": bling_ids,
                         "empresa_id": empresa_id
                     })
                 
+                session.commit()
                 fim_touch = datetime.now()
                 print(f"✅ Datas atualizadas em {fim_touch - inicio_touch}")
-                print(f"   ✅ CORREÇÃO APLICADA: Registros idênticos NÃO são marcados como 'pendente'!")
 
             if not registros_novos and not registros_para_atualizar and not registros_para_tocar_data:
                 print(f"\n✨ Nenhum registro novo ou alterado! Banco já está atualizado.")
-
-            session.commit()
 
             # Relatório final
             print(f"\n🎉 SALVAMENTO CONCLUÍDO!")
@@ -510,24 +538,16 @@ class BaseExtractor:
             print(f"   • ⏭️ Registros idênticos (data atualizada): {stats['ignorados']}")
             print(f"   • 📈 Total processado: {stats['total']}")
             print(f"   • 💾 Operações de escrita: {stats['inseridos'] + stats['atualizados'] + len(registros_para_tocar_data)}")
-            if len(registros_para_tocar_data) > 0:
-                print(f"   • ✅ CORREÇÃO ATIVA: data_ingestao sempre atualizada na tabela {full_table_name}!")
             
-            # ⚠️ LIMPEZA DE ÓRFÃOS (APENAS EM MODO FULL)
+            # LIMPEZA DE ÓRFÃOS (mantém lógica original COMPLETA)
             if limpar_orfaos:
-                # Remove registros que não vieram da API (foram deletados no Bling)
                 print(f"\n🧹 LIMPANDO REGISTROS ÓRFÃOS DA RAW...")
                 if data_inicial_extracao is not None:
                     print(f"   📅 Período de limpeza: {data_inicial_extracao.strftime('%Y-%m-%d')} → hoje")
-                    print(f"   📋 Registros na RAW (período filtrado): {len(registros_existentes)}")
-                else:
-                    print(f"   📋 Registros na RAW: {len(registros_existentes)}")
+                print(f"   📋 Registros na RAW: {len(registros_existentes)}")
                 print(f"   📥 Registros da API: {len(lista_dados)}")
                 
-                # IDs que vieram da API
                 ids_da_api = {dados['bling_id'] for dados in lista_dados}
-                
-                # IDs que estão na RAW mas NÃO vieram da API = órfãos (deletados no Bling)
                 ids_orfaos = set(registros_existentes.keys()) - ids_da_api
                 
                 if len(ids_orfaos) > 0:
@@ -537,8 +557,6 @@ class BaseExtractor:
                     else:
                         print(f"   🗑️  Estes registros foram DELETADOS no Bling")
                     
-                    # Agrupar por empresa_id para deletar
-                    # Primeiro, buscar empresa_id dos órfãos
                     query_orfaos = f"""
                         SELECT bling_id, empresa_id
                         FROM {full_table_name}
@@ -548,14 +566,12 @@ class BaseExtractor:
                         "bling_ids": list(ids_orfaos)
                     }).fetchall()
                     
-                    # Agrupar por empresa
                     orfaos_por_empresa = {}
                     for bling_id, empresa_id in orfaos_result:
                         if empresa_id not in orfaos_por_empresa:
                             orfaos_por_empresa[empresa_id] = []
                         orfaos_por_empresa[empresa_id].append(bling_id)
                     
-                    # Deletar por empresa
                     total_deletados = 0
                     for empresa_id, ids in orfaos_por_empresa.items():
                         query_delete = f"""
@@ -573,7 +589,6 @@ class BaseExtractor:
                     session.commit()
                     print(f"   ✅ Total removido: {total_deletados} registros órfãos")
                     
-                    # Mostrar alguns IDs removidos (auditoria)
                     if len(ids_orfaos) <= 10:
                         print(f"   📋 IDs removidos: {sorted(list(ids_orfaos))}")
                     else:
