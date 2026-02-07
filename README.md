@@ -1,3 +1,5 @@
+ALTERAÇÃO APENAS PARA TESTE DE COMMIT DO EC2!
+
 # Pipeline ETL Multi-Empresa do setor de e-commerce | Bling → PostgreSQL → Power BI
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
