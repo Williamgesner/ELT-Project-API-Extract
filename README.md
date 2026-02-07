@@ -155,7 +155,7 @@ Criação de **2 modos de extração** + filtro para extrair dados a partir de 2
 
 | Modo | Janela Temporal | Limpa Órfãos? | Frequência | Duração |
 |------|-----------------|---------------|------------|---------|
-| **INCREMENTAL** | 7 dias (cadastros)<br>120 dias (financeiro) | ❌ Não | A cada 2 horas (seg-sex) | ~30-40 min |
+| **INCREMENTAL** | 7 dias (cadastros)<br>90 dias (financeiro) | ❌ Não | A cada 2 horas (seg-sex) | ~30-40 min |
 | **FULL** | Desde 2024-01-01 | ✅ Sim | Domingo 02:00 | ~2h30 horas |
 
 **Estratégia de Cobertura:**

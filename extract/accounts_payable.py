@@ -19,10 +19,10 @@ class ContasPagarExtractor(BaseExtractor):
     
     MODOS DE EXTRAÇÃO:
     - FULL: Extrai desde 2024-01-01 + Limpeza de órfãos ATIVA
-    - INCREMENTAL: Extrai últimos 120 dias + Limpeza de órfãos DESABILITADA
+    - INCREMENTAL: Extrai últimos 90 dias + Limpeza de órfãos DESABILITADA
     
     OBSERVAÇÃO: Contas a Pagar NÃO possui filtro de dataAlteração na API Bling,
-    por isso usamos janela de 120 dias no incremental para garantir cobertura.
+    por isso usamos janela de 90 dias no incremental para garantir cobertura.
     """
     
     def __init__(self, api_key, empresa_id):
@@ -51,7 +51,7 @@ class ContasPagarExtractor(BaseExtractor):
         Args:
             extraction_mode: ExtractionMode.FULL ou ExtractionMode.INCREMENTAL
                 - FULL: Extrai desde 2024-01-01 + Remove órfãos
-                - INCREMENTAL: Extrai últimos 120 dias (sem remoção)
+                - INCREMENTAL: Extrai últimos 90 dias (sem remoção)
         """
         try:
             inicio_extracao = datetime.now()
@@ -60,12 +60,12 @@ class ContasPagarExtractor(BaseExtractor):
             # DEFINIR JANELA DE EXTRAÇÃO BASEADA NO MODO
             # =====================================================
             if extraction_mode == ExtractionMode.INCREMENTAL:
-                # MODO INCREMENTAL: Últimos 120 dias
+                # MODO INCREMENTAL: Últimos 90 dias
                 print(f"\n⚡ MODO INCREMENTAL: Contas a Pagar")
-                print(f"📅 Período: Últimos 120 dias")
+                print(f"📅 Período: Últimos 90 dias")
                 print(f"🛡️ Limpeza de órfãos: DESABILITADA")
                 
-                data_vencimento_inicial = (datetime.now() - timedelta(days=120)).date()
+                data_vencimento_inicial = (datetime.now() - timedelta(days=90)).date()
                 limpar_orfaos = False
                 
             else:

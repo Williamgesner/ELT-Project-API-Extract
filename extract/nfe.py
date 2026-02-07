@@ -24,7 +24,7 @@ class NFeExtractor(BaseExtractor):
     
     MODOS DE EXTRAÇÃO:
     - FULL: Extrai desde 2024-01-01 + Limpeza de órfãos ATIVA
-    - INCREMENTAL: Extrai últimos 120 dias + Limpeza DESABILITADA
+    - INCREMENTAL: Extrai últimos 90 dias + Limpeza DESABILITADA
     
     ESTRATÉGIA DE COMPARAÇÃO:
     - Compara apenas campos-chave (id, numero, tipo, situacao, dataEmissao)
@@ -32,7 +32,7 @@ class NFeExtractor(BaseExtractor):
     - Detecta enriquecimento (novos campos como valorNota)
     
     OBSERVAÇÃO: NFe NÃO possui filtro de dataAlteração na API Bling,
-    por isso usamos janela de 120 dias no incremental para cobertura.
+    por isso usamos janela de 90 dias no incremental para cobertura.
     """
     
     def __init__(self, api_key, empresa_id):
@@ -186,7 +186,7 @@ class NFeExtractor(BaseExtractor):
         Args:
             extraction_mode: ExtractionMode.FULL ou ExtractionMode.INCREMENTAL
                 - FULL: dataEmissao desde 2024-01-01 + Remove órfãos
-                - INCREMENTAL: dataEmissao últimos 120 dias (sem remoção)
+                - INCREMENTAL: dataEmissao últimos 90 dias (sem remoção)
             debug: Se True, mostra detalhes das comparações
         """
         try:
@@ -196,13 +196,13 @@ class NFeExtractor(BaseExtractor):
             # DEFINIR JANELA DE EXTRAÇÃO BASEADA NO MODO
             # =====================================================
             if extraction_mode == ExtractionMode.INCREMENTAL:
-                # MODO INCREMENTAL: Últimos 120 dias
+                # MODO INCREMENTAL: Últimos 90 dias
                 print(f"\n⚡ MODO INCREMENTAL: NFe")
-                print(f"📅 Período: Últimos 120 dias")
+                print(f"📅 Período: Últimos 90 dias")
                 print(f"🔍 Filtro API: dataEmissao")
                 print(f"🛡️ Limpeza de órfãos: DESABILITADA")
                 
-                data_emissao_inicial = datetime.now() - timedelta(days=120)
+                data_emissao_inicial = datetime.now() - timedelta(days=90)
                 limpar_orfaos = False
                 
             else:
@@ -322,7 +322,7 @@ class NFeExtractor(BaseExtractor):
             # =====================================================
             if not todas_nfe:
                 if extraction_mode == ExtractionMode.INCREMENTAL:
-                    print("\n✨ Nenhuma NFe nos últimos 120 dias.")
+                    print("\n✨ Nenhuma NFe nos últimos 90 dias.")
                     print("   Isso pode ser normal no modo incremental.")
                 else:
                     print("\n⚠️ Nenhuma NFe foi extraída.")

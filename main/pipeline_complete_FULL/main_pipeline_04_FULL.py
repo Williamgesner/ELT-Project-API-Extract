@@ -153,9 +153,9 @@ def executar_extracao_completa():
          {'api_key': API_KEY_EMPRESA_4, 'empresa_id': EMPRESA_ID},
          {'delay_entre_requests': 0.35, 'batch_size': 100}),
         
-        ("💰 💸 CONTAS A RECEBER (Lista)", ContasReceberExtractor,
-         {'api_key': API_KEY_EMPRESA_4, 'empresa_id': EMPRESA_ID}, 
-         {'extraction_mode': ExtractionMode.FULL}),
+        # ("💰 💸 CONTAS A RECEBER (Lista)", ContasReceberExtractor, (POR HORA, NÃO VAMOS TRABALHAR COM CONTAS A RECEBER, A PEDIDO DO CLIENTE)
+        #  {'api_key': API_KEY_EMPRESA_4, 'empresa_id': EMPRESA_ID}, 
+        #  {'extraction_mode': ExtractionMode.FULL}),
         
         ("💰 📄 NFe (Entrada + Saída)", NFeExtractor,
          {'api_key': API_KEY_EMPRESA_4, 'empresa_id': EMPRESA_ID}, 
@@ -299,9 +299,9 @@ def executar_transformacao_completa():
             "SELECT COUNT(*) FROM raw.contas_pagar_raw WHERE status_processamento = 'pendente' AND empresa_id = :emp_id"
         ), {'emp_id': EMPRESA_ID}).scalar() or 0
         
-        contas_receber_pendentes = session.execute(text(
-            "SELECT COUNT(*) FROM raw.contas_receber_raw WHERE status_processamento = 'pendente' AND empresa_id = :emp_id"
-        ), {'emp_id': EMPRESA_ID}).scalar() or 0
+        # contas_receber_pendentes = session.execute(text(
+        #     "SELECT COUNT(*) FROM raw.contas_receber_raw WHERE status_processamento = 'pendente' AND empresa_id = :emp_id"
+        # ), {'emp_id': EMPRESA_ID}).scalar() or 0
         
         nfe_pendentes = session.execute(text(
             "SELECT COUNT(*) FROM raw.nfe_raw WHERE empresa_id = :emp_id"
@@ -317,11 +317,11 @@ def executar_transformacao_completa():
         print(f"   • Categorias: {categorias_pendentes}")
         print(f"   • Natureza de Operação: {natureza_pendentes}")
         print(f"   • Contas a Pagar pendentes: {contas_pagar_pendentes}")
-        print(f"   • Contas a Receber pendentes: {contas_receber_pendentes}")
+        # print(f"   • Contas a Receber pendentes: {contas_receber_pendentes}")
         print(f"   • NFe: {nfe_pendentes}")
         
         total_pendentes = (contatos_pendentes + produtos_pendentes + vendas_pendentes + 
-                          contas_pagar_pendentes + contas_receber_pendentes)
+                          contas_pagar_pendentes) # + contas_receber_pendentes)
         
         if total_pendentes == 0 and formas_pagamento_pendentes == 0 and categorias_pendentes == 0 and nfe_pendentes == 0:
             print("\n✨ Nenhum registro pendente - DW já está atualizado!")
@@ -349,7 +349,7 @@ def executar_transformacao_completa():
         
         # === PARTE FINANCEIRA - FATOS ===
         ("💰 💵 CONTAS A PAGAR", ContasPagarTransformer, {'empresa_id': EMPRESA_ID}),
-        ("💰 💸 CONTAS A RECEBER", ContasReceberTransformer, {'empresa_id': EMPRESA_ID}),
+        # ("💰 💸 CONTAS A RECEBER", ContasReceberTransformer, {'empresa_id': EMPRESA_ID}),
         ("💰 📄 NFe", NFeTransformer, {'empresa_id': EMPRESA_ID})
     ]
     
@@ -435,7 +435,7 @@ def executar_pipeline_completo():
     print("=" * 70)
     print(f"📌 Empresa ID: {EMPRESA_ID}")
     print("📊 PARTE COMERCIAL: Contatos, Produtos, Vendas, Itens")
-    print("💰 PARTE FINANCEIRA: Contas a Pagar, Receber, NFe")
+    print("💰 PARTE FINANCEIRA: Contas a Pagar, NFe") # Receber
     print("🛡️ PROTEÇÃO: Aborta transformação se extração falhar")
     print("⚡ MODO FULL: Extração completa + Limpeza de órfãos")
     print("Executar SEMANALMENTE")
@@ -580,9 +580,9 @@ def executar_pipeline_completo():
         print(f"   • fato_contas_pagar: {total_contas_pagar:,} registros")
         
         # Contas a Receber
-        query = text("SELECT COUNT(*) FROM processed.fato_contas_receber WHERE empresa_id = :emp_id")
-        total_contas_receber = session.execute(query, {'emp_id': EMPRESA_ID}).scalar()
-        print(f"   • fato_contas_receber: {total_contas_receber:,} registros")
+        # query = text("SELECT COUNT(*) FROM processed.fato_contas_receber WHERE empresa_id = :emp_id")
+        # total_contas_receber = session.execute(query, {'emp_id': EMPRESA_ID}).scalar()
+        # print(f"   • fato_contas_receber: {total_contas_receber:,} registros")
         
         # NFe
         query = text("SELECT COUNT(*) FROM processed.fato_nfe WHERE empresa_id = :emp_id")

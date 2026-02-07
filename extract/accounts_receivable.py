@@ -41,8 +41,8 @@ class ContasReceberExtractor(BaseExtractor):
             
             # Definir janela de extração baseada no modo
             if extraction_mode == ExtractionMode.INCREMENTAL:
-                print(f"🔄 MODO INCREMENTAL: Extraindo contas dos últimos 120 dias (Empresa ID: {self.empresa_id})...")
-                data_inicial = (datetime.now() - timedelta(days=120)).date()
+                print(f"🔄 MODO INCREMENTAL: Extraindo contas dos últimos 90 dias (Empresa ID: {self.empresa_id})...")
+                data_inicial = (datetime.now() - timedelta(days=90)).date()
                 limpar_orfaos = False
             else:
                 print(f"📊 MODO FULL: Extraindo todas as contas desde 2024 (Empresa ID: {self.empresa_id})...")

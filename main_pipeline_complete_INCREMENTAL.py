@@ -23,9 +23,9 @@ Inclui: Parte COMERCIAL + Parte FINANCEIRA de todas as empresas
    • Contacts: últimos 7 dias
    • Products: últimos 7 dias
    • Sales: últimos 7 dias
-   • Accounts Payable: últimos 120 dias
-   • Accounts Receivable: últimos 120 dias
-   • NFe: últimos 120 dias
+   • Accounts Payable: últimos 90 dias
+   • Accounts Receivable: últimos 90 dias
+   • NFe: últimos 90 dias
    • Limpeza de órfãos DESABILITADA
    • Executar A CADA 2 HORAS (durante a semana)
 
@@ -335,8 +335,8 @@ def coletar_estatisticas_finais():
             total_contas_pagar = session.execute(query, {'emp_id': empresa_id}).scalar() or 0
             
             # Contas a Receber
-            query = text("SELECT COUNT(*) FROM processed.fato_contas_receber WHERE empresa_id = :emp_id")
-            total_contas_receber = session.execute(query, {'emp_id': empresa_id}).scalar() or 0
+            # query = text("SELECT COUNT(*) FROM processed.fato_contas_receber WHERE empresa_id = :emp_id")
+            # total_contas_receber = session.execute(query, {'emp_id': empresa_id}).scalar() or 0
             
             # NFe
             query = text("SELECT COUNT(*) FROM processed.fato_nfe WHERE empresa_id = :emp_id")
@@ -350,7 +350,7 @@ def coletar_estatisticas_finais():
             
             print(f"   💰 FINANCEIRO:")
             print(f"      • Contas a Pagar: {total_contas_pagar:,}")
-            print(f"      • Contas a Receber: {total_contas_receber:,}")
+            # print(f"      • Contas a Receber: {total_contas_receber:,}")
             print(f"      • NFe: {total_nfe:,}")
             
             estatisticas[empresa_id] = {
@@ -359,7 +359,7 @@ def coletar_estatisticas_finais():
                 'pedidos': total_pedidos,
                 'itens': total_itens,
                 'contas_pagar': total_contas_pagar,
-                'contas_receber': total_contas_receber,
+                # 'contas_receber': total_contas_receber,
                 'nfe': total_nfe
             }
         
@@ -373,7 +373,7 @@ def coletar_estatisticas_finais():
         total_geral_pedidos = sum(e['pedidos'] for e in estatisticas.values())
         total_geral_itens = sum(e['itens'] for e in estatisticas.values())
         total_geral_contas_pagar = sum(e['contas_pagar'] for e in estatisticas.values())
-        total_geral_contas_receber = sum(e['contas_receber'] for e in estatisticas.values())
+        # total_geral_contas_receber = sum(e['contas_receber'] for e in estatisticas.values())
         total_geral_nfe = sum(e['nfe'] for e in estatisticas.values())
         
         print(f"📊 COMERCIAL:")
@@ -384,7 +384,7 @@ def coletar_estatisticas_finais():
         
         print(f"\n💰 FINANCEIRO:")
         print(f"   • Total de Contas a Pagar: {total_geral_contas_pagar:,}")
-        print(f"   • Total de Contas a Receber: {total_geral_contas_receber:,}")
+       # print(f"   • Total de Contas a Receber: {total_geral_contas_receber:,}")
         print(f"   • Total de NFe: {total_geral_nfe:,}")
         
     except Exception as e:
@@ -557,9 +557,9 @@ if __name__ == "__main__":
         ║   • Extração OTIMIZADA + Transformação                        ║
         ║   • Limpeza de órfãos DESABILITADA                            ║
         ║                                                               ║
-        ║   ⚡ MODO INCREMENTAL:                                        ║
+        ║   ⚡ MODO INCREMENTAL:                                         ║
         ║   • Contatos/Produtos/Vendas: últimos 7 dias                  ║
-        ║   • Contas Pagar/Receber/NFe: últimos 120 dias                ║
+        ║   • Contas Pagar/Receber/NFe: últimos 90 dias                 ║
         ║   • SEM remoção de órfãos (segurança)                         ║
         ║   • Processamento rápido e eficiente                          ║
         ║                                                               ║
