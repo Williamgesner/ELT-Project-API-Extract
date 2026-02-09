@@ -1,12 +1,14 @@
 # Responsável por: extrair vendas da API Bling
-# VERSÃO OTIMIZADA: Suporta modo FULL e INCREMENTAL
-# Normalização anti-falsos-positivos para payloads de lista
+# VERSÃO OTIMIZADA PARA EC2 T4G.MICRO (909 MB RAM)
+# Processa em chunks de 5000 para economizar memória
 
 from datetime import datetime, timedelta
 from core.base_extractor import BaseExtractor
 from models.sales_raw import VendasRaw
 from config.settings import endpoints
 from config.extraction_mode import ExtractionMode
+from sqlalchemy import text
+from config.database import Session
 
 # =====================================================
 # NORMALIZAÇÃO (ANTI "FALSO POSITIVO" NA LISTA DE VENDAS)
@@ -107,6 +109,8 @@ class VendasExtractor(BaseExtractor):
     """
     Extrator específico para vendas da API Bling
     Herda toda a lógica comum da BaseExtractor e adiciona só o que é específico
+    
+    🚀 OTIMIZAÇÃO EC2: Processa em chunks de 5000 para economizar memória
     
     MODOS DE EXTRAÇÃO:
     - FULL: Extrai desde 2024-01-01 usando dataInicial + Limpeza de órfãos ATIVA
@@ -285,7 +289,7 @@ class VendasExtractor(BaseExtractor):
             print(f"🚀 Velocidade: {len(todas_vendas)/tempo_extracao.total_seconds():.1f} vendas/segundo")
 
             # =====================================================
-            # PREPARAR DADOS PARA SALVAMENTO (COM NORMALIZAÇÃO)
+            # 🚀 PREPARAR DADOS PARA SALVAMENTO EM CHUNKS
             # =====================================================
             print("\n📝 Preparando dados para salvamento...")
             dados_para_salvar = []
@@ -310,25 +314,50 @@ class VendasExtractor(BaseExtractor):
                 dados_para_salvar.append(dados_formatados)
 
             # =====================================================
-            # SALVAMENTO INTELIGENTE COM COMPARAÇÃO
+            # 🚀 OTIMIZAÇÃO: SALVAMENTO EM CHUNKS DE 5000
             # =====================================================
-            # A função salvar_dados_postgres_bulk já possui:
-            # - Comparação inteligente (ignora ordem de listas, normaliza números)
-            # - UPDATE apenas data_ingestao para registros idênticos
-            # - UPDATE completo para registros diferentes
-            # - INSERT para registros novos
-            # - Limpeza de órfãos (se limpar_orfaos=True)
-            
             print(f"\n💾 Iniciando salvamento inteligente...")
             print(f"🔄 Modo: {'FULL (com limpeza de órfãos)' if limpar_orfaos else 'INCREMENTAL (sem limpeza)'}")
+            print(f"🚀 Processando em chunks de 5000 registros...")
             
             inicio_salvamento = datetime.now()
             
-            # ⚠️ CRÍTICO: Passar flag limpar_orfaos corretamente
-            stats = self.salvar_dados_postgres_bulk(
-                dados_para_salvar,
-                limpar_orfaos=limpar_orfaos
-            )
+            chunk_size = 5000
+            total_vendas = len(dados_para_salvar)
+            total_chunks = (total_vendas + chunk_size - 1) // chunk_size
+            
+            stats_total = {"inseridos": 0, "atualizados": 0, "ignorados": 0, "total": total_vendas}
+            
+            # Processar cada chunk
+            for i in range(0, total_vendas, chunk_size):
+                chunk = dados_para_salvar[i:i+chunk_size]
+                chunk_num = (i // chunk_size) + 1
+                
+                print(f"\n📦 CHUNK {chunk_num}/{total_chunks} ({len(chunk)} vendas)...")
+                
+                # ⚠️ CRÍTICO: Desabilitar limpeza de órfãos nos chunks
+                # Limpeza será feita UMA VEZ no final
+                stats_chunk = self.salvar_dados_postgres_bulk(
+                    chunk,
+                    limpar_orfaos=False  # ← SEMPRE False nos chunks
+                )
+                
+                # Acumular estatísticas
+                stats_total["inseridos"] += stats_chunk["inseridos"]
+                stats_total["atualizados"] += stats_chunk["atualizados"]
+                stats_total["ignorados"] += stats_chunk["ignorados"]
+                
+                # 🚀 LIBERAR MEMÓRIA
+                del chunk
+                
+                print(f"✅ Chunk {chunk_num} concluído!")
+            
+            # =====================================================
+            # 🧹 LIMPEZA DE ÓRFÃOS (UMA VEZ NO FINAL)
+            # =====================================================
+            if limpar_orfaos:
+                print(f"\n🧹 LIMPEZA DE ÓRFÃOS (executada UMA vez)...")
+                self._limpar_orfaos_vendas(dados_para_salvar)
             
             fim_salvamento = datetime.now()
             tempo_salvamento = fim_salvamento - inicio_salvamento
@@ -344,10 +373,10 @@ class VendasExtractor(BaseExtractor):
             print(f"🚀 Performance geral: {len(todas_vendas)/tempo_total.total_seconds():.1f} vendas/segundo")
             
             # Eficiência do algoritmo de comparação
-            if stats['total'] > 0:
-                eficiencia = (stats['ignorados'] / stats['total']) * 100
+            if stats_total['total'] > 0:
+                eficiencia = (stats_total['ignorados'] / stats_total['total']) * 100
                 print(f"⚡ Eficiência: {eficiencia:.1f}% dos registros eram idênticos")
-                print(f"   (Evitou {stats['ignorados']} escritas desnecessárias)")
+                print(f"   (Evitou {stats_total['ignorados']} escritas desnecessárias)")
                 
                 # ✅ MONITORAMENTO: Alerta se normalização não está funcionando
                 if eficiencia < 90:
@@ -368,3 +397,90 @@ class VendasExtractor(BaseExtractor):
             import traceback
             traceback.print_exc()
             raise
+    
+    # =====================================================
+    # 🧹 LIMPEZA DE ÓRFÃOS (MÉTODO SEPARADO)
+    # =====================================================
+    
+    def _limpar_orfaos_vendas(self, dados_para_salvar):
+        """
+        Remove vendas que foram deletadas no Bling (órfãos)
+        
+        ATENÇÃO: Só executa no modo FULL!
+        Remove APENAS vendas dentro do período de extração (data >= 2024-01-01)
+        """
+        session = Session()
+        
+        try:
+            schema = self.model_class.__table__.schema
+            table_name = self.model_class.__tablename__
+            full_table_name = f"{schema}.{table_name}"
+            
+            print(f"   📋 Tabela: {full_table_name}")
+            print(f"   🏢 Empresa: {self.empresa_id}")
+            
+            # Buscar todos os IDs existentes no banco (dentro do período)
+            if self.data_inicial_extracao:
+                campo_data = self.campo_data_filtro or 'data'
+                print(f"   📅 Período: >= {self.data_inicial_extracao.strftime('%Y-%m-%d')}")
+                
+                query = text(f"""
+                    SELECT bling_id
+                    FROM {full_table_name}
+                    WHERE empresa_id = :empresa_id
+                    AND (dados_json->>'{campo_data}')::timestamp >= :data_inicial
+                """)
+                
+                resultado = session.execute(query, {
+                    "empresa_id": self.empresa_id,
+                    "data_inicial": self.data_inicial_extracao
+                }).fetchall()
+            else:
+                # Fallback: buscar todos da empresa
+                query = text(f"""
+                    SELECT bling_id
+                    FROM {full_table_name}
+                    WHERE empresa_id = :empresa_id
+                """)
+                
+                resultado = session.execute(query, {
+                    "empresa_id": self.empresa_id
+                }).fetchall()
+            
+            ids_no_banco = {row.bling_id for row in resultado}
+            ids_da_api = {dados['bling_id'] for dados in dados_para_salvar}
+            ids_orfaos = ids_no_banco - ids_da_api
+            
+            print(f"   📊 Registros no banco: {len(ids_no_banco)}")
+            print(f"   📥 Registros da API: {len(ids_da_api)}")
+            
+            if len(ids_orfaos) > 0:
+                print(f"   ⚠️  {len(ids_orfaos)} órfão(s) detectado(s)")
+                print(f"   🗑️  Removendo órfãos...")
+                
+                query_delete = text(f"""
+                    DELETE FROM {full_table_name}
+                    WHERE bling_id = ANY(:bling_ids)
+                    AND empresa_id = :empresa_id
+                """)
+                
+                resultado = session.execute(query_delete, {
+                    "bling_ids": list(ids_orfaos),
+                    "empresa_id": self.empresa_id
+                })
+                
+                session.commit()
+                print(f"   ✅ {resultado.rowcount} órfãos removidos")
+                
+                if len(ids_orfaos) <= 10:
+                    print(f"   📋 IDs removidos: {sorted(list(ids_orfaos))}")
+                else:
+                    print(f"   📋 Primeiros 10 IDs: {sorted(list(ids_orfaos))[:10]}")
+            else:
+                print(f"   ✅ Nenhum órfão detectado")
+                
+        except Exception as e:
+            session.rollback()
+            print(f"   ⚠️ Erro na limpeza de órfãos: {e}")
+        finally:
+            session.close()
