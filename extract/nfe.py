@@ -1,5 +1,5 @@
 # Responsável por: extrair NFe (entrada E saída) da API Bling
-# VERSÃO OTIMIZADA: Suporta modo FULL e INCREMENTAL
+# VERSÃO OTIMIZADA: Suporta modo FULL e INCREMENTAL + CHUNKS
 # Comparação inteligente: evita falsos positivos entre JSON resumido vs completo
 
 from datetime import datetime, timedelta
@@ -518,12 +518,15 @@ class NFeExtractor(BaseExtractor):
         print(f"   • NFe → Pedidos via vendas_raw.notaFiscal.id")
     
     # =====================================================
-    # MÉTODO ESPECIALIZADO PARA NFe
+    # 🆕 MÉTODO OTIMIZADO COM CHUNKS!
     # =====================================================
     def salvar_dados_postgres_bulk_nfe(self, lista_dados, debug=False):
         """
-        COMPARAÇÃO ESPECIALIZADA para NFe
+        COMPARAÇÃO ESPECIALIZADA para NFe COM CHUNKS
         Resolve problema de JSON resumido vs completo
+        
+        🆕 OTIMIZAÇÃO: Busca registros existentes em chunks de 5000
+        para evitar consumo excessivo de memória
         
         Compara apenas campos-chave:
         - numero, tipo, situacao, dataEmissao (essenciais)
@@ -549,16 +552,42 @@ class NFeExtractor(BaseExtractor):
             print(f"🔍 Buscando registros existentes...")
             inicio = datetime.now()
 
+            # 🆕 BUSCAR EM CHUNKS (evita OOM)
             registros_existentes = {}
-            existing_records = session.query(
-                self.model_class.bling_id,
-                self.model_class.dados_json
-            ).filter(
-                self.model_class.empresa_id == self.empresa_id
-            ).all()
-
-            for record in existing_records:
-                registros_existentes[record.bling_id] = record.dados_json
+            chunk_size = 5000
+            offset = 0
+            total_carregado = 0
+            
+            while True:
+                query = text("""
+                    SELECT bling_id, dados_json
+                    FROM raw.nfe_raw
+                    WHERE empresa_id = :empresa_id
+                    ORDER BY bling_id
+                    LIMIT :chunk_size OFFSET :offset
+                """)
+                
+                resultado = session.execute(query, {
+                    "empresa_id": self.empresa_id,
+                    "chunk_size": chunk_size,
+                    "offset": offset
+                })
+                
+                chunk = resultado.fetchall()
+                
+                if not chunk:
+                    break
+                
+                # Processar chunk
+                for record in chunk:
+                    registros_existentes[record.bling_id] = record.dados_json
+                    total_carregado += 1
+                
+                if len(chunk) < chunk_size:
+                    break
+                
+                offset += chunk_size
+                print(f"   📦 Carregados {total_carregado} registros...")
             
             print(f"📋 {len(registros_existentes)} registros carregados em {datetime.now() - inicio}")
 

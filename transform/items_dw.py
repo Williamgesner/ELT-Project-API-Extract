@@ -1,5 +1,6 @@
 # =====================================================
 # TRANSFORMADOR DE ITENS DE PEDIDOS - MULTI-CNPJ
+# VERSÃO OTIMIZADA COM CHUNKS
 # =====================================================
 # Responsável por: Extrair itens do array dentro de vendas_raw
 # e transformar para fato_itens_pedidos
@@ -18,6 +19,7 @@ class ItensTransformer:
     """
     Transformador específico para itens de pedidos
     Extrai itens do JSON de vendas_raw e cria registros individuais
+    🆕 OTIMIZADO: Carrega itens existentes em chunks
     """
 
     def __init__(self, empresa_id):
@@ -241,13 +243,13 @@ class ItensTransformer:
         return df_itens
 
     # =====================================================
-    # 8. EXPORTAR COM COMPARAÇÃO INTELIGENTE
+    # 🆕 8. EXPORTAR COM CHUNKS (OTIMIZADO)
     # =====================================================
 
     def exportar_para_processed(self, df_itens):
         """
         Exporta para processed.fato_itens_pedidos usando UPSERT
-        Compara antes de inserir para evitar duplicatas
+        🆕 OTIMIZADO: Carrega itens existentes em chunks
         """
         print("\n7️⃣ EXPORTANDO PARA PROCESSED.FATO_ITENS_PEDIDOS...")
 
@@ -258,37 +260,68 @@ class ItensTransformer:
         session = Session()
 
         try:
-            # === BUSCAR ITENS EXISTENTES ===
+            # =====================================================
+            # 🆕 BUSCAR ITENS EXISTENTES EM CHUNKS
+            # =====================================================
             print("🔍 Buscando itens existentes para comparação...")
             inicio_busca = datetime.now()
 
-            query = text("""
-                SELECT 
-                    pedido_id,
-                    empresa_id,
-                    bling_item_id
-                FROM processed.fato_itens_pedidos
-                WHERE empresa_id = :empresa_id
-            """)
+            # Usar SET para armazenar chaves (mais leve que DataFrame)
+            chaves_existentes = set()
+            chunk_size = 10000
+            offset = 0
+            total_carregado = 0
 
-            df_existentes = pd.read_sql(query, self.engine, params={"empresa_id": self.empresa_id})
+            while True:
+                query = text("""
+                    SELECT 
+                        pedido_id,
+                        bling_item_id
+                    FROM processed.fato_itens_pedidos
+                    WHERE empresa_id = :empresa_id
+                    ORDER BY pedido_id
+                    LIMIT :chunk_size OFFSET :offset
+                """)
+
+                resultado = session.execute(query, {
+                    "empresa_id": self.empresa_id,
+                    "chunk_size": chunk_size,
+                    "offset": offset
+                })
+
+                chunk = resultado.fetchall()
+
+                if not chunk:
+                    break
+
+                # Adicionar chaves ao SET
+                for row in chunk:
+                    chave = f"{row.pedido_id}_{row.bling_item_id}"
+                    chaves_existentes.add(chave)
+                    total_carregado += 1
+
+                if len(chunk) < chunk_size:
+                    break
+
+                offset += chunk_size
+                print(f"   📦 Carregados {total_carregado} registros...")
+
             fim_busca = datetime.now()
+            print(f"📋 {len(chaves_existentes)} itens existentes carregados em {fim_busca - inicio_busca}")
 
-            print(f"📋 {len(df_existentes)} itens existentes carregados em {fim_busca - inicio_busca}")
-
-            # === IDENTIFICAR NOVOS E DUPLICATAS ===
+            # =====================================================
+            # IDENTIFICAR NOVOS E DUPLICATAS
+            # =====================================================
             print("🔍 Identificando itens novos...")
 
-            if len(df_existentes) > 0:
-                # Criar chave composta para identificar duplicatas
-                df_existentes['chave'] = df_existentes['pedido_id'].astype(str) + '_' + df_existentes['bling_item_id'].astype(str)
+            if len(chaves_existentes) > 0:
+                # Criar chave composta para cada item novo
                 df_itens_temp = df_itens.copy()
                 df_itens_temp['chave'] = df_itens_temp['pedido_id'].astype(str) + '_' + df_itens_temp['bling_item_id'].astype(str)
 
-                # Filtrar apenas novos
-                chaves_existentes = set(df_existentes['chave'])
+                # Filtrar apenas novos (não estão no SET)
                 df_novos = df_itens_temp[~df_itens_temp['chave'].isin(chaves_existentes)].copy()
-                
+
                 # Remover coluna auxiliar
                 if 'chave' in df_novos.columns:
                     df_novos = df_novos.drop(columns=['chave'])
@@ -302,18 +335,20 @@ class ItensTransformer:
             print(f"   • 🆕 Novos (inserir): {len(df_novos)}")
             print(f"   • ⏭️  Já existentes (ignorar): {itens_ignorados}")
 
-            # === INSERIR NOVOS ===
+            # =====================================================
+            # INSERIR NOVOS
+            # =====================================================
             if len(df_novos) > 0:
                 print(f"\n💾 Inserindo {len(df_novos)} itens novos...")
-                
+
                 # IMPORTANTE: Reset do index para evitar problemas
                 df_novos = df_novos.reset_index(drop=True)
-                
+
                 # Garantir que as colunas estão na ordem correta
                 colunas_finais = [
                     'pedido_id',
                     'empresa_id',
-                    'produto_id', 
+                    'produto_id',
                     'bling_item_id',
                     'quantidade',
                     'preco_unitario',
@@ -322,16 +357,16 @@ class ItensTransformer:
                     'descricao_item',
                     'data_processamento'
                 ]
-                
+
                 df_novos = df_novos[colunas_finais]
 
                 # Inserir em lotes menores para evitar problemas
                 batch_size = 500
                 total_inserido = 0
-                
+
                 for i in range(0, len(df_novos), batch_size):
                     batch = df_novos.iloc[i:i+batch_size]
-                    
+
                     batch.to_sql(
                         name='fato_itens_pedidos',
                         con=self.engine,
@@ -340,7 +375,7 @@ class ItensTransformer:
                         index=False,
                         method='multi'
                     )
-                    
+
                     total_inserido += len(batch)
                     print(f"   ✅ {total_inserido}/{len(df_novos)} itens inseridos...")
 
@@ -348,7 +383,9 @@ class ItensTransformer:
             else:
                 print(f"\n✨ Nenhum item novo! Tabela já está atualizada.")
 
-            # === VERIFICAR TOTAL ===
+            # =====================================================
+            # VERIFICAR TOTAL
+            # =====================================================
             query = text("SELECT COUNT(*) FROM processed.fato_itens_pedidos WHERE empresa_id = :empresa_id")
             total = session.execute(query, {"empresa_id": self.empresa_id}).scalar()
 

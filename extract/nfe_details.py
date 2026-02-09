@@ -1,12 +1,14 @@
 """
-EXTRATOR DE DETALHES DE NFE
+EXTRATOR DE DETALHES DE NFE - VERSÃO OTIMIZADA
 ==============================================
 Responsável por: enriquecer NFe com valorNota
+
+🆕 OTIMIZAÇÃO: Busca NFe em chunks de 5000 para evitar OOM
 
 OBJETIVO: Adicionar campo 'valorNota' no JSON de TODAS as NFe
 
 Fluxo:
-1. Ler IDs de todas as NFe em nfe_raw
+1. Ler IDs de NFe em CHUNKS de 5000
 2. Verificar quais JÁ têm 'valorNota' (pular essas)
 3. Para cada NFe sem valorNota, buscar detalhes na API
 4. Atualizar o JSON existente (não apaga nada!)
@@ -25,6 +27,7 @@ from models.nfe_raw import NFeRaw
 class NFeDetalhesExtractor:
     """
     Extrator COMPLETO para enriquecer NFe com valorNota
+    🆕 COM CHUNKS para evitar consumo excessivo de memória
     """
     
     def __init__(self, api_key, empresa_id):
@@ -124,6 +127,7 @@ class NFeDetalhesExtractor:
     def executar_enriquecimento_completo(self, delay_entre_requests=0.35, batch_size=100):
         """
         Executa o enriquecimento de TODAS as NFe
+        🆕 OTIMIZADO: Busca NFe em chunks para evitar OOM
         
         Args:
             delay_entre_requests: Tempo entre requisições (respeitar rate limit)
@@ -144,39 +148,61 @@ class NFeDetalhesExtractor:
         inicio_total = datetime.now()
         
         try:
-            # 1. Buscar IDs de TODAS as NFe
+            # =====================================================
+            # 🆕 PASSO 1: BUSCAR NFe EM CHUNKS (evita OOM)
+            # =====================================================
             print(f"\n1️⃣ BUSCANDO TODAS AS NFe DO BANCO...")
-            query = text("""
-                SELECT bling_id, dados_json
-                FROM raw.nfe_raw
-                WHERE empresa_id = :empresa_id
-                ORDER BY bling_id
-            """)
             
-            resultado = self.session.execute(query, {"empresa_id": self.empresa_id})
-            nfes = resultado.fetchall()
-            
-            if not nfes:
-                print("❌ Nenhuma NFe encontrada no banco")
-                return
-            
-            total_nfes = len(nfes)
-            print(f"✅ {total_nfes} NFe encontradas no banco")
-            
-            # 2. Identificar quais precisam de enriquecimento
-            print("\n2️⃣ VERIFICANDO QUAIS NFe JÁ TÊM valorNota...")
+            chunk_size = 5000
+            offset = 0
+            total_nfes = 0
             nfes_sem_valor = []
             nfes_com_valor = 0
             
-            for nfe in nfes:
-                # Verificar se tem valorNota
-                tem_valor = 'valorNota' in nfe.dados_json
-                
-                if not tem_valor:
-                    nfes_sem_valor.append(nfe.bling_id)
-                else:
-                    nfes_com_valor += 1
+            print("   🔍 Processando em chunks para otimizar memória...")
             
+            while True:
+                query = text("""
+                    SELECT bling_id, dados_json
+                    FROM raw.nfe_raw
+                    WHERE empresa_id = :empresa_id
+                    ORDER BY bling_id
+                    LIMIT :chunk_size OFFSET :offset
+                """)
+                
+                resultado = self.session.execute(query, {
+                    "empresa_id": self.empresa_id,
+                    "chunk_size": chunk_size,
+                    "offset": offset
+                })
+                
+                chunk = resultado.fetchall()
+                
+                if not chunk:
+                    break
+                
+                # Processar chunk: verificar quais têm valorNota
+                for nfe in chunk:
+                    total_nfes += 1
+                    tem_valor = 'valorNota' in nfe.dados_json
+                    
+                    if not tem_valor:
+                        nfes_sem_valor.append(nfe.bling_id)
+                    else:
+                        nfes_com_valor += 1
+                
+                if len(chunk) < chunk_size:
+                    break
+                
+                offset += chunk_size
+                print(f"   📦 Processados {total_nfes} registros...")
+            
+            print(f"✅ {total_nfes} NFe encontradas no banco")
+            
+            # =====================================================
+            # PASSO 2: ESTATÍSTICAS
+            # =====================================================
+            print("\n2️⃣ VERIFICANDO QUAIS NFe JÁ TÊM valorNota...")
             print(f"✅ {nfes_com_valor} NFe já têm valorNota")
             print(f"🔄 {len(nfes_sem_valor)} NFe precisam ser enriquecidas")
             
@@ -188,7 +214,9 @@ class NFeDetalhesExtractor:
             tempo_estimado_min = (len(nfes_sem_valor) * delay_entre_requests) / 60
             print(f"\n⏱️  TEMPO ESTIMADO: ~{tempo_estimado_min:.0f} minutos ({tempo_estimado_min/60:.1f} horas)")
             
-            # 3. Enriquecer as NFe sem valorNota
+            # =====================================================
+            # PASSO 3: ENRIQUECER NFe SEM valorNota
+            # =====================================================
             print(f"\n3️⃣ ENRIQUECENDO {len(nfes_sem_valor)} NFe...")
             print("=" * 70)
             
@@ -252,7 +280,9 @@ class NFeDetalhesExtractor:
             self.session.commit()
             print("\n   💾 Commit final realizado")
             
-            # Relatório final
+            # =====================================================
+            # RELATÓRIO FINAL
+            # =====================================================
             fim_total = datetime.now()
             tempo_total = fim_total - inicio_total
             
@@ -280,7 +310,9 @@ class NFeDetalhesExtractor:
             
             print(f"\n🚀 Performance: {stats['processadas']/tempo_total.total_seconds():.2f} NFe/segundo")
             
-            # Validação final
+            # =====================================================
+            # VALIDAÇÃO FINAL
+            # =====================================================
             print(f"\n4️⃣ VALIDAÇÃO FINAL...")
             query_validacao = text("""
                 SELECT 
@@ -315,7 +347,7 @@ class NFeDetalhesExtractor:
             print("💾 Fazendo commit dos dados processados até agora...")
             self.session.commit()
             print("✅ Dados salvos. Você pode continuar executando novamente.")
-            print(f"📊 Processadas: {stats['processadas']}/{len(nfes_sem_valor)}")
+            print(f"📊 Processadas: {stats.get('processadas', 0)}/{len(nfes_sem_valor) if 'nfes_sem_valor' in locals() else 0}")
             
         except Exception as e:
             print(f"\n❌ ERRO CRÍTICO: {e}")

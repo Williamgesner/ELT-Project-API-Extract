@@ -114,7 +114,7 @@ class VendasDetalhesExtractor:
         except Exception as e:
             print(f"   ❌ Erro ao salvar venda {venda_id}: {e}")
             return False
-    
+
     def executar_extracao_detalhes(self, delay_entre_requests=0.4, batch_size=100):
         """
         Executa a extração de detalhes para todas as vendas
@@ -132,52 +132,61 @@ class VendasDetalhesExtractor:
         inicio_total = datetime.now()
         
         try:
-            # 1. Buscar IDs de todas as vendas
+            # 1. 🚀 BUSCAR IDs EM CHUNKS (NÃO CARREGAR TUDO DE UMA VEZ!)
             print("\n1️⃣ BUSCANDO IDS DAS VENDAS...")
-            query = text("""
-                SELECT bling_id, dados_json
-                FROM raw.vendas_raw
-                WHERE empresa_id = :empresa_id
-                ORDER BY bling_id
-            """)
             
-            resultado = self.session.execute(query, {"empresa_id": self.empresa_id})
-            vendas = resultado.fetchall()
-            
-            if not vendas:
-                print("❌ Nenhuma venda encontrada no banco")
-                return
-            
-            total_vendas = len(vendas)
-            print(f"✅ {total_vendas} vendas encontradas")
-            
-            # 2. Identificar quais precisam de atualização
-            print("\n2️⃣ VERIFICANDO QUAIS VENDAS JÁ TÊM ITENS...")
+            chunk_size = 5000
+            offset = 0
             vendas_sem_itens = []
             vendas_com_itens = 0
+            total_vendas = 0
             
-            # ✅ CORREÇÃO: Verificação robusta de itens
-            for venda in vendas:
-                # Pegar lista de itens do JSON (ou lista vazia se não existir)
-                itens = venda.dados_json.get('itens', [])
+            while True:
+                query = text("""
+                    SELECT bling_id, dados_json
+                    FROM raw.vendas_raw
+                    WHERE empresa_id = :empresa_id
+                    ORDER BY bling_id
+                    LIMIT :chunk_size OFFSET :offset
+                """)
                 
-                # ✅ CORREÇÃO: Verificar se é lista E se tem conteúdo
-                # ANTES: not venda.dados_json.get('itens')  ← [] é FALSY, causava loop!
-                # DEPOIS: isinstance + len > 0
-                if not isinstance(itens, list) or len(itens) == 0:
-                    # NÃO tem itens (ou não é lista) → precisa atualizar
-                    vendas_sem_itens.append(venda.bling_id)
-                else:
-                    # TEM itens → já processada
-                    vendas_com_itens += 1
+                resultado = self.session.execute(query, {
+                    "empresa_id": self.empresa_id,
+                    "chunk_size": chunk_size,
+                    "offset": offset
+                })
+                vendas_chunk = resultado.fetchall()
+                
+                if not vendas_chunk:
+                    break
+                
+                # Processar chunk
+                for venda in vendas_chunk:
+                    total_vendas += 1
+                    itens = venda.dados_json.get('itens', [])
+                    
+                    if not isinstance(itens, list) or len(itens) == 0:
+                        vendas_sem_itens.append(venda.bling_id)
+                    else:
+                        vendas_com_itens += 1
+                
+                if len(vendas_chunk) < chunk_size:
+                    break
+                
+                offset += chunk_size
+                print(f"   📦 Processados {offset} registros...")
             
+            print(f"✅ {total_vendas} vendas encontradas")
+            
+            # 2. Verificar quais precisam de atualização
+            print("\n2️⃣ VERIFICANDO QUAIS VENDAS JÁ TÊM ITENS...")
             print(f"✅ {vendas_com_itens} vendas já têm itens")
             print(f"🔄 {len(vendas_sem_itens)} vendas precisam ser atualizadas")
             
             if not vendas_sem_itens:
                 print("\n🎉 Todas as vendas já têm detalhes completos!")
                 return
-            
+                
             # 3. Buscar detalhes das vendas sem itens
             print(f"\n3️⃣ BUSCANDO DETALHES DE {len(vendas_sem_itens)} VENDAS...")
             print(f"⏱️  Tempo estimado: ~{(len(vendas_sem_itens) * delay_entre_requests / 60):.1f} minutos")
