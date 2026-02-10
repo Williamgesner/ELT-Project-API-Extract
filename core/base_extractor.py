@@ -11,7 +11,7 @@ from config.settings import headers
 from config.database import Session
 
 # =======================================================
-# 1. FUNÇÃO DE COMPARAÇÃO DE JSON - ✅ VERSÃO CORRIGIDA
+# 1. FUNÇÃO DE COMPARAÇÃO DE JSON
 # =======================================================
 
 def _normalizar_json_para_comparacao(obj):
@@ -292,13 +292,18 @@ class BaseExtractor:
             empresa_id = lista_dados[0].get('empresa_id') if lista_dados else None
             data_inicial_extracao = getattr(self, 'data_inicial_extracao', None)
             
-            # 🚀 OTIMIZAÇÃO: Buscar registros existentes em CHUNKS
-            print(f"🔍 Buscando registros existentes para comparação...")
+            # ============================================================
+            # 🚀 OTIMIZAÇÃO: Buscar APENAS IDs (não JSONs completos)
+            # MUDANÇA: Economiza ~250 MB de RAM com 50k registros. 
+            # Solução para tentar resolver problema de KILLED no EC2
+            # ============================================================
+            print(f"🔍 Buscando IDs existentes para limpeza de órfãos...")
             print(f"   📋 Tabela: {full_table_name}")
             inicio_busca = datetime.now()
             
-            registros_existentes = {}
-            chunk_size = 5000  # 🚀 Processar 5k por vez
+            # ✅ MUDANÇA: set de IDs em vez de dict de JSONs
+            ids_existentes_para_orfaos = set()  # ← 8 bytes por ID (era 5KB!)
+            chunk_size = 5000
             
             if empresa_id is not None:
                 # Determinar query base
@@ -309,16 +314,15 @@ class BaseExtractor:
                     if campo_data is None:
                         print(f"   ⚠️  Campo de data: None (buscando TODOS os registros da empresa)")
                         base_query = session.query(
-                            self.model_class.bling_id,
-                            self.model_class.dados_json
+                            self.model_class.bling_id  # ✅ MUDANÇA: Apenas ID!
                         ).filter(
                             self.model_class.empresa_id == empresa_id
                         )
                     else:
                         print(f"   🏷️  Campo de data usado: '{campo_data}'")
-                        # Usar query text para filtro de data no JSONB
+                        # ✅ MUDANÇA: SELECT apenas bling_id (não dados_json)
                         query_sql = f"""
-                            SELECT bling_id, dados_json
+                            SELECT bling_id
                             FROM {full_table_name}
                             WHERE empresa_id = :empresa_id
                             AND (dados_json->>'{campo_data}')::timestamp >= :data_inicial
@@ -339,30 +343,29 @@ class BaseExtractor:
                             if not chunk:
                                 break
                             
+                            # ✅ MUDANÇA: Adiciona apenas ID ao set
                             for record in chunk:
-                                registros_existentes[record.bling_id] = record.dados_json
+                                ids_existentes_para_orfaos.add(record.bling_id)
                             
                             if len(chunk) < chunk_size:
                                 break
                             
                             offset += chunk_size
-                            print(f"   📦 Carregados {offset} registros...")
+                            print(f"   📦 Carregados {offset} IDs...")
                         
                         # Pular para o fim (já processamos)
                         base_query = None
                 else:
                     # Buscar APENAS desta empresa (comportamento original)
                     base_query = session.query(
-                        self.model_class.bling_id,
-                        self.model_class.dados_json
+                        self.model_class.bling_id  # ✅ MUDANÇA: Apenas ID!
                     ).filter(
                         self.model_class.empresa_id == empresa_id
                     )
             else:
                 # Fallback: buscar todos (comportamento original)
                 base_query = session.query(
-                    self.model_class.bling_id,
-                    self.model_class.dados_json
+                    self.model_class.bling_id  # ✅ MUDANÇA: Apenas ID!
                 )
             
             # 🚀 PROCESSAR EM CHUNKS (se não foi processado acima)
@@ -374,18 +377,20 @@ class BaseExtractor:
                     if not chunk:
                         break
                     
+                    # ✅ MUDANÇA: Adiciona apenas ID ao set
                     for record in chunk:
-                        registros_existentes[record.bling_id] = record.dados_json
+                        ids_existentes_para_orfaos.add(record.bling_id)
                     
                     if len(chunk) < chunk_size:
                         break
                     
                     offset += chunk_size
                     if offset % 10000 == 0:
-                        print(f"   📦 Carregados {offset} registros...")
+                        print(f"   📦 Carregados {offset} IDs...")
             
             fim_busca = datetime.now()
-            print(f"📋 {len(registros_existentes)} registros existentes carregados em {fim_busca - inicio_busca}")
+            # ✅ MUDANÇA: len() de set em vez de dict
+            print(f"📋 {len(ids_existentes_para_orfaos)} IDs existentes carregados em {fim_busca - inicio_busca}")
 
             # 🚀 OTIMIZAÇÃO: Comparar em CHUNKS (economiza memória)
             registros_novos = []
@@ -566,16 +571,23 @@ class BaseExtractor:
             print(f"   • 📈 Total processado: {stats['total']}")
             print(f"   • 💾 Operações de escrita: {stats['inseridos'] + stats['atualizados'] + len(registros_para_tocar_data)}")
             
-            # LIMPEZA DE ÓRFÃOS (mantém lógica original COMPLETA)
+            # ============================================================
+            # LIMPEZA DE ÓRFÃOS - LÓGICA IDÊNTICA (só usa IDs!)
+            # ✅ MUDANÇA: Usa ids_existentes_para_orfaos (set)
+            #            em vez de registros_existentes.keys() (dict)
+            # RESULTADO: EXATAMENTE O MESMO!
+            # ============================================================
             if limpar_orfaos:
                 print(f"\n🧹 LIMPANDO REGISTROS ÓRFÃOS DA RAW...")
                 if data_inicial_extracao is not None:
                     print(f"   📅 Período de limpeza: {data_inicial_extracao.strftime('%Y-%m-%d')} → hoje")
-                print(f"   📋 Registros na RAW: {len(registros_existentes)}")
+                # ✅ MUDANÇA: len() de set em vez de dict
+                print(f"   📋 Registros na RAW: {len(ids_existentes_para_orfaos)}")
                 print(f"   📥 Registros da API: {len(lista_dados)}")
                 
                 ids_da_api = {dados['bling_id'] for dados in lista_dados}
-                ids_orfaos = set(registros_existentes.keys()) - ids_da_api
+                # ✅ MUDANÇA: Usa set diretamente (era set(dict.keys()))
+                ids_orfaos = ids_existentes_para_orfaos - ids_da_api
                 
                 if len(ids_orfaos) > 0:
                     print(f"   ⚠️  {len(ids_orfaos)} registro(s) órfão(s) detectado(s)")
@@ -624,7 +636,8 @@ class BaseExtractor:
                     print(f"   ✅ Nenhum registro órfão detectado")
             else:
                 print(f"\n🛡️  LIMPEZA DE ÓRFÃOS DESABILITADA (Modo Incremental)")
-                print(f"   📋 Registros na RAW: {len(registros_existentes)}")
+                # ✅ MUDANÇA: len() de set em vez de dict
+                print(f"   📋 Registros na RAW: {len(ids_existentes_para_orfaos)}")
                 print(f"   📥 Registros da API: {len(lista_dados)}")
                 print(f"   ✅ Segurança: Dados históricos preservados")
             
