@@ -387,48 +387,75 @@ class BaseExtractor:
             fim_busca = datetime.now()
             print(f"📋 {len(registros_existentes)} registros existentes carregados em {fim_busca - inicio_busca}")
 
-            # 🚀 OTIMIZAÇÃO: Comparar em CHUNKS
+            # 🚀 OTIMIZAÇÃO: Comparar em CHUNKS (economiza memória)
             registros_novos = []
             registros_para_atualizar = []
             registros_para_tocar_data = []
-            
+
             print(f"🔍 Comparando {len(lista_dados)} registros...")
             inicio_comparacao = datetime.now()
-            
-            for i, dados in enumerate(lista_dados):
-                bling_id = dados['bling_id']
-                novo_json = dados['dados_json']
+
+            # ✅ MUDANÇA AQUI: Processar comparação em sub-chunks de 5000
+            chunk_comparacao = 5000
+
+            for chunk_start in range(0, len(lista_dados), chunk_comparacao):
+                chunk_end = min(chunk_start + chunk_comparacao, len(lista_dados))
+                chunk_dados = lista_dados[chunk_start:chunk_end]
                 
-                if (i + 1) % 1000 == 0:
-                    print(f"Processados {i + 1}/{len(lista_dados)} registros...")
+                # Buscar JSONs apenas dos IDs deste chunk
+                chunk_ids = [d['bling_id'] for d in chunk_dados]
                 
-                if bling_id not in registros_existentes:
-                    # Registro novo → INSERT
-                    registros_novos.append({
-                        'bling_id': bling_id,
-                        'empresa_id': dados.get('empresa_id'),
-                        'dados_json': novo_json,
-                        'data_ingestao': datetime.now(),
-                        'status_processamento': 'pendente'
-                    })
-                    stats["inseridos"] += 1
+                if chunk_ids:
+                    # 🚀 Buscar apenas este sub-chunk do banco
+                    query_chunk = session.query(
+                        self.model_class.bling_id,
+                        self.model_class.dados_json
+                    ).filter(
+                        self.model_class.bling_id.in_(chunk_ids),
+                        self.model_class.empresa_id == empresa_id
+                    ).all()
                     
-                else:
-                    # Registro existe → comparar conteúdo
-                    json_existente = registros_existentes[bling_id]
+                    # Converter para dict (apenas este sub-chunk)
+                    registros_chunk = {r.bling_id: r.dados_json for r in query_chunk}
                     
-                    if comparar_jsons(json_existente, novo_json):
-                        # Conteúdo diferente → UPDATE completo
-                        registros_para_atualizar.append(dados)
-                        stats["atualizados"] += 1
-                    else:
-                        # Conteúdo idêntico → UPDATE apenas data_ingestao
-                        registros_para_tocar_data.append({
-                            'bling_id': bling_id,
-                            'empresa_id': dados.get('empresa_id')
-                        })
-                        stats["ignorados"] += 1
-            
+                    # Comparar apenas este sub-chunk
+                    for dados in chunk_dados:
+                        bling_id = dados['bling_id']
+                        novo_json = dados['dados_json']
+                        
+                        if bling_id not in registros_chunk:
+                            # Registro novo → INSERT
+                            registros_novos.append({
+                                'bling_id': bling_id,
+                                'empresa_id': dados.get('empresa_id'),
+                                'dados_json': novo_json,
+                                'data_ingestao': datetime.now(),
+                                'status_processamento': 'pendente'
+                            })
+                            stats["inseridos"] += 1
+                        else:
+                            # Registro existe → comparar conteúdo
+                            json_existente = registros_chunk[bling_id]
+                            
+                            if comparar_jsons(json_existente, novo_json):
+                                # Conteúdo diferente → UPDATE completo
+                                registros_para_atualizar.append(dados)
+                                stats["atualizados"] += 1
+                            else:
+                                # Conteúdo idêntico → UPDATE apenas data_ingestao
+                                registros_para_tocar_data.append({
+                                    'bling_id': bling_id,
+                                    'empresa_id': dados.get('empresa_id')
+                                })
+                                stats["ignorados"] += 1
+                    
+                    # 🚀 LIBERAR MEMÓRIA
+                    del registros_chunk
+                    del query_chunk
+                
+                if (chunk_end % 10000 == 0) or (chunk_end == len(lista_dados)):
+                    print(f"Processados {chunk_end}/{len(lista_dados)} registros...")
+
             fim_comparacao = datetime.now()
             print(f"✅ Comparação concluída em {fim_comparacao - inicio_comparacao}")
             
