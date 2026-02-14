@@ -1,7 +1,7 @@
 # =====================================================
 # TRANSFORMADOR DE NFE - MULTI-CNPJ
 # =====================================================
-# ✅ CORREÇÃO: Usa chave composta (bling_nfe_id, empresa_id)
+# Responsável por: Limpar e transformar dados de nfe_raw para fato_nfe no schema processed
 # Comparação robusta que evita falsos positivos
 # Inserção em lotes para evitar estouro de parâmetros PostgreSQL
 
@@ -89,6 +89,38 @@ def valores_sao_iguais(val1, val2):
     except:
         # Se der erro na comparação, considera diferentes
         return False
+
+# =====================================================
+# NORMALIZAÇÃO DE CHAVES
+# =====================================================
+
+def normalizar_chave(bling_nfe_id, empresa_id):
+    """
+    Normaliza a chave composta para garantir comparação correta
+    
+    Args:
+        bling_nfe_id: ID da NFe (pode ser int, float, ou None)
+        empresa_id: ID da empresa (pode ser int, float, ou None)
+    
+    Returns:
+        tuple: (bling_nfe_id_int, empresa_id_int)
+    """
+    try:
+        # Converte para int, tratando NaN/None
+        if pd.notna(bling_nfe_id):
+            bling_nfe_id = int(float(bling_nfe_id))
+        else:
+            bling_nfe_id = None
+            
+        if pd.notna(empresa_id):
+            empresa_id = int(float(empresa_id))
+        else:
+            empresa_id = None
+            
+        return (bling_nfe_id, empresa_id)
+    except (ValueError, TypeError):
+        # Se falhar, retorna como está
+        return (bling_nfe_id, empresa_id)
 
 # =====================================================
 # 1. FUNÇÃO AUXILIAR DE MAPEAMENTO
@@ -488,12 +520,12 @@ class NFeTransformer:
         return df_final
 
     # =====================================================
-    # 7. COMPARAR E SALVAR (EM LOTES) - VERSÃO MULTI-CNPJ ✅ CORRIGIDO
+    # 7. COMPARAR E SALVAR (EM LOTES) - ✅ VERSÃO CORRIGIDA
     # =====================================================
 
     def comparar_e_salvar(self, df_novo):
         """
-        ✅ CORREÇÃO: Usa chave composta (bling_nfe_id, empresa_id)
+        ✅ CORREÇÃO FINAL: Normalização de tipos nas chaves compostas
         Compara dados novos com existentes usando comparação robusta
         Insere em lotes pequenos para evitar estouro
         """
@@ -551,17 +583,17 @@ class NFeTransformer:
                     'sem_alteracao': 0
                 }
 
-            # ✅ CORREÇÃO: Criar dicionário com CHAVE COMPOSTA
+            # ✅ CORREÇÃO: Criar dicionário com CHAVE COMPOSTA NORMALIZADA
             print("   • Criando índice de registros existentes...")
             
             # Colunas para comparação (EXCLUINDO metadados que sempre mudam!)
             colunas_comparacao = [col for col in df_novo.columns 
                                  if col not in ['data_processamento','data_ingestao', 'nfe_id']]
             
-            # ✅ CHAVE COMPOSTA (bling_nfe_id, empresa_id)
+            # ✅ CHAVE COMPOSTA NORMALIZADA (bling_nfe_id, empresa_id)
             registros_existentes = {}
             for _, row in df_existente.iterrows():
-                chave = (row['bling_nfe_id'], row['empresa_id'])  # ✅ CHAVE COMPOSTA!
+                chave = normalizar_chave(row['bling_nfe_id'], row['empresa_id'])  # ✅ NORMALIZAR!
                 registros_existentes[chave] = row.to_dict()
             
             print(f"   • Índice criado: {len(registros_existentes)} registros")
@@ -574,7 +606,7 @@ class NFeTransformer:
             print("   • Comparando registros (usando função robusta)...")
             
             for _, row_novo in df_novo.iterrows():
-                chave = (row_novo['bling_nfe_id'], row_novo['empresa_id'])  # ✅ CHAVE COMPOSTA!
+                chave = normalizar_chave(row_novo['bling_nfe_id'], row_novo['empresa_id'])  # ✅ NORMALIZAR!
                 
                 if chave not in registros_existentes:
                     # Registro completamente novo
@@ -647,7 +679,7 @@ class NFeTransformer:
                     
                     for registro in batch:
                         # ✅ CORREÇÃO: Pegar nfe_id correto do registro existente
-                        chave = (registro['bling_nfe_id'], registro['empresa_id'])
+                        chave = normalizar_chave(registro['bling_nfe_id'], registro['empresa_id'])  # ✅ NORMALIZAR!
                         registro['nfe_id'] = registros_existentes[chave]['nfe_id']
                         
                         stmt = insert(self.get_modelo_tabela()).values(registro)
