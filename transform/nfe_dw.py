@@ -1,7 +1,7 @@
 # =====================================================
 # TRANSFORMADOR DE NFE - MULTI-CNPJ
 # =====================================================
-# ✅ CORREÇÃO: Usa chave composta (bling_nfe_id, empresa_id)
+# Responsável por: Limpar e transformar dados de nfe_raw para fato_nfe no schema processed
 # Comparação robusta que evita falsos positivos
 # Inserção em lotes para evitar estouro de parâmetros PostgreSQL
 
@@ -488,13 +488,12 @@ class NFeTransformer:
         return df_final
 
     # =====================================================
-    # 7. COMPARAR E SALVAR (EM LOTES) - VERSÃO MULTI-CNPJ ✅ CORRIGIDO
+    # 7. COMPARAR E SALVAR (EM LOTES) - VERSÃO MULTI-CNPJ
     # =====================================================
 
     def comparar_e_salvar(self, df_novo):
         """
-        ✅ CORREÇÃO: Usa chave composta (bling_nfe_id, empresa_id)
-        Compara dados novos com existentes usando comparação robusta
+        🔧 VERSÃO MULTI-CNPJ: Compara dados novos com existentes usando comparação robusta
         Insere em lotes pequenos para evitar estouro
         """
         print("\n5️⃣ COMPARANDO COM DADOS EXISTENTES (COMPARAÇÃO ROBUSTA)...")
@@ -548,18 +547,18 @@ class NFeTransformer:
                     'sem_alteracao': 0
                 }
 
-            # ✅ CORREÇÃO: Criar dicionário com CHAVE COMPOSTA
+            # 🔧 CORREÇÃO CRÍTICA: Criar dicionário de registros existentes para comparação rápida
             print("   • Criando índice de registros existentes...")
             
             # Colunas para comparação (EXCLUINDO metadados que sempre mudam!)
             colunas_comparacao = [col for col in df_novo.columns 
                                  if col not in ['data_processamento','data_ingestao', 'nfe_id']]
             
-            # ✅ CHAVE COMPOSTA (bling_nfe_id, empresa_id)
+            # Criar dicionário: bling_nfe_id -> registro completo
             registros_existentes = {}
             for _, row in df_existente.iterrows():
-                chave = (row['bling_nfe_id'], row['empresa_id'])  # ✅ CHAVE COMPOSTA!
-                registros_existentes[chave] = row.to_dict()
+                bling_id = row['bling_nfe_id']
+                registros_existentes[bling_id] = row.to_dict()
             
             print(f"   • Índice criado: {len(registros_existentes)} registros")
 
@@ -571,19 +570,19 @@ class NFeTransformer:
             print("   • Comparando registros (usando função robusta)...")
             
             for _, row_novo in df_novo.iterrows():
-                chave = (row_novo['bling_nfe_id'], row_novo['empresa_id'])  # ✅ CHAVE COMPOSTA!
+                bling_id = row_novo['bling_nfe_id']
                 
-                if chave not in registros_existentes:
+                if bling_id not in registros_existentes:
                     # Registro completamente novo
                     novos.append(row_novo.to_dict())
                 else:
                     # Registro existe - verificar se mudou
-                    row_existe = registros_existentes[chave]
+                    row_existe = registros_existentes[bling_id]
                     
                     houve_alteracao = False
                     
                     for col in colunas_comparacao:
-                        if col in ['bling_nfe_id', 'empresa_id']:
+                        if col == 'bling_nfe_id':
                             continue
                         
                         val_novo = row_novo.get(col)
@@ -597,7 +596,7 @@ class NFeTransformer:
                     if houve_alteracao:
                         alterados.append(row_novo.to_dict())
                     else:
-                        sem_alteracao.append(chave)
+                        sem_alteracao.append(bling_id)
 
             print(f"\n   📊 ANÁLISE:")
             print(f"      • 🆕 Novos: {len(novos)}")
