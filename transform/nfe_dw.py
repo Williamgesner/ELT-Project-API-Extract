@@ -552,13 +552,13 @@ class NFeTransformer:
             
             # Colunas para comparação (EXCLUINDO metadados que sempre mudam!)
             colunas_comparacao = [col for col in df_novo.columns 
-                                 if col not in ['data_processamento','data_ingestao', 'nfe_id']]
+                                if col not in ['data_processamento','data_ingestao', 'nfe_id']]
             
-            # Criar dicionário: bling_nfe_id -> registro completo
+            # Criar dicionário com chave composta (igual sales_dw.py)
             registros_existentes = {}
             for _, row in df_existente.iterrows():
-                bling_id = row['bling_nfe_id']
-                registros_existentes[bling_id] = row.to_dict()
+                chave = (row['bling_nfe_id'], row['empresa_id'])  # ✅ CHAVE COMPOSTA
+                registros_existentes[chave] = row.to_dict()
             
             print(f"   • Índice criado: {len(registros_existentes)} registros")
 
@@ -570,19 +570,19 @@ class NFeTransformer:
             print("   • Comparando registros (usando função robusta)...")
             
             for _, row_novo in df_novo.iterrows():
-                bling_id = row_novo['bling_nfe_id']
+                chave = (row_novo['bling_nfe_id'], row_novo['empresa_id'])  # ✅ CHAVE COMPOSTA
                 
-                if bling_id not in registros_existentes:
+                if chave not in registros_existentes:
                     # Registro completamente novo
                     novos.append(row_novo.to_dict())
                 else:
                     # Registro existe - verificar se mudou
-                    row_existe = registros_existentes[bling_id]
-                    
+                    row_existe = registros_existentes[chave]  # ✅ Usar chave composta
+                                
                     houve_alteracao = False
                     
                     for col in colunas_comparacao:
-                        if col == 'bling_nfe_id':
+                        if col == 'bling_nfe_id' or col == 'empresa_id':
                             continue
                         
                         val_novo = row_novo.get(col)
@@ -596,7 +596,7 @@ class NFeTransformer:
                     if houve_alteracao:
                         alterados.append(row_novo.to_dict())
                     else:
-                        sem_alteracao.append(bling_id)
+                        sem_alteracao.append(chave)  # ✅ CORREÇÃO: usar chave, não bling_id
 
             print(f"\n   📊 ANÁLISE:")
             print(f"      • 🆕 Novos: {len(novos)}")
@@ -643,7 +643,7 @@ class NFeTransformer:
                         stmt = stmt.on_conflict_do_update(
                             index_elements=['bling_nfe_id', 'empresa_id'],
                             set_={k: v for k, v in registro.items() 
-                                 if k not in ['nfe_id', 'bling_nfe_id', 'empresa_id']}
+                                if k not in ['nfe_id', 'bling_nfe_id', 'empresa_id']}
                         )
                         session.execute(stmt)
                         atualizados += 1
@@ -701,6 +701,16 @@ class NFeTransformer:
 
             # 4. Selecionar colunas finais E CONVERTER TIPOS
             df_final = self.selecionar_colunas_finais(df_transformado)
+
+            # Remover duplicatas (igual sales_dw.py)
+            print("\n   🔍 Verificando duplicatas...")
+            antes = len(df_final)
+            df_final = df_final.drop_duplicates(subset=["bling_nfe_id", "empresa_id"], keep="first")
+            depois = len(df_final)
+            if antes > depois:
+                print(f"   ⚠️  {antes - depois} duplicatas removidas")
+            else:
+                print(f"   ✅ Nenhuma duplicata encontrada")
 
             # 5. Estatísticas
             print("\n📊 ESTATÍSTICAS:")
