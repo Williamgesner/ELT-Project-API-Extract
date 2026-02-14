@@ -522,14 +522,17 @@ class NFeTransformer:
                 registros_novos = df_novo.to_dict('records')
                 
                 if registros_novos:
+                    # ✅ CORREÇÃO: Remover nfe_id para deixar banco gerar
+                    registros_sem_id = [{k: v for k, v in reg.items() if k != 'nfe_id'} for reg in registros_novos]
+                    
                     # INSERIR EM LOTES DE 100 REGISTROS
                     batch_size = 100
-                    total_batches = (len(registros_novos) + batch_size - 1) // batch_size
+                    total_batches = (len(registros_sem_id) + batch_size - 1) // batch_size
                     
                     print(f"   • Total de lotes: {total_batches}")
                     
-                    for i in range(0, len(registros_novos), batch_size):
-                        batch = registros_novos[i:i + batch_size]
+                    for i in range(0, len(registros_sem_id), batch_size):
+                        batch = registros_sem_id[i:i + batch_size]
                         batch_num = (i // batch_size) + 1
                         
                         print(f"      • Lote {batch_num}/{total_batches}: {len(batch)} registros...", end=" ")
@@ -618,7 +621,10 @@ class NFeTransformer:
                     
                     print(f"      • Lote {batch_num}/{total_batches}: {len(batch)} registros...", end=" ")
                     
-                    stmt = insert(self.get_modelo_tabela()).values(batch)
+                    # ✅ CORREÇÃO: Remover nfe_id para deixar banco gerar (evita conflito PK)
+                    batch_sem_id = [{k: v for k, v in reg.items() if k != 'nfe_id'} for reg in batch]
+                    
+                    stmt = insert(self.get_modelo_tabela()).values(batch_sem_id)
                     session.execute(stmt)
                     session.commit()  # Commit por lote
                     
@@ -640,6 +646,10 @@ class NFeTransformer:
                     print(f"      • Lote {batch_num}/{total_batches}: {len(batch)} registros...", end=" ")
                     
                     for registro in batch:
+                        # ✅ CORREÇÃO: Pegar nfe_id correto do registro existente
+                        chave = (registro['bling_nfe_id'], registro['empresa_id'])
+                        registro['nfe_id'] = registros_existentes[chave]['nfe_id']
+                        
                         stmt = insert(self.get_modelo_tabela()).values(registro)
                         stmt = stmt.on_conflict_do_update(
                             index_elements=['bling_nfe_id', 'empresa_id'],
