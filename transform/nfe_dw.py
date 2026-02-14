@@ -91,38 +91,6 @@ def valores_sao_iguais(val1, val2):
         return False
 
 # =====================================================
-# NORMALIZAÇÃO DE CHAVES
-# =====================================================
-
-def normalizar_chave(bling_nfe_id, empresa_id):
-    """
-    Normaliza a chave composta para garantir comparação correta
-    
-    Args:
-        bling_nfe_id: ID da NFe (pode ser int, float, ou None)
-        empresa_id: ID da empresa (pode ser int, float, ou None)
-    
-    Returns:
-        tuple: (bling_nfe_id_int, empresa_id_int)
-    """
-    try:
-        # Converte para int, tratando NaN/None
-        if pd.notna(bling_nfe_id):
-            bling_nfe_id = int(float(bling_nfe_id))
-        else:
-            bling_nfe_id = None
-            
-        if pd.notna(empresa_id):
-            empresa_id = int(float(empresa_id))
-        else:
-            empresa_id = None
-            
-        return (bling_nfe_id, empresa_id)
-    except (ValueError, TypeError):
-        # Se falhar, retorna como está
-        return (bling_nfe_id, empresa_id)
-
-# =====================================================
 # 1. FUNÇÃO AUXILIAR DE MAPEAMENTO
 # =====================================================
 
@@ -520,13 +488,12 @@ class NFeTransformer:
         return df_final
 
     # =====================================================
-    # 7. COMPARAR E SALVAR (EM LOTES) - ✅ VERSÃO CORRIGIDA
+    # 7. COMPARAR E SALVAR (EM LOTES) - VERSÃO MULTI-CNPJ
     # =====================================================
 
     def comparar_e_salvar(self, df_novo):
         """
-        ✅ CORREÇÃO FINAL: Normalização de tipos nas chaves compostas
-        Compara dados novos com existentes usando comparação robusta
+        🔧 VERSÃO MULTI-CNPJ: Compara dados novos com existentes usando comparação robusta
         Insere em lotes pequenos para evitar estouro
         """
         print("\n5️⃣ COMPARANDO COM DADOS EXISTENTES (COMPARAÇÃO ROBUSTA)...")
@@ -554,17 +521,14 @@ class NFeTransformer:
                 registros_novos = df_novo.to_dict('records')
                 
                 if registros_novos:
-                    # ✅ CORREÇÃO: Remover nfe_id para deixar banco gerar
-                    registros_sem_id = [{k: v for k, v in reg.items() if k != 'nfe_id'} for reg in registros_novos]
-                    
                     # INSERIR EM LOTES DE 100 REGISTROS
                     batch_size = 100
-                    total_batches = (len(registros_sem_id) + batch_size - 1) // batch_size
+                    total_batches = (len(registros_novos) + batch_size - 1) // batch_size
                     
                     print(f"   • Total de lotes: {total_batches}")
                     
-                    for i in range(0, len(registros_sem_id), batch_size):
-                        batch = registros_sem_id[i:i + batch_size]
+                    for i in range(0, len(registros_novos), batch_size):
+                        batch = registros_novos[i:i + batch_size]
                         batch_num = (i // batch_size) + 1
                         
                         print(f"      • Lote {batch_num}/{total_batches}: {len(batch)} registros...", end=" ")
@@ -583,18 +547,18 @@ class NFeTransformer:
                     'sem_alteracao': 0
                 }
 
-            # ✅ CORREÇÃO: Criar dicionário com CHAVE COMPOSTA NORMALIZADA
+            # 🔧 CORREÇÃO CRÍTICA: Criar dicionário de registros existentes para comparação rápida
             print("   • Criando índice de registros existentes...")
             
             # Colunas para comparação (EXCLUINDO metadados que sempre mudam!)
             colunas_comparacao = [col for col in df_novo.columns 
                                  if col not in ['data_processamento','data_ingestao', 'nfe_id']]
             
-            # ✅ CHAVE COMPOSTA NORMALIZADA (bling_nfe_id, empresa_id)
+            # Criar dicionário: bling_nfe_id -> registro completo
             registros_existentes = {}
             for _, row in df_existente.iterrows():
-                chave = normalizar_chave(row['bling_nfe_id'], row['empresa_id'])  # ✅ NORMALIZAR!
-                registros_existentes[chave] = row.to_dict()
+                bling_id = row['bling_nfe_id']
+                registros_existentes[bling_id] = row.to_dict()
             
             print(f"   • Índice criado: {len(registros_existentes)} registros")
 
@@ -606,19 +570,19 @@ class NFeTransformer:
             print("   • Comparando registros (usando função robusta)...")
             
             for _, row_novo in df_novo.iterrows():
-                chave = normalizar_chave(row_novo['bling_nfe_id'], row_novo['empresa_id'])  # ✅ NORMALIZAR!
+                bling_id = row_novo['bling_nfe_id']
                 
-                if chave not in registros_existentes:
+                if bling_id not in registros_existentes:
                     # Registro completamente novo
                     novos.append(row_novo.to_dict())
                 else:
                     # Registro existe - verificar se mudou
-                    row_existe = registros_existentes[chave]
+                    row_existe = registros_existentes[bling_id]
                     
                     houve_alteracao = False
                     
                     for col in colunas_comparacao:
-                        if col in ['bling_nfe_id', 'empresa_id']:
+                        if col == 'bling_nfe_id':
                             continue
                         
                         val_novo = row_novo.get(col)
@@ -632,7 +596,7 @@ class NFeTransformer:
                     if houve_alteracao:
                         alterados.append(row_novo.to_dict())
                     else:
-                        sem_alteracao.append(chave)
+                        sem_alteracao.append(bling_id)
 
             print(f"\n   📊 ANÁLISE:")
             print(f"      • 🆕 Novos: {len(novos)}")
@@ -653,10 +617,7 @@ class NFeTransformer:
                     
                     print(f"      • Lote {batch_num}/{total_batches}: {len(batch)} registros...", end=" ")
                     
-                    # ✅ CORREÇÃO: Remover nfe_id para deixar banco gerar (evita conflito PK)
-                    batch_sem_id = [{k: v for k, v in reg.items() if k != 'nfe_id'} for reg in batch]
-                    
-                    stmt = insert(self.get_modelo_tabela()).values(batch_sem_id)
+                    stmt = insert(self.get_modelo_tabela()).values(batch)
                     session.execute(stmt)
                     session.commit()  # Commit por lote
                     
@@ -678,10 +639,6 @@ class NFeTransformer:
                     print(f"      • Lote {batch_num}/{total_batches}: {len(batch)} registros...", end=" ")
                     
                     for registro in batch:
-                        # ✅ CORREÇÃO: Pegar nfe_id correto do registro existente
-                        chave = normalizar_chave(registro['bling_nfe_id'], registro['empresa_id'])  # ✅ NORMALIZAR!
-                        registro['nfe_id'] = registros_existentes[chave]['nfe_id']
-                        
                         stmt = insert(self.get_modelo_tabela()).values(registro)
                         stmt = stmt.on_conflict_do_update(
                             index_elements=['bling_nfe_id', 'empresa_id'],
