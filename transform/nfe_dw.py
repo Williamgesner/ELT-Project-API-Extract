@@ -603,27 +603,31 @@ class NFeTransformer:
             print(f"      • 🔄 Alterados: {len(alterados)}")
             print(f"      • ✓ Sem alteração: {len(sem_alteracao)}")
 
-            # Inserir novos EM LOTES
+            # Inserir novos
             inseridos = 0
             if novos:
                 print(f"\n   ➕ Inserindo {len(novos)} novos registros...")
                 
-                batch_size = 100
-                total_batches = (len(novos) + batch_size - 1) // batch_size
+                # ✅ USAR PANDAS (IGUAL OUTROS TRANSFORMADORES)
+                df_novos = pd.DataFrame(novos)
                 
-                for i in range(0, len(novos), batch_size):
-                    batch = novos[i:i + batch_size]
-                    batch_num = (i // batch_size) + 1
-                    
-                    print(f"      • Lote {batch_num}/{total_batches}: {len(batch)} registros...", end=" ")
-                    
-                    stmt = insert(self.get_modelo_tabela()).values(batch)
-                    session.execute(stmt)
-                    session.commit()  # Commit por lote
-                    
-                    print("✅")
-                    inseridos += len(batch)
-
+                # Remover nfe_id (será gerado automaticamente)
+                if "nfe_id" in df_novos.columns:
+                    df_novos = df_novos.drop(columns=["nfe_id"])
+                
+                # Inserir usando pandas (chunked)
+                df_novos.to_sql(
+                    name='fato_nfe',
+                    con=self.engine,
+                    schema='processed',
+                    if_exists='append',
+                    index=False,
+                    chunksize=100
+                )
+                
+                inseridos = len(novos)
+                print(f"   ✅ {inseridos} registros inseridos") 
+                
             # Atualizar alterados EM LOTES
             atualizados = 0
             if alterados:
