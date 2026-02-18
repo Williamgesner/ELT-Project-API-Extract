@@ -40,9 +40,75 @@ from sqlalchemy import text
 from config.database import create_schema_raw, create_schema_processed, create_all_tables, Session
 from config.auth_manager import obter_token_para_empresa
 import importlib # para importar os módulos dos pipelines
+import boto3
 
 # Carregar variáveis de ambiente
 load_dotenv()
+
+# =====================================================
+# CONFIGURAÇÃO SNS (Notificações por Email)
+# =====================================================
+SNS_TOPIC_ARN = 'arn:aws:sns:us-east-1:892789742514:ETL-DiasBike-Notifications'
+
+def notify_success(pipeline_type, tempo_total_segundos, total_empresas):
+    """Envia notificação de sucesso via SNS"""
+    try:
+        sns_client = boto3.client('sns', region_name='us-east-1')
+        tempo_formatado = formatar_tempo(tempo_total_segundos)
+        
+        message = f"""
+✅ ETL DiasBike - SUCESSO
+
+Pipeline: {pipeline_type}
+Empresas: {total_empresas}
+Horário: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
+Tempo Total: {tempo_formatado}
+Status: Concluído com sucesso!
+
+✅ Todas as {total_empresas} empresas processadas
+✅ Data Warehouse atualizado
+✅ Power BI pode ser atualizado
+        """
+        
+        sns_client.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Subject=f'✅ ETL DiasBike {pipeline_type} - SUCESSO',
+            Message=message
+        )
+        print("\n📧 Notificação de SUCESSO enviada por email!")
+        
+    except Exception as e:
+        print(f"\n⚠️  Erro ao enviar notificação de sucesso: {e}")
+
+def notify_error(pipeline_type, error_message, tempo_total_segundos=0):
+    """Envia notificação de erro via SNS"""
+    try:
+        sns_client = boto3.client('sns', region_name='us-east-1')
+        tempo_formatado = formatar_tempo(tempo_total_segundos) if tempo_total_segundos > 0 else "N/A"
+        
+        message = f"""
+❌ ETL DiasBike - ERRO
+
+Pipeline: {pipeline_type}
+Horário: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
+Tempo até erro: {tempo_formatado}
+Status: ERRO
+
+Erro: {error_message[:500]}
+
+⚠️  Verifique os logs no servidor
+⚠️  Pipeline pode precisar ser executado novamente
+        """
+        
+        sns_client.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Subject=f'❌ ETL DiasBike {pipeline_type} - ERRO',
+            Message=message
+        )
+        print("\n📧 Notificação de ERRO enviada por email!")
+        
+    except Exception as e:
+        print(f"\n⚠️  Erro ao enviar notificação de erro: {e}")
 
 # =====================================================
 # CONFIGURAÇÃO DE EMPRESAS ATIVAS
@@ -492,6 +558,7 @@ def executar_todos_pipelines():
     
     sucessos = 0
     erros = 0
+    erros_detalhes = []
     
     for resultado in resultados:
         empresa_id = resultado['empresa_id']
@@ -507,7 +574,9 @@ def executar_todos_pipelines():
         else:
             erros += 1
             if 'erro' in resultado:
-                print(f"   └── Erro: {resultado['erro'][:100]}...")
+                erro_msg = resultado['erro'][:100]
+                print(f"   └── Erro: {erro_msg}...")
+                erros_detalhes.append(f"Empresa {empresa_id}: {erro_msg}")
     
     # Estatísticas finais
     print(f"\n🎯 ESTATÍSTICAS FINAIS:")
@@ -518,21 +587,27 @@ def executar_todos_pipelines():
     # Mensagem final
     if sucessos == len(EMPRESAS_ATIVAS):
         print(f"\n🎉 TODOS OS PIPELINES FULL EXECUTADOS COM SUCESSO!")
+        notify_success("FULL", tempo_total_geral_segundos, len(EMPRESAS_ATIVAS))
         print(f"\n💡 PRÓXIMOS PASSOS:")
         print(f"   1. DW sincronizado COMPLETAMENTE com a Bling (Todas as {len(EMPRESAS_ATIVAS)} empresas)")
         print(f"   2. Limpeza de órfãos executada em todas as empresas")
         print(f"   3. Power BI pode ser atualizado")
         print(f"   4. Execute pipeline INCREMENTAL durante a semana")
     elif sucessos > 0:
+        erro_resumo = f"{erros} empresa(s) com erro: " + "; ".join(erros_detalhes)
+        notify_error("FULL", erro_resumo, tempo_total_geral_segundos)
         print(f"\n⚠️  EXECUÇÃO PARCIAL:")
         print(f"   • {sucessos} empresa(s) processada(s) com sucesso")
         print(f"   • {erros} empresa(s) com erro - Verifique os logs acima")
     else:
+        erro_resumo = "TODAS AS EMPRESAS FALHARAM: " + "; ".join(erros_detalhes)
+        notify_error("FULL", erro_resumo, tempo_total_geral_segundos)
         print(f"\n❌ TODAS AS EMPRESAS FALHARAM")
         print(f"   • Verifique conexões, credenciais e logs de erro")
     
     print(f"\n{'='*70}")
     print(f"📝 Log salvo automaticamente pelo Python")
+    print(f"📧 Notificação enviada por email")
     print(f"{'='*70}\n")
 
 
@@ -553,7 +628,7 @@ if __name__ == "__main__":
         ║   • Extração COMPLETA + Transformação                         ║
         ║   • Limpeza de órfãos ATIVA                                   ║
         ║                                                               ║
-        ║   ⚡ MODO FULL:                                               ║
+        ║   ⚡ MODO FULL:                                                ║
         ║   • Extrai TUDO desde 2024                                    ║
         ║   • Remove registros órfãos do DW                             ║
         ║   • Sincronização COMPLETA com Bling                          ║
@@ -576,10 +651,12 @@ if __name__ == "__main__":
         print("\n\n⚠️  EXECUÇÃO INTERROMPIDA PELO USUÁRIO")
         print("💾 Dados processados até este ponto foram preservados")
         print("🔄 Para retomar, execute o script novamente")
+        notify_error("FULL", "Execução interrompida pelo usuário")
         sys.exit(0)
         
     except Exception as e:
         print(f"\n❌ ERRO CRÍTICO NO ORQUESTRADOR FULL: {e}")
         import traceback
         traceback.print_exc()
+        notify_error("FULL", f"Erro crítico: {str(e)}")
         sys.exit(1)
