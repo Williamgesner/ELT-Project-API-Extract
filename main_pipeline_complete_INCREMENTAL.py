@@ -44,7 +44,7 @@ from sqlalchemy import text
 from config.database import create_schema_raw, create_schema_processed, create_all_tables, Session
 from config.auth_manager import obter_token_para_empresa
 import importlib # para importar os módulos dos pipelines
-import boto3
+import boto3 # Para enviar notificações por email
 
 # Carregar variáveis de ambiente
 load_dotenv()
