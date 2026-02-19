@@ -547,7 +547,7 @@ Frequência Esperada:
 ```
 ---
 
-## ⚙️ Stack Tecnológica
+## 💻 Stack Tecnológica
 
 ### **Backend / ETL**
 - **Python 3.8+** - Linguagem principal
