@@ -111,7 +111,8 @@ Este projeto demonstra habilidades em:
 - Import Mode (Importação otimizada de dados)
 - KPIs de negócio (comercial + financeiro)
 
-## 🏗️ Arquitetura
+## 🔧 Arquitetura
+
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                     ARQUITETURA COMPLETA DO SISTEMA                      │
@@ -546,7 +547,7 @@ Frequência Esperada:
 ```
 ---
 
-## 🛠️ Stack Tecnológica
+## ⚙️ Stack Tecnológica
 
 ### **Backend / ETL**
 - **Python 3.8+** - Linguagem principal
