@@ -800,7 +800,9 @@ Resumo:
 ![Dashboard Financeiro 2](https://github.com/user-attachments/assets/44550491-80a8-4df4-9fd3-ca7f18100cc0)
 ![Dashboard Financeiro 3](https://github.com/user-attachments/assets/bc5215d0-eb82-4354-996c-8932cbf60777)
 
-*Obs.: TODOS OS DADOS APRESENTADOS ACIMA SÃO FICTÍCIOS E AS IDENTIDADES DOS CLIENTES FORAM MANTIDAS EM SIGILO*
+**Observações**
+- *⁠TODOS OS DADOS APRESENTADOS ACIMA SÃO FICTÍCIOS E AS IDENTIDADES DOS CLIENTES FORAM PRESERVADAS
+- ⁠A atualização do **Power BI** é automatizada via **Power Automate**, sincronizada com os horários de execução dos pipelines no EC2.
 
 ---
 
