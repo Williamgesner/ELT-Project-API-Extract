@@ -126,8 +126,8 @@ Este projeto demonstra habilidades em:
    ├─ START: Seg-Sex 07h25, 09h25, ... (7x)
    ├─ START: Sábado 07h25, 11h25, 15h25 (3x)
    ├─ START: Domingo 21h25 (1x)
-   ├─ STOP:  Seg-Sex 08h10, 10h10, ... (7x)
-   ├─ STOP:  Sábado 08h10, 12h10, 16h10 (3x)
+   ├─ STOP:  Seg-Sex 08h00, 10h00, ... (7x)
+   ├─ STOP:  Sábado 08h00, 12h00, 16h00 (3x)
    └─ STOP:  Domingo 23h55 (1x)
          │
          ▼
@@ -380,7 +380,7 @@ def lambda_handler(event, context):
 | ID | Nome | Dia | Horário | Ação | Alvo |
 |----|------|-----|---------|------|------|
 | 1 | START-Projeto-SegSex-07h25 | Seg-Sex | 07:25 | Ligar EC2 | Lambda Start |
-| 2 | STOP-Projeto-SegSex-08h10 | Seg-Sex | 08:10 | Desligar EC2 | Lambda Stop |
+| 2 | STOP-Projeto-SegSex-08h00 | Seg-Sex | 08:00 | Desligar EC2 | Lambda Stop |
 | ... |
 
 
@@ -497,9 +497,9 @@ Status: Concluído com sucesso!
 
 07:45:15 - Email recebido: "✅ ETL Projeto INCREMENTAL - SUCESSO"
 
-08:10:00 - EventBridge dispara schedule STOP-Projeto-SegSex-08h10
-08:10:01 - Lambda StopEC2-Projeto executa
-08:10:05 - EC2 desliga automaticamente
+08:00:00 - EventBridge dispara schedule STOP-Projeto-SegSex-08h00
+08:00:01 - Lambda StopEC2-Projeto executa
+08:00:05 - EC2 desliga automaticamente
 
 Total: 45 minutos de uptime (~20 min de processamento real)
 ```
