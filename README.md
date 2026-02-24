@@ -1,9 +1,11 @@
 # Pipeline ETL Multi-Empresa do setor de e-commerce | Bling → PostgreSQL → Power BI
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14-316192.svg)](https://www.postgresql.org/)
-[![Power BI](https://img.shields.io/badge/Power%20BI-Import-F2C811.svg)](https://powerbi.microsoft.com/)
+[![Python](https://img.shields.io/badge/Python-3.8+-3776AB?&logo=python&logoColor=white)](https://www.python.org/)
+[![Pandas](https://img.shields.io/badge/Pandas-150458?&logo=pandas&logoColor=white)](https://pandas.pydata.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14-316192?&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![AWS](https://img.shields.io/badge/AWS-RDS%20%7C%20EC2%20%7C%20Lambda%20%7C%20SNS-FF9900.svg)](https://aws.amazon.com/)
+[![Power BI](https://img.shields.io/badge/Power%20BI-Import-F2C811.svg)](https://powerbi.microsoft.com/)
+[![Git](https://img.shields.io/badge/Git-F05032?&logo=git&logoColor=white)](https://git-scm.com/)
 
 > **Pipeline ETL automatizado** para consolidação de dados de 6 CNPJs do ERP Bling em um Data Warehouse único, com dashboards gerenciais em Power BI e orquestração AWS.
 
