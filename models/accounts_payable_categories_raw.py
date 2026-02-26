@@ -1,7 +1,7 @@
 # Responsável por: definir a estrutura da tabela categorias_raw
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, BigInteger, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, BigInteger, DateTime, ForeignKey, UniqueConstraint, String
 from sqlalchemy.dialects.postgresql import JSONB
 from config.database import Base
 
@@ -30,6 +30,9 @@ class CategoriasRaw(Base):
     
     # Controle de processamento
     data_ingestao = Column(DateTime, default=datetime.now)
+
+    # Controle de processamento
+    status_processamento = Column(String, default='pendente', nullable=True)
 
     def __repr__(self):
         return f"<CategoriasRaw(bling_categoria_id={self.bling_categoria_id}, empresa_id={self.empresa_id}, data_ingestao={self.data_ingestao})>"
