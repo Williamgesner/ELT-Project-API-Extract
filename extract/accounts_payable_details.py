@@ -156,12 +156,12 @@ class ContasPagarDetalhesExtractor:
                 SET dados_json = jsonb_set(
                         COALESCE(dados_json, '{}'::jsonb),
                         '{_metadata_sem_categoria}', 
-                        to_jsonb(:motivo::text),
+                        to_jsonb(CAST(:motivo AS text)),
                         true
                     ),
                     status_processamento = 'processado'
                 WHERE bling_id = :conta_id
-                  AND empresa_id = :empresa_id
+                AND empresa_id = :empresa_id
             """)
             self.session.execute(query, {
                 "conta_id": conta_id,
@@ -170,9 +170,10 @@ class ContasPagarDetalhesExtractor:
             })
             return True
         except Exception as e:
+            self.session.rollback()  # ← ADICIONADO
             print(f"   ❌ Erro ao marcar conta {conta_id}: {e}")
-            return False
-    
+            return False    
+
     def executar_extracao_detalhes(self, delay_entre_requests=0.35, batch_size=100):
         """
         Executa a extração de detalhes para todas as contas a pagar
