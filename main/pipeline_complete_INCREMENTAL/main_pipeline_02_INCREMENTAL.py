@@ -41,6 +41,11 @@ from config.auth_manager import obter_token_para_empresa
 from config.logger import setup_logging, close_logging
 from config.extraction_mode import ExtractionMode
 
+try:
+    from main_pipeline_complete_INCREMENTAL import AVISOS_TOKEN
+except ImportError:
+    AVISOS_TOKEN = []
+
 # =====================================================
 # IMPORTAÇÕES - PARTE COMERCIAL
 # =====================================================
@@ -221,6 +226,12 @@ def executar_extracao_completa():
             
             print(f"❌ ERRO em {nome_endpoint}: {e}")
             print("Continuando com próximo endpoint...")
+
+            erro_str = str(e).lower()
+            keywords_token = ['401', 'invalid_token', 'invalid_grant', 'token', 'expirado', 'unauthorized']
+            if any(k in erro_str for k in keywords_token):
+                AVISOS_TOKEN.append(f"Empresa {EMPRESA_ID:02d} | {nome_endpoint} - {str(e)[:120]}")
+                print(f"   ⚠️  Aviso de token registrado para email")
     
     # Relatório extração
     fim_extracao = time.time()

@@ -42,6 +42,8 @@ from config.auth_manager import obter_token_para_empresa
 import importlib # para importar os módulos dos pipelines
 import boto3 # Para enviar notificações por email
 
+AVISOS_TOKEN = []  # Acumula erros de token durante a execução
+
 # Carregar variáveis de ambiente
 load_dotenv()
 
@@ -50,12 +52,23 @@ load_dotenv()
 # =====================================================
 SNS_TOPIC_ARN = 'arn:aws:sns:us-east-1:892789742514:ETL-DiasBike-Notifications'
 
-def notify_success(pipeline_type, tempo_total_segundos, total_empresas):
+def notify_success(pipeline_type, tempo_total_segundos, total_empresas, avisos_token=None):
     """Envia notificação de sucesso via SNS"""
     try:
         sns_client = boto3.client('sns', region_name='us-east-1')
         tempo_formatado = formatar_tempo(tempo_total_segundos)
-        
+
+        secao_avisos = ""
+        if avisos_token:
+            linhas = "\n".join(f"   ⚠️  {a}" for a in avisos_token)
+            secao_avisos = f"""
+
+⚠️  AVISOS DE TOKEN ({len(avisos_token)} ocorrência(s)):
+{linhas}
+
+🔧 AÇÃO RECOMENDADA: Verifique/renove os refresh tokens das empresas listadas acima.
+"""
+
         message = f"""
 ✅ ETL DiasBike - SUCESSO
 
@@ -67,12 +80,15 @@ Status: Concluído com sucesso!
 
 ✅ Todas as {total_empresas} empresas processadas
 ✅ Data Warehouse atualizado
-✅ Power BI pode ser atualizado
+✅ Power BI pode ser atualizado{secao_avisos}
         """
+        
+        # Para indicar avisos quando houver
+        subject_suffix = " (com avisos de token)" if avisos_token else ""
         
         sns_client.publish(
             TopicArn=SNS_TOPIC_ARN,
-            Subject=f'✅ ETL DiasBike {pipeline_type} - SUCESSO',
+            Subject=f'✅ ETL DiasBike {pipeline_type} - SUCESSO{subject_suffix}',
             Message=message
         )
         print("\n📧 Notificação de SUCESSO enviada por email!")
@@ -340,6 +356,13 @@ def executar_pipeline_empresa(empresa_id):
         print(f"\n❌ ERRO ao executar pipeline FULL da Empresa {empresa_id}: {e}")
         import traceback
         traceback.print_exc()
+
+        erro_str = str(e).lower()
+        keywords_token = ['401', 'invalid_token', 'invalid_grant', 'token', 'expirado', 'unauthorized']
+        if any(k in erro_str for k in keywords_token):
+            aviso = f"Empresa {empresa_id:02d} - Erro de autenticação: {str(e)[:120]}"
+            AVISOS_TOKEN.append(aviso)
+            print(f"   ⚠️  Aviso de token registrado para notificação por email")
         
         return {
             'empresa_id': empresa_id,
@@ -587,7 +610,7 @@ def executar_todos_pipelines():
     # Mensagem final
     if sucessos == len(EMPRESAS_ATIVAS):
         print(f"\n🎉 TODOS OS PIPELINES FULL EXECUTADOS COM SUCESSO!")
-        notify_success("FULL", tempo_total_geral_segundos, len(EMPRESAS_ATIVAS))
+        notify_success("FULL", tempo_total_geral_segundos, len(EMPRESAS_ATIVAS), AVISOS_TOKEN)
         print(f"\n💡 PRÓXIMOS PASSOS:")
         print(f"   1. DW sincronizado COMPLETAMENTE com a Bling (Todas as {len(EMPRESAS_ATIVAS)} empresas)")
         print(f"   2. Limpeza de órfãos executada em todas as empresas")
