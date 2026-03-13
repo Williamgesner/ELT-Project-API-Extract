@@ -43,10 +43,14 @@ from dotenv import load_dotenv
 from sqlalchemy import text
 from config.database import create_schema_raw, create_schema_processed, create_all_tables, Session
 from config.auth_manager import obter_token_para_empresa
-import importlib # para importar os módulos dos pipelines
-import boto3 # Para enviar notificações por email
+import importlib  # para importar os módulos dos pipelines
+import boto3      # Para enviar notificações por email
 
-AVISOS_TOKEN = []  # Acumula erros de token durante a execução
+AVISOS_TOKEN = []  # Acumula erros de token durante a execução (compartilhado com pipelines)
+
+# Garantir que todos os pipelines importem o MESMO módulo (e a mesma lista AVISOS_TOKEN),
+# mesmo quando este arquivo é executado como script principal (__main__).
+sys.modules.setdefault("main_pipeline_complete_INCREMENTAL", sys.modules[__name__])
 
 # Carregar variáveis de ambiente
 load_dotenv()
