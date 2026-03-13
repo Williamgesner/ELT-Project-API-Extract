@@ -100,12 +100,23 @@ Status: Concluído com sucesso!
     except Exception as e:
         print(f"\n⚠️  Erro ao enviar notificação de sucesso: {e}")
 
-def notify_error(pipeline_type, error_message, tempo_total_segundos=0):
-    """Envia notificação de erro via SNS"""
+def notify_error(pipeline_type, error_message, tempo_total_segundos=0, avisos_token=None):
+    """Envia notificação de erro via SNS, incluindo avisos de token quando existirem"""
     try:
         sns_client = boto3.client('sns', region_name='us-east-1')
         tempo_formatado = formatar_tempo(tempo_total_segundos) if tempo_total_segundos > 0 else "N/A"
-        
+
+        secao_avisos = ""
+        if avisos_token:
+            linhas = "\n".join(f"   ⚠️  {a}" for a in avisos_token)
+            secao_avisos = f"""
+
+⚠️  AVISOS DE TOKEN ({len(avisos_token)} ocorrência(s)):
+{linhas}
+
+🔧 AÇÃO RECOMENDADA: Verifique/renove os refresh tokens e API Keys das empresas listadas acima.
+"""
+
         message = f"""
 ❌ ETL DiasBike - ERRO
 
@@ -115,14 +126,16 @@ Tempo até erro: {tempo_formatado}
 Status: ERRO
 
 Erro: {error_message[:500]}
-
+{secao_avisos}
 ⚠️  Verifique os logs no servidor
 ⚠️  Pipeline pode precisar ser executado novamente
         """
         
+        subject_suffix = " (com avisos de token)" if avisos_token else ""
+
         sns_client.publish(
             TopicArn=SNS_TOPIC_ARN,
-            Subject=f'❌ ETL DiasBike {pipeline_type} - ERRO',
+            Subject=f'❌ ETL DiasBike {pipeline_type} - ERRO{subject_suffix}',
             Message=message
         )
         print("\n📧 Notificação de ERRO enviada por email!")
@@ -622,13 +635,13 @@ def executar_todos_pipelines():
         print(f"   4. Execute pipeline FULL semanalmente para sincronização completa")
     elif sucessos > 0:
         erro_resumo = f"{erros} empresa(s) com erro: " + "; ".join(erros_detalhes)
-        notify_error("INCREMENTAL", erro_resumo, tempo_total_geral_segundos)
+        notify_error("INCREMENTAL", erro_resumo, tempo_total_geral_segundos, AVISOS_TOKEN)
         print(f"\n⚠️  EXECUÇÃO PARCIAL:")
         print(f"   • {sucessos} empresa(s) processada(s) com sucesso")
         print(f"   • {erros} empresa(s) com erro - Verifique os logs acima")
     else:
         erro_resumo = "TODAS AS EMPRESAS FALHARAM: " + "; ".join(erros_detalhes)
-        notify_error("INCREMENTAL", erro_resumo, tempo_total_geral_segundos)
+        notify_error("INCREMENTAL", erro_resumo, tempo_total_geral_segundos, AVISOS_TOKEN)
         print(f"\n❌ TODAS AS EMPRESAS FALHARAM")
         print(f"   • Verifique conexões, credenciais e logs de erro")
     
@@ -679,12 +692,12 @@ if __name__ == "__main__":
         print("\n\n⚠️  EXECUÇÃO INTERROMPIDA PELO USUÁRIO")
         print("💾 Dados processados até este ponto foram preservados")
         print("🔄 Para retomar, execute o script novamente")
-        notify_error("INCREMENTAL", "Execução interrompida pelo usuário")
+        notify_error("INCREMENTAL", "Execução interrompida pelo usuário", avisos_token=AVISOS_TOKEN)
         sys.exit(0)
         
     except Exception as e:
         print(f"\n❌ ERRO CRÍTICO NO ORQUESTRADOR INCREMENTAL: {e}")
         import traceback
         traceback.print_exc()
-        notify_error("INCREMENTAL", f"Erro crítico: {str(e)}")
+        notify_error("INCREMENTAL", f"Erro crítico: {str(e)}", avisos_token=AVISOS_TOKEN)
         sys.exit(1)
