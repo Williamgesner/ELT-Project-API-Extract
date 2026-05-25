@@ -53,8 +53,10 @@ from extract.contacts import ContatosCompletoExtractor
 from extract.products import ProdutosExtractor
 from extract.sales import VendasExtractor
 from extract.sales_details import VendasDetalhesExtractor
+from extract.situation import SituacoesExtractor
 from transform.contacts_dw import ContatosTransformer
 from transform.products_dw import ProdutosTransformer
+from transform.situation_dw import SituacoesTransformer
 from transform.sales_dw import VendasTransformer
 from transform.items_dw import ItensTransformer 
 
@@ -142,6 +144,9 @@ def executar_extracao_completa():
         ("📊 🛒 VENDAS (Detalhes + Itens)", VendasDetalhesExtractor,
          {'api_key': API_KEY_EMPRESA_5, 'empresa_id': EMPRESA_ID},
          {'delay_entre_requests': 0.4, 'batch_size': 100}),
+        
+        ("📊 🏷️ SITUAÇÕES (dos pedidos)", SituacoesExtractor,
+         {'api_key': API_KEY_EMPRESA_5, 'empresa_id': EMPRESA_ID}, {}),
         
         # === PARTE FINANCEIRA - TABELAS DE APOIO ===
         ("💰 💳 FORMAS DE PAGAMENTO", FormasPagamentosExtractor,
@@ -357,6 +362,9 @@ def executar_transformacao_completa():
         ("💰 💳 FORMAS DE PAGAMENTO", FormasPagamentoTransformer, {'empresa_id': EMPRESA_ID}),
         ("💰 📂 CATEGORIAS", CategoriasContasPagarTransformer, {'empresa_id': EMPRESA_ID}),
         ("💰 🌿 NATUREZA DE OPERAÇÃO", NaturezaOperacaoTransformer, {'empresa_id': EMPRESA_ID}),
+        
+        # === PARTE COMERCIAL - DIMENSÕES DE APOIO (antes dos fatos) ===
+        ("📊 🏷️ SITUAÇÕES", SituacoesTransformer, {'empresa_id': EMPRESA_ID}),
         
         # === PARTE COMERCIAL - FATOS ===
         ("📊 💰 VENDAS", VendasTransformer, {'empresa_id': EMPRESA_ID}),

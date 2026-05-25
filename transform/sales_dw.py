@@ -229,11 +229,125 @@ class VendasTransformer:
         print("   • Adicionando metadados...")
         df["data_processamento"] = datetime.now()
 
+        # === GARANTIR SITUAÇÕES NA DIM (FK obrigatória) ===
+        df = self._garantir_situacoes_faltantes(df)
+
         print("✅ Todas as transformações aplicadas!")
         return df
 
     # =====================================================
-    # 5. GARANTIR CANAL "OUTROS"
+    # 5. GARANTIR SITUAÇÕES FALTANTES NA DIM
+    # =====================================================
+
+    def _garantir_situacoes_faltantes(self, df):
+        """
+        Garante que todos os situacao_id dos pedidos existem em dim_situacao.
+        Evita violação da FK fk_pedidos_situacao.
+        """
+        situacoes_pedidos = (
+            df["situacao"].dropna().astype(int).unique().tolist()
+            if "situacao" in df.columns
+            else []
+        )
+        if not situacoes_pedidos:
+            return df
+
+        session = Session()
+        try:
+            query_existentes = text("""
+                SELECT bling_situacao_id
+                FROM processed.dim_situacao
+                WHERE empresa_id = :empresa_id
+                  AND bling_situacao_id = ANY(:ids)
+            """)
+            resultado = session.execute(
+                query_existentes,
+                {"empresa_id": self.empresa_id, "ids": situacoes_pedidos},
+            )
+            existentes = {row.bling_situacao_id for row in resultado}
+            faltantes = [s for s in situacoes_pedidos if s not in existentes]
+
+            if not faltantes:
+                return df
+
+            print(f"   🔧 {len(faltantes)} situações ausentes em dim_situacao — inserindo...")
+
+            query_nomes_raw = text("""
+                SELECT bling_situacao_id, nome
+                FROM raw.situacoes_raw
+                WHERE empresa_id = :empresa_id
+                  AND bling_situacao_id = ANY(:ids)
+            """)
+            nomes_raw = {
+                row.bling_situacao_id: row.nome
+                for row in session.execute(
+                    query_nomes_raw,
+                    {"empresa_id": self.empresa_id, "ids": faltantes},
+                )
+            }
+
+            query_nomes_vendas = text("""
+                SELECT DISTINCT ON ((dados_json->'situacao'->>'id')::integer)
+                    (dados_json->'situacao'->>'id')::integer AS bling_situacao_id,
+                    COALESCE(
+                        NULLIF(TRIM(dados_json->'situacao'->>'valor'), ''),
+                        NULLIF(TRIM(dados_json->'situacao'->>'nome'), '')
+                    ) AS nome
+                FROM raw.vendas_raw
+                WHERE empresa_id = :empresa_id
+                  AND (dados_json->'situacao'->>'id')::integer = ANY(:ids)
+                ORDER BY (dados_json->'situacao'->>'id')::integer, data_ingestao DESC
+            """)
+            nomes_vendas = {
+                row.bling_situacao_id: row.nome
+                for row in session.execute(
+                    query_nomes_vendas,
+                    {"empresa_id": self.empresa_id, "ids": faltantes},
+                )
+            }
+
+            agora = datetime.now()
+            inseridos = 0
+            for situacao_id in faltantes:
+                nome = (
+                    nomes_raw.get(situacao_id)
+                    or nomes_vendas.get(situacao_id)
+                    or f"Situação {situacao_id}"
+                )
+                nome = str(nome).strip() if nome else f"Situação {situacao_id}"
+
+                stmt = text("""
+                    INSERT INTO processed.dim_situacao
+                    (bling_situacao_id, empresa_id, situacao, data_ingestao, data_processamento)
+                    VALUES (:bling_situacao_id, :empresa_id, :situacao, :data_ingestao, :data_processamento)
+                    ON CONFLICT (bling_situacao_id, empresa_id) DO NOTHING
+                """)
+                session.execute(
+                    stmt,
+                    {
+                        "bling_situacao_id": int(situacao_id),
+                        "empresa_id": self.empresa_id,
+                        "situacao": nome[:100],
+                        "data_ingestao": agora,
+                        "data_processamento": agora,
+                    },
+                )
+                inseridos += 1
+
+            session.commit()
+            print(f"   ✅ {inseridos} situações garantidas em dim_situacao")
+
+        except Exception as e:
+            session.rollback()
+            print(f"   ⚠️ Erro ao garantir situações na dim: {e}")
+            raise
+        finally:
+            session.close()
+
+        return df
+
+    # =====================================================
+    # 6. GARANTIR CANAL "OUTROS"
     # =====================================================
 
     def _garantir_canal_outros(self):
